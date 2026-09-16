@@ -1,0 +1,227 @@
+<div class="restablecer-container">
+  <div class="restablecer-card">
+    <!-- Loading State -->
+    <div *ngIf="verificandoToken" class="loading-state">
+      <div class="spinner"></div>
+      <p>Verificando enlace de recuperación...</p>
+    </div>
+
+    <!-- Token Invalid State -->
+    <div *ngIf="!verificandoToken && !tokenValido" class="error-state">
+      <div class="error-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+      </div>
+      <h2>Enlace no válido</h2>
+      <p class="error-message">{{ error }}</p>
+      <div class="actions">
+        <button class="btn-primary" (click)="solicitarNuevoToken()">
+          Solicitar nuevo enlace
+        </button>
+        <button class="btn-secondary" (click)="volverAlLogin()">
+          Volver al login
+        </button>
+      </div>
+    </div>
+
+    <!-- Success State -->
+    <div *ngIf="completado" class="success-state">
+      <div class="success-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9 12l2 2 4-4"></path>
+        </svg>
+      </div>
+      <h2>Contraseña restablecida</h2>
+      <p>Tu contraseña ha sido actualizada exitosamente.</p>
+      <p class="redirect-message">Serás redirigido al login en unos segundos...</p>
+    </div>
+
+    <!-- Form State -->
+    <div *ngIf="!verificandoToken && tokenValido && !completado" class="form-state">
+      <div class="header">
+        <h2>Restablecer Contraseña</h2>
+        <p class="subtitle">Ingresa tu nueva contraseña para <strong class="email-display">{{ emailAsociado }}</strong></p>
+      </div>
+
+      <!-- Error Alert - MOVIDO AQUÍ PARA MÁXIMA VISIBILIDAD -->
+      <div *ngIf="mostrarAlertaError && error" 
+           class="alert alert-error" 
+           role="alert"
+           [@fadeInOut]>
+        <div class="alert-content">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="alert-icon">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="alert-text">
+            <strong>Error:</strong>
+            <span class="error-message-text">{{ error }}</span>
+          </div>
+          <button type="button" 
+                  class="alert-close" 
+                  (click)="cerrarAlerta()"
+                  aria-label="Cerrar alerta">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <form [formGroup]="formularioRestablecer" (ngSubmit)="onSubmit()" novalidate>
+        <!-- Nueva Contraseña -->
+        <div class="form-group">
+          <label for="password_nueva">Nueva Contraseña <span class="required">*</span></label>
+          <div class="password-input">
+            <input
+              [type]="mostrarPassword ? 'text' : 'password'"
+              id="password_nueva"
+              formControlName="password_nueva"
+              placeholder="Ingresa tu nueva contraseña"
+              [class.invalid]="tieneErrorCampo('password_nueva')"
+              [class.valid]="passwordNueva?.valid && passwordNueva?.dirty"
+              autocomplete="new-password"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              (click)="toggleMostrarPassword()"
+              [attr.aria-label]="mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              tabindex="-1"
+            >
+              <svg *ngIf="!mostrarPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg *ngIf="mostrarPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+          <div *ngIf="tieneErrorCampo('password_nueva')" class="error-text" role="alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            {{ obtenerErrorCampo('password_nueva') }}
+          </div>
+
+          <!-- Password Strength Indicator -->
+          <div *ngIf="passwordNueva?.value" class="password-strength">
+            <div class="strength-bar">
+              <div 
+                class="strength-fill" 
+                [class.weak]="obtenerFortalezaPassword() === 'debil'"
+                [class.medium]="obtenerFortalezaPassword() === 'medio'"
+                [class.strong]="obtenerFortalezaPassword() === 'fuerte'"
+                [style.width.%]="obtenerProgresoFortaleza()"
+              ></div>
+            </div>
+            <p class="strength-text">
+              Fortaleza: 
+              <span [class]="'strength-' + obtenerFortalezaPassword()">
+                {{ obtenerFortalezaPassword() === 'debil' ? 'Débil' : 
+                   obtenerFortalezaPassword() === 'medio' ? 'Media' : 'Fuerte' }}
+              </span>
+            </p>
+          </div>
+
+          <!-- Password Requirements -->
+          <div *ngIf="passwordNueva?.value && obtenerSugerenciasPassword().length > 0" class="requirements">
+            <p class="requirements-title">Requisitos faltantes:</p>
+            <ul>
+              <li *ngFor="let sugerencia of obtenerSugerenciasPassword()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                {{ sugerencia }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Confirmar Contraseña -->
+        <div class="form-group">
+          <label for="confirmar_password">Confirmar Contraseña <span class="required">*</span></label>
+          <div class="password-input">
+            <input
+              [type]="mostrarConfirmarPassword ? 'text' : 'password'"
+              id="confirmar_password"
+              formControlName="confirmar_password"
+              placeholder="Confirma tu nueva contraseña"
+              [class.invalid]="tieneErrorCampo('confirmar_password')"
+              [class.valid]="confirmarPassword?.valid && confirmarPassword?.dirty"
+              autocomplete="new-password"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              (click)="toggleMostrarConfirmarPassword()"
+              [attr.aria-label]="mostrarConfirmarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              tabindex="-1"
+            >
+              <svg *ngIf="!mostrarConfirmarPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg *ngIf="mostrarConfirmarPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+          <div *ngIf="tieneErrorCampo('confirmar_password')" class="error-text" role="alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            {{ obtenerErrorCampo('confirmar_password') }}
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button 
+          type="submit" 
+          class="btn-submit"
+          [disabled]="!puedeEnviar()"
+          [class.loading]="cargando"
+        >
+          <span *ngIf="!cargando">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            Restablecer Contraseña
+          </span>
+          <span *ngIf="cargando">
+            <span class="spinner-small"></span>
+            Restableciendo...
+          </span>
+        </button>
+      </form>
+
+      <!-- Back to Login -->
+      <div class="footer">
+        <a (click)="volverAlLogin()" class="link-back" role="button" tabindex="0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Volver al login
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

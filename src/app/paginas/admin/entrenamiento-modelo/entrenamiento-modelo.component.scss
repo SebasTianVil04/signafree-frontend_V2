@@ -1,0 +1,217 @@
+.entrenamiento-modelo {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+}
+
+// Alert de navegación a capturas
+.alert-info {
+  border-radius: 12px;
+  
+  .btn {
+    white-space: nowrap;
+    
+    @media (max-width: 576px) {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+  }
+}
+
+// Cards
+.card {
+  border-radius: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  .card-header {
+    border-radius: 12px 12px 0 0 !important;
+    padding: 1rem 1.25rem;
+  }
+  
+  .card-body {
+    padding: 1.25rem;
+  }
+}
+
+// Gráfico
+app-grafico-estadisticas {
+  display: block;
+  max-height: 350px;
+}
+
+// Formulario de subida
+.form-select,
+.form-control {
+  border-radius: 8px;
+  
+  &:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+}
+
+// Categorías grid
+.border-primary {
+  border-width: 2px !important;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    transform: scale(1.02);
+  }
+}
+
+// Switches de categorías
+.form-check-input {
+  cursor: pointer;
+  width: 3rem;
+  height: 1.5rem;
+  
+  &:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
+}
+
+.form-check {
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+  }
+}
+
+// Tabla de modelos
+.table-responsive {
+  border-radius: 8px;
+  
+  .table {
+    margin-bottom: 0;
+    
+    th {
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #495057;
+      border-bottom: 2px solid #dee2e6;
+    }
+    
+    td {
+      vertical-align: middle;
+      font-size: 0.9rem;
+    }
+    
+    tr {
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+      }
+    }
+  }
+}
+
+// Badges
+.badge {
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+  border-radius: 6px;
+}
+
+// Botones
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// Progress bar
+.progress {
+  border-radius: 8px;
+  overflow: hidden;
+  
+  .progress-bar {
+    transition: width 0.6s ease;
+  }
+}
+
+// Alertas
+.alert {
+  border-radius: 10px;
+  border: none;
+  
+  &-info {
+    background-color: #cfe2ff;
+    color: #084298;
+  }
+  
+  &-danger {
+    background-color: #f8d7da;
+    color: #842029;
+  }
+  
+  &-success {
+    background-color: #d1e7dd;
+    color: #0f5132;
+  }
+  
+  &-warning {
+    background-color: #fff3cd;
+    color: #664d03;
+  }
+}
+
+// Spinner de carga
+.spinner-border {
+  animation: spinner-border 0.75s linear infinite;
+}
+
+// Estado del dataset
+.display-5 {
+  font-size: 2rem;
+  
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 992px) {
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .btn-lg {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .d-flex.gap-2 {
+    flex-direction: column;
+    
+    .btn {
+      width: 100%;
+    }
+  }
+}

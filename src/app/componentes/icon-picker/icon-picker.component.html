@@ -1,0 +1,22 @@
+<div class="icon-picker">
+    <button type="button" class="icon-picker-trigger" (click)="toggleAbierto()">
+        <i class="fas" [ngClass]="iconoSeleccionado || 'fa-question'"></i>
+        <span>{{ iconoSeleccionado || 'Elegir icono' }}</span>
+        <i class="fas fa-chevron-down"></i>
+    </button>
+
+    <button type="button" class="icon-picker-quitar" *ngIf="iconoSeleccionado" (click)="quitarIcono()">
+        <i class="fas fa-times"></i>
+    </button>
+
+    <div class="icon-picker-panel" *ngIf="abierto">
+        <input type="text" class="icon-picker-buscador" placeholder="Buscar icono..." [(ngModel)]="filtro" />
+        <div class="icon-picker-grid">
+            <button type="button" class="icon-picker-item" *ngFor="let icono of iconosFiltrados"
+                [class.activo]="icono === iconoSeleccionado" (click)="seleccionar(icono)">
+                <i class="fas" [ngClass]="icono"></i>
+            </button>
+        </div>
+        <p class="icon-picker-vacio" *ngIf="iconosFiltrados.length === 0">Sin resultados</p>
+    </div>
+</div>

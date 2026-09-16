@@ -1,0 +1,85 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="logo-section">
+      <h1 class="app-title">SignaFree</h1>
+      <p class="app-subtitle">Aprende Lenguaje de Señas Peruano</p>
+    </div>
+    
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <h2 class="form-title">Iniciar Sesión</h2>
+      
+      <div *ngIf="errorMensaje" class="alert alert-error">
+        <i class="fas fa-exclamation-circle"></i>
+        {{ errorMensaje }}
+      </div>
+      
+      <div class="form-group">
+        <label for="email" class="form-label">Correo Electrónico</label>
+        <input 
+          type="email"
+          id="email"
+          formControlName="email"
+          class="form-input"
+          [class.input-error]="f['email'].invalid && f['email'].touched"
+          placeholder="ejemplo@correo.com"
+          (input)="limpiarError()"
+        />
+        <div class="error-message" *ngIf="f['email'].invalid && f['email'].touched">
+          <span *ngIf="f['email'].errors?.['required']">El correo es requerido</span>
+          <span *ngIf="f['email'].errors?.['emailInvalido']">Correo electrónico inválido</span>
+          <span *ngIf="f['email'].errors?.['incorrecto']">Correo no encontrado</span>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="password" class="form-label">Contraseña</label>
+        <div class="password-wrapper">
+          <input 
+            [type]="mostrarPassword ? 'text' : 'password'"
+            id="password"
+            formControlName="password"
+            class="form-input"
+            [class.input-error]="f['password'].invalid && f['password'].touched"
+            placeholder="••••••••"
+            (input)="limpiarError()"
+          />
+          <button 
+            type="button"
+            class="password-toggle"
+            (click)="toggleMostrarPassword()"
+          >
+            <span *ngIf="!mostrarPassword">👁️</span>
+            <span *ngIf="mostrarPassword">🙈</span>
+          </button>
+        </div>
+        <div class="error-message" *ngIf="f['password'].invalid && f['password'].touched">
+          <span *ngIf="f['password'].errors?.['required']">La contraseña es requerida</span>
+          <span *ngIf="f['password'].errors?.['minlength']">Mínimo 6 caracteres</span>
+          <span *ngIf="f['password'].errors?.['incorrecto']">Contraseña incorrecta</span>
+        </div>
+      </div>
+      
+      <div class="forgot-password">
+        <a (click)="irAOlvideContrasena()" class="link-text" style="cursor: pointer;">¿Olvidaste tu contraseña?</a>
+      </div>
+      
+      <button 
+        type="submit"
+        class="btn-primary btn-block"
+        [disabled]="cargando || loginForm.invalid"
+      >
+        <span *ngIf="!cargando">Iniciar Sesión</span>
+        <span *ngIf="cargando" class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i> Cargando...
+        </span>
+      </button>
+      
+      <div class="register-section">
+        <p class="register-text">
+          ¿No tienes cuenta? 
+          <a (click)="irARegistro()" class="link-text link-bold">Regístrate aquí</a>
+        </p>
+      </div>
+    </form>
+  </div>
+</div>

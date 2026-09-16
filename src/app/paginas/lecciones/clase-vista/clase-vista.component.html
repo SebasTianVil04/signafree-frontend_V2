@@ -1,0 +1,435 @@
+<div class="clase-contenedor" *ngIf="!cargando && claseActual">
+  <div class="clase-encabezado">
+    <button class="btn-volver" (click)="volverALecciones()">
+      <i class="fas fa-arrow-left"></i> Volver a Lecciones
+    </button>
+
+    <div class="clase-info">
+      <h1>{{ tituloCompleto }}</h1>
+      <p class="clase-descripcion">{{ claseActual.descripcion }}</p>
+    </div>
+
+    <div class="clase-progreso-header">
+      <div class="progreso-badge" [class.completada]="claseCompletada">
+        <i class="fas" [class.fa-check-circle]="claseCompletada" [class.fa-circle]="!claseCompletada"></i>
+        <span>{{ mensajeProgreso }}</span>
+      </div>
+
+      <div class="precision-badge" *ngIf="progresoClase && progresoClase.mejor_precision > 0">
+        <i class="fas fa-star"></i>
+        <span>{{ porcentajePrecision }}%</span>
+      </div>
+
+      <div class="puntos-badge" *ngIf="puntosObtenidos > 0">
+        <i class="fas fa-trophy"></i>
+        <span>{{ puntosObtenidos }} pts</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="clase-contenido">
+    <aside class="menu-clases" [class.abierto]="menuAbierto">
+      <div class="menu-header">
+        <h3>Clases de la Lección</h3>
+        <button class="btn-toggle-menu" (click)="toggleMenu()">
+          <i class="fas" [class.fa-times]="menuAbierto" [class.fa-bars]="!menuAbierto"></i>
+        </button>
+      </div>
+
+      <div class="lista-clases">
+        <div class="clase-item" *ngFor="let clase of clasesDeLeccion" [class.activa]="clase.id === claseId"
+          [class.completada]="estaClaseCompletada(clase.id!)" [class.bloqueada]="estaClaseBloqueada(clase.id!)"
+          (click)="navegarAClase(clase.id!)">
+          <div class="clase-numero">{{ clase.orden }}</div>
+          <div class="clase-detalles">
+            <h4>{{ clase.titulo }}</h4>
+            <span class="duracion" *ngIf="clase.duracion_estimada">
+              <i class="far fa-clock"></i> {{ clase.duracion_estimada }} min
+            </span>
+          </div>
+          <div class="clase-estado">
+            <i class="fas fa-check-circle" *ngIf="estaClaseCompletada(clase.id!)"></i>
+            <i class="fas fa-lock" *ngIf="estaClaseBloqueada(clase.id!)"></i>
+            <i class="fas fa-circle" *ngIf="!estaClaseCompletada(clase.id!) && !estaClaseBloqueada(clase.id!)"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="seccion-examenes" *ngIf="examenesDeLeccion.length > 0 || cargandoExamenes">
+        <h3>Autoevaluaciones de la Lección</h3>
+
+        <div class="cargando-examenes" *ngIf="cargandoExamenes">
+          <div class="spinner"></div>
+          <p>Cargando autoevaluaciones...</p>
+        </div>
+
+        <div class="lista-examenes" *ngIf="!cargandoExamenes">
+          <div class="examen-item" *ngFor="let examen of examenesDeLeccion" [class.disponible]="examen.disponible"
+            [class.completado]="examen.completado" (click)="navegarAExamen(examen.id)">
+            <div class="examen-icono">
+              <i class="fas" [class.fa-clipboard-check]="examen.completado"
+                [class.fa-clipboard-list]="!examen.completado && examen.disponible"
+                [class.fa-lock]="!examen.disponible"></i>
+            </div>
+            <div class="examen-detalles">
+              <h4>{{ examen.titulo }}</h4>
+
+              <span class="examen-estado">
+                <span *ngIf="examen.completado" class="completado">
+                  <i class="fas fa-check"></i>
+                  Completado: {{ examen.mejor_calificacion }}%
+                </span>
+                <span *ngIf="!examen.completado && examen.disponible" class="disponible">
+                  <i class="fas fa-unlock"></i>
+                  Disponible
+                </span>
+                <span *ngIf="!examen.disponible" class="bloqueado">
+                  <i class="fas fa-lock"></i>
+                  <ng-container *ngIf="obtenerRequisitosExamen(examen) as req">
+                    Completa {{ req.faltantes }} clase{{ req.faltantes !== 1 ? 's' : '' }} más
+                    ({{ req.cumplidas }}/{{ req.requeridas }})
+                  </ng-container>
+                </span>
+              </span>
+
+              <div class="progreso-examen-bar" *ngIf="!examen.completado && !examen.disponible">
+                <div class="progreso-examen-fill" [style.width.%]="obtenerRequisitosExamen(examen).porcentaje">
+                </div>
+                <span class="progreso-examen-texto">
+                  {{ obtenerRequisitosExamen(examen).porcentaje }}%
+                </span>
+              </div>
+            </div>
+            <div class="examen-accion">
+              <i class="fas fa-arrow-right" *ngIf="examen.disponible || examen.completado"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="sin-examenes" *ngIf="examenesDeLeccion.length === 0 && !cargandoExamenes">
+          <p>No hay autoevaluaciones disponibles para esta lección.</p>
+        </div>
+      </div>
+
+      <div class="progreso-general">
+        <h3>Progreso General</h3>
+        <div class="progreso-stats">
+          <div class="stat-item">
+            <span class="stat-label">Clases Completadas:</span>
+            <span class="stat-value">{{ clasesCompletadas }}/{{ totalClases }}</span>
+          </div>
+
+          <div class="stat-item examenes-requisitos" *ngIf="examenesDeLeccion.length > 0">
+            <span class="stat-label">Requisitos de Exámenes:</span>
+            <div class="requisitos-lista">
+              <div class="requisito-examen" *ngFor="let examen of examenesDeLeccion">
+                <span class="examen-nombre">{{ examen.titulo }}:</span>
+                <ng-container *ngIf="obtenerRequisitosExamen(examen) as req">
+                  <span class="examen-req" [class.cumplido]="req.faltantes === 0">
+                    {{ req.cumplidas }}/{{ req.requeridas }} clases
+                    <i class="fas fa-check-circle" *ngIf="req.faltantes === 0"></i>
+                  </span>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-item">
+            <span class="stat-label">Progreso Total:</span>
+            <span class="stat-value">{{ (clasesCompletadas / totalClases * 100) | number:'1.0-0' }}%</span>
+          </div>
+
+          <div class="stat-item puntos-acumulados" *ngIf="puntosObtenidos > 0">
+            <span class="stat-label">Puntos Acumulados:</span>
+            <span class="stat-value destacado">
+              <i class="fas fa-trophy"></i> {{ puntosObtenidos }}
+            </span>
+          </div>
+        </div>
+        <div class="progreso-bar">
+          <div class="progreso-fill" [style.width.%]="(clasesCompletadas / totalClases) * 100"></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="area-principal">
+      <div class="pestanas-modo">
+        <button class="pestaña" [class.activa]="modoActual === 'aprender'" (click)="cambiarModo('aprender')">
+          <i class="fas fa-play-circle"></i>
+          Aprender
+        </button>
+        <button class="pestaña" [class.activa]="modoActual === 'practicar'" (click)="cambiarModo('practicar')"
+          [disabled]="!claseActual?.requiere_practica">
+          <i class="fas fa-hands"></i>
+          Practicar
+        </button>
+      </div>
+
+      <div class="modo-aprender" *ngIf="modoActual === 'aprender'">
+        <div class="video-contenedor">
+          <iframe *ngIf="videoUrl" [src]="videoUrl" frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen>
+          </iframe>
+          <div class="sin-video" *ngIf="!videoUrl">
+            <i class="fas fa-video-slash"></i>
+            <p>No hay video disponible para esta clase</p>
+          </div>
+        </div>
+
+        <div class="informacion-sena">
+          <h2>Seña: {{ tituloSena }}</h2>
+          <div class="sena-descripcion" *ngIf="claseActual?.descripcion">
+            <p>{{ claseActual.descripcion }}</p>
+          </div>
+        </div>
+
+        <div class="contenido-texto" *ngIf="claseActual?.contenido_texto">
+          <h2>Contenido de la Clase</h2>
+          <div [innerHTML]="claseActual.contenido_texto"></div>
+        </div>
+
+        <div class="imagen-referencia" *ngIf="claseActual?.imagen_referencia">
+          <h3>Imagen de Referencia</h3>
+          <img [src]="claseActual.imagen_referencia" [alt]="claseActual.titulo">
+        </div>
+
+        <div class="gif-demostracion" *ngIf="claseActual?.gif_demostracion">
+          <h3>Demostración</h3>
+          <img [src]="claseActual.gif_demostracion" [alt]="'Demostración de ' + tituloSena">
+        </div>
+
+        <div class="seccion-tips" *ngIf="claseActual?.tips">
+          <h3><i class="fas fa-lightbulb"></i> Tips y Consejos</h3>
+          <div class="tips-contenido" [innerHTML]="claseActual.tips"></div>
+        </div>
+
+        <div class="seccion-errores" *ngIf="claseActual?.errores_comunes">
+          <h3><i class="fas fa-exclamation-triangle"></i> Errores Comunes</h3>
+          <div class="errores-contenido" [innerHTML]="claseActual.errores_comunes"></div>
+        </div>
+
+        <div class="accion-practica" *ngIf="claseActual?.requiere_practica">
+          <button class="btn-grande btn-primario" (click)="cambiarModo('practicar')">
+            <i class="fas fa-hands"></i>
+            Ir a Practicar
+          </button>
+        </div>
+      </div>
+
+      <div class="modo-practicar" *ngIf="modoActual === 'practicar'">
+        <div class="practica-contenedor">
+          <div class="instrucciones-practica" *ngIf="!practicaEnCurso && !resultadoPractica">
+            <h2>¡Hora de Practicar!</h2>
+            <p>Ahora es tu turno de realizar la seña:</p>
+
+            <div class="sena-objetivo">
+              <h3 class="sena-titulo">{{ tituloSena }}</h3>
+              <div class="sena-demo" *ngIf="claseActual?.gif_demostracion">
+                <img [src]="claseActual.gif_demostracion" [alt]="'Demostración de ' + tituloSena">
+              </div>
+              <p class="sena-instruccion" *ngIf="claseActual?.descripcion">
+                {{ claseActual.descripcion }}
+              </p>
+            </div>
+
+            <div class="requisitos-practica">
+              <h3>Requisitos para completar:</h3>
+              <ul>
+                <li>
+                  <i class="fas fa-check-circle"></i>
+                  Realizar al menos {{ claseActual?.intentos_minimos || 3 }} intentos
+                </li>
+                <li>
+                  <i class="fas fa-check-circle"></i>
+                  Alcanzar una precisión mínima del {{ ((claseActual?.precision_minima || 0.7) * 100).toFixed(0) }}%
+                </li>
+                <li>
+                  <i class="fas fa-check-circle"></i>
+                  La seña detectada debe ser: <strong>{{ letraSena }}</strong>
+                </li>
+              </ul>
+
+              <div class="recompensas-info" *ngIf="leccionActual">
+                <h4><i class="fas fa-trophy"></i> Recompensas:</h4>
+                <p class="puntos-disponibles">
+                  Completa esta práctica y gana hasta <strong>{{ leccionActual.puntos_perfecto }}</strong> puntos
+                </p>
+                <p class="nota-puntos">
+                  <i class="fas fa-info-circle"></i>
+                  Los puntos se otorgan según tu desempeño
+                </p>
+              </div>
+            </div>
+
+            <div class="progreso-actual" *ngIf="progresoClase">
+              <h4>Tu Progreso:</h4>
+              <div class="stats-grid">
+                <div class="stat">
+                  <span class="label">Intentos:</span>
+                  <span class="valor">{{ progresoClase.intentos_realizados }}/{{ claseActual?.intentos_minimos || 3
+                    }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Mejor Precisión:</span>
+                  <span class="valor">{{ (progresoClase.mejor_precision * 100).toFixed(1) }}%</span>
+                </div>
+                <div class="stat puntos-stat" *ngIf="puntosObtenidos > 0">
+                  <span class="label">Puntos:</span>
+                  <span class="valor destacado">
+                    <i class="fas fa-trophy"></i> {{ puntosObtenidos }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-grande btn-primario" (click)="iniciarPractica()">
+              <i class="fas fa-play"></i>
+              Comenzar Práctica
+            </button>
+          </div>
+
+          <div class="area-reconocimiento" *ngIf="practicaEnCurso">
+            <app-camara-reconocimiento [senaObjetivo]="letraSena" [categoriaId]="categoriaId" [modoContinuo]="false"
+              [tipoContenido]="tipoContenido" (resultadoEmitido)="finalizarPractica($event)">
+            </app-camara-reconocimiento>
+          </div>
+
+          <div class="resultado-practica" *ngIf="resultadoPractica && !practicaEnCurso">
+            <div class="resultado-header" [class.exito]="resultadoPractica.exito"
+              [class.error]="!resultadoPractica.exito">
+              <i class="fas" [class.fa-check-circle]="resultadoPractica.exito"
+                [class.fa-times-circle]="!resultadoPractica.exito"></i>
+              <h2>{{ resultadoPractica.exito ? '¡Excelente Trabajo!' : 'Intenta de Nuevo' }}</h2>
+            </div>
+
+            <div class="resultado-detalles">
+              <div class="detalle-item">
+                <span class="label">Precisión Obtenida:</span>
+                <span class="valor precision" [class.alta]="resultadoPractica.precision >= 0.8"
+                  [class.media]="resultadoPractica.precision >= 0.6 && resultadoPractica.precision < 0.8"
+                  [class.baja]="resultadoPractica.precision < 0.6">
+                  {{ (resultadoPractica.precision * 100).toFixed(1) }}%
+                </span>
+              </div>
+
+              <div class="detalle-item">
+                <span class="label">Seña Reconocida:</span>
+                <span class="valor seña" [class.correcta]="senaReconocidaCoincide"
+                  [class.incorrecta]="!senaReconocidaCoincide">
+                  {{ resultadoPractica.sena_reconocida || 'Ninguna' }}
+                  <i class="fas" [class.fa-check]="senaReconocidaCoincide"
+                    [class.fa-times]="!senaReconocidaCoincide"></i>
+                </span>
+              </div>
+
+              <div class="detalle-item">
+                <span class="label">Seña Esperada:</span>
+                <span class="valor esperada">{{ letraSena }}</span>
+              </div>
+
+              <div class="detalle-item" *ngIf="progresoClase">
+                <span class="label">Intentos Realizados:</span>
+                <span class="valor">
+                  {{ progresoClase.intentos_realizados }}/{{ claseActual?.intentos_minimos || 3 }}
+                </span>
+              </div>
+
+              <div class="detalle-item puntos-obtenidos" *ngIf="puntosObtenidos > 0">
+                <span class="label">Puntos Totales:</span>
+                <span class="valor destacado grande">
+                  <i class="fas fa-trophy"></i> {{ puntosObtenidos }}
+                </span>
+              </div>
+            </div>
+
+            <div class="resultado-feedback">
+              <p class="mensaje-principal">{{ resultadoPractica.mensaje }}</p>
+
+              <div *ngIf="!resultadoPractica.exito && progresoClase" class="info-adicional">
+                <div class="info-intentos"
+                  *ngIf="progresoClase.intentos_realizados < (claseActual?.intentos_minimos || 3)">
+                  <i class="fas fa-info-circle"></i>
+                  <span>
+                    Te faltan {{ (claseActual?.intentos_minimos || 3) - progresoClase.intentos_realizados }}
+                    intento{{ (claseActual?.intentos_minimos || 3) - progresoClase.intentos_realizados > 1 ? 's' : '' }}
+                    para completar la práctica
+                  </span>
+                </div>
+
+                <div class="info-precision"
+                  *ngIf="resultadoPractica.precision < (claseActual?.precision_minima || 0.7)">
+                  <i class="fas fa-chart-line"></i>
+                  <span>
+                    Necesitas mejorar tu precisión. Requerido: {{ ((claseActual?.precision_minima || 0.7) *
+                    100).toFixed(0) }}%
+                  </span>
+                </div>
+
+                <div class="info-seña" *ngIf="!senaReconocidaCoincide">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>
+                    La seña detectada no coincide. Revisa la demostración y vuelve a intentar.
+                  </span>
+                </div>
+              </div>
+
+              <div *ngIf="resultadoPractica.exito && claseCompletada" class="celebracion">
+                <i class="fas fa-star"></i>
+                <p>¡Has completado esta clase exitosamente!</p>
+                <i class="fas fa-star"></i>
+              </div>
+            </div>
+
+            <div class="acciones-resultado">
+              <button class="btn btn-secundario" (click)="reiniciarPractica()">
+                <i class="fas fa-redo"></i>
+                Intentar de Nuevo
+              </button>
+              <button class="btn btn-primario" (click)="navegarASiguienteClase()"
+                *ngIf="resultadoPractica.exito && !esUltimaClase">
+                Siguiente Clase
+                <i class="fas fa-arrow-right"></i>
+              </button>
+              <button class="btn btn-primario" (click)="volverALecciones()" *ngIf="esUltimaClase && claseCompletada">
+                <i class="fas fa-check-double"></i>
+                Finalizar Lección
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="navegacion-clases">
+    <button class="btn-navegacion" (click)="navegarAClaseAnterior()" [disabled]="esPrimeraClase">
+      <i class="fas fa-chevron-left"></i>
+      Clase Anterior
+    </button>
+
+    <div class="indicador-progreso">
+      Clase {{ numeroClaseActual }} de {{ totalClases }}
+      <div class="progreso-mini">
+        <div class="progreso-mini-fill" [style.width.%]="porcentajeProgreso"></div>
+      </div>
+    </div>
+
+    <button class="btn-navegacion" (click)="navegarASiguienteClase()" [disabled]="!puedeAvanzar && !esUltimaClase">
+      Siguiente Clase
+      <i class="fas fa-chevron-right"></i>
+    </button>
+  </div>
+</div>
+
+<div class="cargando-contenedor" *ngIf="cargando">
+  <div class="spinner-grande"></div>
+  <p>Cargando clase...</p>
+</div>
+
+<div class="error-contenedor" *ngIf="error && !cargando">
+  <i class="fas fa-exclamation-circle"></i>
+  <p>{{ error }}</p>
+  <button class="btn btn-primario" (click)="cargarDatosCompletos()">Reintentar</button>
+  <button class="btn btn-secundario" (click)="volverALecciones()">Volver a Lecciones</button>
+</div>

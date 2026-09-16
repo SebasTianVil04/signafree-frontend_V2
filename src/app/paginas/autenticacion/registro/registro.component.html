@@ -1,0 +1,254 @@
+<div class="registro-container">
+  <div class="registro-card">
+    <div class="logo-section">
+      <h1 class="app-title">SignaFree</h1>
+      <p class="app-subtitle">Crea tu cuenta y empieza a aprender</p>
+    </div>
+
+    <form [formGroup]="registroForm" (ngSubmit)="onSubmit()" class="registro-form">
+      <h2 class="form-title">Registro de Usuario</h2>
+
+      <!-- Columna Izquierda: Datos Personales -->
+      <div class="col-left">
+        <div class="form-group">
+          <label class="form-label">Nacionalidad *</label>
+          <div class="tipo-usuario-selector">
+            <label class="radio-option">
+              <input type="radio" formControlName="nacionalidad" value="peruano" />
+              <span>Peruano</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" formControlName="nacionalidad" value="extranjero" />
+              <span>Extranjero</span>
+            </label>
+          </div>
+          <div *ngIf="f['nacionalidad'].invalid && f['nacionalidad'].touched" class="error-message">
+            <span>Este campo es obligatorio.</span>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="nacionalidad === 'peruano'">
+          <label class="form-label">Edad *</label>
+          <div class="tipo-usuario-selector edad-selector">
+            <label class="radio-option">
+              <input type="radio" formControlName="edad_peruano" value="mayor" />
+              <span>Mayor de Edad</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" formControlName="edad_peruano" value="menor" />
+              <span>Menor de Edad</span>
+            </label>
+          </div>
+          <div *ngIf="f['edad_peruano'].invalid && f['edad_peruano'].touched" class="error-message">
+            <span>Este campo es obligatorio.</span>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="nacionalidad === 'peruano'">
+          <label for="dni" class="form-label">DNI {{ tipoUsuario === 'peruano_mayor' ? '*' : '(Opcional)' }}</label>
+          <div class="dni-wrapper">
+            <input type="text" id="dni" formControlName="dni" class="form-input dni-input"
+              [class.input-error]="f['dni'].invalid && f['dni'].touched"
+              [class.input-verified]="dniVerificado && tipoUsuario === 'peruano_mayor'" placeholder="12345678"
+              maxlength="8" />
+            <button type="button" class="btn-verificar" *ngIf="tipoUsuario === 'peruano_mayor'" (click)="verificarDni()"
+              [disabled]="cargandoDni || f['dni'].invalid">
+              <span *ngIf="!cargandoDni && !dniVerificado">Verificar</span>
+              <span *ngIf="cargandoDni">Verificando...</span>
+              <span *ngIf="dniVerificado && !cargandoDni">✓ Verificado</span>
+            </button>
+          </div>
+          <div *ngIf="f['dni'].invalid && f['dni'].touched" class="error-message">
+            <span>El DNI es obligatorio y debe tener 8 dígitos.</span>
+          </div>
+        </div>
+
+        <!-- Pasaporte -->
+        <div class="form-group" *ngIf="nacionalidad === 'extranjero'">
+          <label for="pasaporte" class="form-label">Pasaporte *</label>
+          <input type="text" id="pasaporte" formControlName="pasaporte" class="form-input"
+            [class.input-error]="f['pasaporte'].invalid && f['pasaporte'].touched" placeholder="ABC123456"
+            maxlength="20" style="text-transform: uppercase;" />
+
+          <!-- Help text: solo cuando NO ha sido tocado Y está vacío -->
+          <p class="help-text"
+            *ngIf="!f['pasaporte'].touched && (!f['pasaporte'].value || f['pasaporte'].value.length === 0)">
+            Entre 6 y 20 caracteres alfanuméricos
+          </p>
+
+          <!-- Mensajes de error: solo cuando es inválido Y ha sido tocado -->
+          <div *ngIf="f['pasaporte'].invalid && f['pasaporte'].touched" class="error-message">
+            <span *ngIf="f['pasaporte'].errors?.['required']">Este campo es obligatorio.</span>
+            <span *ngIf="f['pasaporte'].errors?.['minlength']">El pasaporte debe tener al menos 6 caracteres.</span>
+            <span *ngIf="f['pasaporte'].errors?.['pattern']">Solo se permiten letras, números, guiones y
+              espacios.</span>
+          </div>
+        </div>
+        <!-- Nombres y Apellidos -->
+        <div class="form-group">
+          <label for="nombres" class="form-label">Nombres *</label>
+          <input type="text" id="nombres" formControlName="nombres" class="form-input"
+            [class.input-error]="f['nombres'].invalid && f['nombres'].touched" placeholder="Nombres completos" />
+          <div *ngIf="f['nombres'].invalid && f['nombres'].touched" class="error-message">
+            <span>Este campo es obligatorio.</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="apellidos" class="form-label">Apellidos *</label>
+          <input type="text" id="apellidos" formControlName="apellidos" class="form-input"
+            [class.input-error]="f['apellidos'].invalid && f['apellidos'].touched"
+            placeholder="Apellido paterno y materno" />
+          <div *ngIf="f['apellidos'].invalid && f['apellidos'].touched" class="error-message">
+            <span>Este campo es obligatorio.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna Derecha: Datos Adicionales -->
+      <div class="col-right">
+        <div class="form-group">
+          <label for="email" class="form-label">Correo Electrónico *</label>
+          <input type="email" id="email" formControlName="email" class="form-input"
+            [class.input-error]="f['email'].invalid && f['email'].touched" placeholder="ejemplo@correo.com" />
+          <div *ngIf="f['email'].invalid && f['email'].touched" class="error-message">
+            <span>Correo electrónico inválido.</span>
+          </div>
+        </div>
+
+        <!-- Teléfono -->
+        <div class="form-group">
+          <label for="telefono" class="form-label">Teléfono</label>
+          <div class="telefono-wrapper">
+            <select formControlName="codigo_pais" class="form-select codigo-pais">
+              <option *ngFor="let pais of codigosPais" [value]="pais.codigo">
+                {{ pais.flag }} {{ pais.codigo }}
+              </option>
+            </select>
+            <input type="tel" id="telefono" formControlName="telefono" class="form-input telefono-input"
+              [class.input-error]="f['telefono'].invalid && f['telefono'].touched" placeholder="987654321"
+              [maxlength]="maxLongitudTelefono" (input)="validarSoloNumeros($event)" />
+          </div>
+          <p class="help-text" *ngIf="deberaMostrarHelpTextTelefono()">
+            Debe tener {{ maxLongitudTelefono }} dígitos
+          </p>
+          <div *ngIf="f['telefono'].invalid && f['telefono'].touched" class="error-message">
+            <span>Teléfono inválido.</span>
+          </div>
+        </div>
+
+        <!-- Fecha de Nacimiento con validación de edad mínima -->
+        <div class="form-group">
+          <label for="fecha_nacimiento" class="form-label">
+            Fecha de Nacimiento *
+            <small class="text-muted">(Edad mínima: 6 años)</small>
+          </label>
+          <div class="fecha-wrapper">
+            <input type="text" id="fecha_nacimiento" formControlName="fecha_nacimiento" class="form-input fecha-input"
+              [class.input-error]="f['fecha_nacimiento'].invalid && f['fecha_nacimiento'].touched"
+              placeholder="📅 Selecciona tu fecha de nacimiento" readonly>
+            <i class="bi bi-calendar fecha-icon"></i>
+          </div>
+
+          <!-- Mensajes de error -->
+          <div *ngIf="f['fecha_nacimiento'].invalid && f['fecha_nacimiento'].touched" class="error-message">
+            <!-- Error: Campo requerido -->
+            <span *ngIf="f['fecha_nacimiento'].errors?.['required']">
+              Este campo es obligatorio.
+            </span>
+
+            <!-- Error: Edad mínima no cumplida -->
+            <span *ngIf="f['fecha_nacimiento'].errors?.['edadMinima']">
+              {{ f['fecha_nacimiento'].errors?.['edadMinima']?.mensaje || 'Debes tener al menos 6 años' }}
+            </span>
+
+            <!-- Error: Edad no coincide con tipo de usuario -->
+            <span *ngIf="f['fecha_nacimiento'].errors?.['edadNoCoincide']">
+              {{ f['fecha_nacimiento'].errors?.['edadNoCoincide']?.mensaje || 'La edad no coincide' }}
+            </span>
+          </div>
+
+          <!-- Mensaje informativo cuando es válido -->
+          <p class="help-text success-text"
+            *ngIf="f['fecha_nacimiento'].valid && f['fecha_nacimiento'].value && f['fecha_nacimiento'].touched">
+            ✓ Tienes {{ calcularEdad(f['fecha_nacimiento'].value) }} años
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="direccion" class="form-label">Dirección</label>
+          <input type="text" id="direccion" formControlName="direccion" class="form-input"
+            placeholder="Av. Example 123, Lima" />
+        </div>
+
+        <div class="form-group">
+          <label for="password" class="form-label">Contraseña *</label>
+          <div class="password-wrapper">
+            <input [type]="mostrarPassword ? 'text' : 'password'" id="password" formControlName="password"
+              class="form-input" [class.input-error]="f['password'].invalid && f['password'].touched"
+              placeholder="••••••••" />
+            <button type="button" class="password-toggle" (click)="toggleMostrarPassword()">
+              <span *ngIf="!mostrarPassword">👁️</span>
+              <span *ngIf="mostrarPassword">🙈</span>
+            </button>
+          </div>
+          <div *ngIf="f['password'].invalid && f['password'].touched" class="error-message">
+            <span>Contraseña inválida (mínimo 8 caracteres).</span>
+          </div>
+
+          <!-- Password Strength Indicator -->
+          <div *ngIf="f['password'].value" class="password-strength">
+            <div class="strength-bar">
+              <div class="strength-fill" [class.weak]="obtenerFortalezaPassword() === 'debil'"
+                [class.medium]="obtenerFortalezaPassword() === 'medio'"
+                [class.strong]="obtenerFortalezaPassword() === 'fuerte'" [style.width.%]="obtenerProgresoFortaleza()">
+              </div>
+            </div>
+            <p class="strength-text">
+              Fortaleza:
+              <span class="strength-{{obtenerFortalezaPassword()}}">
+                {{ obtenerFortalezaPassword() === 'debil' ? 'Débil' :
+                obtenerFortalezaPassword() === 'medio' ? 'Media' : 'Fuerte' }}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Confirmar Contraseña -->
+        <div class="form-group">
+          <label for="confirmar_password" class="form-label">Confirmar Contraseña *</label>
+          <div class="password-wrapper">
+            <input [type]="mostrarConfirmarPassword ? 'text' : 'password'" id="confirmar_password"
+              formControlName="confirmar_password" class="form-input"
+              [class.input-error]="(f['confirmar_password'].invalid || registroForm.errors?.['passwordsNoCoinciden']) && f['confirmar_password'].touched"
+              placeholder="••••••••" />
+            <button type="button" class="password-toggle" (click)="toggleMostrarConfirmarPassword()">
+              <span *ngIf="!mostrarConfirmarPassword">👁️</span>
+              <span *ngIf="mostrarConfirmarPassword">🙈</span>
+            </button>
+          </div>
+          <div
+            *ngIf="(f['confirmar_password'].invalid || registroForm.errors?.['passwordsNoCoinciden']) && f['confirmar_password'].touched"
+            class="error-message">
+            <span>Las contraseñas no coinciden.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botón Registrarse -->
+      <button type="submit" class="btn-primary" style="grid-column:1 / -1;"
+        [disabled]="cargando || (tipoUsuario === 'peruano_mayor' && !dniVerificado)">
+        <span *ngIf="!cargando">Registrarse</span>
+        <span *ngIf="cargando" class="loading-spinner">Registrando...</span>
+      </button>
+
+      <!-- Enlace para iniciar sesión -->
+      <div class="login-section" style="grid-column:1 / -1; text-align:center; margin-top:20px;">
+        <p class="login-text">
+          ¿Ya tienes cuenta?
+          <a (click)="irALogin()" class="link-text link-bold" style="cursor:pointer;">Inicia Sesión</a>
+        </p>
+      </div>
+    </form>
+  </div>
+</div>

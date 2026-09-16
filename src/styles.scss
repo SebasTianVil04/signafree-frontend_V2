@@ -1,0 +1,200 @@
+@import "flatpickr/dist/flatpickr.min.css";
+
+.fecha-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: white;
+    transition: border-color 0.3s ease;
+}
+
+.fecha-input:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+
+$primary-color: #667eea;
+$secondary-color: #764ba2;
+$success-color: #48bb78;
+$danger-color: #f56565;
+$warning-color: #ed8936;
+$info-color: #4299e1;
+
+// Escala de grises
+$gray-50: #f7fafc;
+$gray-100: #f8f9fa;
+$gray-200: #e9ecef;
+$gray-300: #e2e8f0;
+$gray-400: #cbd5e0;
+$gray-500: #a0aec0;
+$gray-600: #718096;
+$gray-700: #4a5568;
+$gray-800: #2d3748;
+$gray-900: #1a202c;
+
+// Texto
+$text-primary: $gray-800;
+$text-secondary: $gray-600;
+$text-muted: $gray-500;
+
+// Bordes
+$border-color: $gray-300;
+$border-radius: 0.5rem;
+$border-radius-lg: 1rem;
+$border-radius-xl: 1.5rem;
+
+// Sombras
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+// Breakpoints
+$mobile: 768px;
+$tablet: 1024px;
+$desktop: 1200px;
+
+// Mixins
+@mixin mobile {
+    @media (max-width: #{$mobile}) {
+        @content;
+    }
+}
+
+@mixin tablet {
+    @media (max-width: #{$tablet}) {
+        @content;
+    }
+}
+
+@mixin desktop {
+    @media (min-width: #{$desktop}) {
+        @content;
+    }
+}
+
+@mixin button-base {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: $border-radius;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    justify-content: center;
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+}
+
+@mixin button-primary {
+    @include button-base;
+    background: $primary-color;
+    color: white;
+
+    &:hover:not(:disabled) {
+        background: darken($primary-color, 10%);
+        transform: translateY(-1px);
+    }
+}
+
+@mixin button-outline {
+    @include button-base;
+    background: transparent;
+    color: $primary-color;
+    border: 2px solid $primary-color;
+
+    &:hover:not(:disabled) {
+        background: $primary-color;
+        color: white;
+    }
+}
+
+@mixin button-success {
+    @include button-base;
+    background: $success-color;
+    color: white;
+
+    &:hover:not(:disabled) {
+        background: darken($success-color, 10%);
+    }
+}
+
+@mixin button-warning {
+    @include button-base;
+    background: $warning-color;
+    color: white;
+
+    &:hover:not(:disabled) {
+        background: darken($warning-color, 10%);
+    }
+}
+
+@mixin button-danger {
+    @include button-base;
+    background: $danger-color;
+    color: white;
+
+    &:hover:not(:disabled) {
+        background: darken($danger-color, 10%);
+    }
+}
+
+@mixin spinner($size: 2rem, $color: $primary-color) {
+    border: 4px solid rgba($color, 0.3);
+    border-top: 4px solid $color;
+    border-radius: 50%;
+    width: $size;
+    height: $size;
+    animation: spin 1s linear infinite;
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+}
+
+// Utilidades
+@mixin card {
+    background: white;
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-md;
+    padding: 2rem;
+}
+
+@mixin flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@mixin absolute-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}

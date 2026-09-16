@@ -1,0 +1,49 @@
+<div class="inicio-container">
+  <div class="inicio-card">
+    <div class="header-section">
+      <h1 class="app-title">¡Bienvenido a SignaFree!</h1>
+      <button class="btn-logout" (click)="cerrarSesion()">
+        Cerrar Sesión
+      </button>
+    </div>
+
+    <div class="user-info" *ngIf="usuario">
+      <div class="avatar">
+        {{ usuario.nombres?.charAt(0) }}{{ usuario.apellidos?.charAt(0) }}
+      </div>
+      <div class="user-details">
+        <h2 class="user-name">{{ usuario.nombres }} {{ usuario.apellidos }}</h2>
+        <p class="user-email">{{ usuario.email }}</p>
+        <span class="user-badge" [class.admin-badge]="usuario.rol === 'admin'">
+          {{ usuario.rol === 'admin' ? 'Administrador' : 'Usuario' }}
+        </span>
+      </div>
+    </div>
+
+
+    <div class="welcome-message">
+      <h3>🎉 ¡Tu cuenta ha sido creada exitosamente!</h3>
+      <p>Estás listo para comenzar tu viaje de aprendizaje del Lenguaje de Señas Peruano.</p>
+    </div>
+
+    <div class="info-section">
+      <div class="info-card">
+        <div class="icon">📚</div>
+        <h4>Lecciones Interactivas</h4>
+        <p>Aprende paso a paso con nuestras lecciones estructuradas</p>
+      </div>
+
+      <div class="info-card">
+        <div class="icon">🤖</div>
+        <h4>Reconocimiento IA</h4>
+        <p>Practica con nuestro sistema de reconocimiento de señas</p>
+      </div>
+
+      <div class="info-card">
+        <div class="icon">📊</div>
+        <h4>Seguimiento de Progreso</h4>
+        <p>Monitorea tu avance y obtén certificados</p>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,947 @@
+<div class="entrenamiento-modelo container-fluid py-4">
+  <div class="encabezado mb-4">
+    <h1 class="display-5 fw-bold text-primary">
+      <i class="bi bi-brain"></i> Entrenamiento del Modelo IA (Video LSTM)
+    </h1>
+    <p class="text-muted">Gestiona el dataset de videos, selecciona categorías y entrena modelos de reconocimiento de
+      señas</p>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong><i class="bi bi-exclamation-circle"></i> Error:</strong> {{ error }}
+    <button type="button" class="btn-close" (click)="error = null"></button>
+  </div>
+
+  <div *ngIf="mensaje && !entrenando" class="alert alert-success alert-dismissible fade show" role="alert">
+    <strong><i class="bi bi-check-circle"></i> Éxito:</strong>
+    <pre class="mb-0" style="white-space: pre-wrap;">{{ mensaje }}</pre>
+    <button type="button" class="btn-close" (click)="mensaje = null"></button>
+  </div>
+
+  <div *ngIf="entrenando" class="card mb-4 border-primary shadow-lg">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">
+        <i class="bi bi-rocket-takeoff"></i> Entrenamiento en Progreso
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <div class="d-flex justify-content-between mb-2">
+          <strong>Progreso General</strong>
+          <span class="badge bg-primary fs-6">{{ progresoActual.toFixed(1) }}%</span>
+        </div>
+        <div class="progress" style="height: 30px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" [style.width.%]="progresoActual"
+            [class.bg-success]="progresoActual === 100" [class.bg-primary]="progresoActual < 100">
+            {{ progresoActual.toFixed(1) }}%
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-2">
+          <div class="card bg-light">
+            <div class="card-body text-center p-2">
+              <h6 class="text-muted mb-1 small">
+                <i class="bi bi-arrow-repeat"></i> Época
+              </h6>
+              <h4 class="mb-0">{{ epochActual }} / {{ totalEpochs }}</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <div class="card" [class.bg-success]="accuracyActual > 0.9"
+            [class.bg-warning]="accuracyActual > 0.7 && accuracyActual <= 0.9" [class.bg-light]="accuracyActual <= 0.7">
+            <div class="card-body text-center p-2">
+              <h6 class="mb-1 small" [class.text-white]="accuracyActual > 0.7"
+                [class.text-muted]="accuracyActual <= 0.7">
+                <i class="bi bi-graph-up"></i> Val Acc
+              </h6>
+              <h4 class="mb-0 fw-bold" [class.text-white]="accuracyActual > 0.7">
+                {{ accuracyPorcentaje }}
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <div class="card" [class.bg-success]="trainAccuracyActual > 0.9"
+            [class.bg-warning]="trainAccuracyActual > 0.7 && trainAccuracyActual <= 0.9"
+            [class.bg-light]="trainAccuracyActual <= 0.7">
+            <div class="card-body text-center p-2">
+              <h6 class="mb-1 small" [class.text-white]="trainAccuracyActual > 0.7"
+                [class.text-muted]="trainAccuracyActual <= 0.7">
+                <i class="bi bi-graph-up-arrow"></i> Train Acc
+              </h6>
+              <h4 class="mb-0 fw-bold" [class.text-white]="trainAccuracyActual > 0.7">
+                {{ trainAccuracyPorcentaje }}
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <div class="card bg-light">
+            <div class="card-body text-center p-2">
+              <h6 class="text-muted mb-1 small">
+                <i class="bi bi-activity"></i> Val Loss
+              </h6>
+              <h4 class="mb-0">{{ lossFormateado }}</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <div class="card bg-light">
+            <div class="card-body text-center p-2">
+              <h6 class="text-muted mb-1 small">
+                <i class="bi bi-activity"></i> Train Loss
+              </h6>
+              <h4 class="mb-0">{{ trainLossFormateado }}</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <div class="card bg-info text-white">
+            <div class="card-body text-center p-2">
+              <h6 class="mb-1 small">
+                <i class="bi bi-film"></i> Frames
+              </h6>
+              <h4 class="mb-0">{{ framesProcesados }} / {{ totalFrames }}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="card bg-secondary text-white">
+            <div class="card-body text-center p-2">
+              <h6 class="mb-1 small">
+                <i class="bi bi-layers"></i> Clases
+              </h6>
+              <h4 class="mb-0">{{ numClases }}</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body text-center p-2">
+              <h6 class="text-muted mb-1 small">
+                <i class="bi bi-clock"></i> Tiempo
+              </h6>
+              <h4 class="mb-0">{{ tiempoTranscurrido }}</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card bg-warning text-white">
+            <div class="card-body text-center p-2">
+              <h6 class="mb-1 small">
+                <i class="bi bi-list-ul"></i> Lista Clases
+              </h6>
+              <h6 class="mb-0">{{ clasesTexto }}</h6>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-info mb-0">
+        <div class="d-flex align-items-center">
+          <div class="spinner-border text-primary me-3" role="status">
+            <span class="visually-hidden">Procesando...</span>
+          </div>
+          <div class="flex-grow-1">
+            <strong>Estado:</strong> {{ estadoEntrenamiento }}<br>
+            <small>{{ mensajeProgreso }}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-3">
+      <div class="card shadow-sm sidebar-entrenamiento sticky-top" style="top: 1rem;">
+        <div class="card-body p-2">
+          <div class="list-group list-group-flush">
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'resumen'" (click)="cambiarSeccion('resumen')">
+              <i class="bi bi-bar-chart-line fs-5"></i>
+              <span>Resumen del Dataset</span>
+            </button>
+
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'subir'" (click)="cambiarSeccion('subir')">
+              <i class="bi bi-cloud-arrow-up fs-5"></i>
+              <span>Subir Videos</span>
+            </button>
+
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'cargar-modelo'" (click)="cambiarSeccion('cargar-modelo')">
+              <i class="bi bi-file-earmark-arrow-up fs-5"></i>
+              <span>Cargar Modelo Preentrenado</span>
+            </button>
+
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'entrenar'" (click)="cambiarSeccion('entrenar')">
+              <i class="bi bi-gear fs-5"></i>
+              <span>Configurar Entrenamiento</span>
+            </button>
+
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'asignaciones'" (click)="cambiarSeccion('asignaciones')">
+              <i class="bi bi-link-45deg fs-5"></i>
+              <span>Modelos por Categoría</span>
+            </button>
+
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+              [class.active]="seccionActiva === 'modelos'" (click)="cambiarSeccion('modelos')">
+              <i class="bi bi-boxes fs-5"></i>
+              <span>Modelos Entrenados</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-9">
+
+      <div *ngIf="seccionActiva === 'resumen'">
+        <div class="row g-4">
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 shadow-sm" [class.border-success]="obtenerColorEstado() === 'success'"
+              [class.border-warning]="obtenerColorEstado() === 'warning'"
+              [class.border-danger]="obtenerColorEstado() === 'danger'">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  <i class="bi bi-bar-chart-line text-primary" style="font-size: 2rem;"></i>
+                  <div class="ms-3">
+                    <h5 class="card-title mb-0">Estado del Dataset</h5>
+                  </div>
+                </div>
+
+                <h4 class="mb-3">{{ obtenerMensajeEstado() }}</h4>
+
+                <div class="mt-3">
+                  <div class="mb-2">
+                    <strong>Total de videos:</strong>
+                    <span class="badge bg-primary ms-2">{{ estadisticas?.total_videos || 0 }}</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Videos aprobados:</strong>
+                    <span class="badge bg-success ms-2">{{ estadisticas?.videos_aprobados || 0 }}</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Frames extraídos:</strong>
+                    <span class="badge bg-info ms-2">{{ estadisticas?.total_frames || 0 }}</span>
+                  </div>
+                  <div>
+                    <strong>Señas únicas:</strong>
+                    <span class="badge bg-warning ms-2">{{ estadisticas?.por_sena?.length || 0 }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-xl-8">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title mb-3">
+                  <i class="bi bi-pie-chart"></i> Distribución de Videos por Seña
+                </h5>
+                <div *ngIf="datosClases.length > 0">
+                  <app-grafico-estadisticas [datos]="datosClases" [etiquetas]="etiquetasClases"
+                    [titulo]="'Videos por Seña'" [tipo]="'bar'" [color]="'#0d6efd'">
+                  </app-grafico-estadisticas>
+                </div>
+                <div *ngIf="datosClases.length === 0" class="text-center text-muted py-5">
+                  <p>No hay datos para mostrar</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="seccionActiva === 'subir'">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-3">
+              <i class="bi bi-cloud-arrow-up"></i> Subir Videos de Entrenamiento
+            </h5>
+
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-bold">Categoría</label>
+                <select class="form-select" [(ngModel)]="categoriaSeleccionada" required>
+                  <option [value]="null" disabled selected>Selecciona una categoría</option>
+                  <option *ngFor="let categoria of categorias" [value]="categoria.id">
+                    {{ categoria.nombre | titlecase }}
+                    <span *ngIf="categoria.descripcion"> - {{ categoria.descripcion }}</span>
+                  </option>
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-bold">Seña / Letra / Número</label>
+                <input type="text" class="form-control text-uppercase" [(ngModel)]="senaSeleccionada"
+                  placeholder="Ej: A, HOLA, 1" maxlength="50">
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-bold">Seleccionar Videos</label>
+                <input type="file" class="form-control" (change)="onFileSelect($event)"
+                  accept="video/mp4,video/webm,video/avi" multiple>
+              </div>
+
+              <div class="col-12" *ngIf="archivosSeleccionados.length > 0">
+                <div class="alert alert-info mb-0">
+                  <i class="bi bi-info-circle"></i>
+                  <strong>{{ archivosSeleccionados.length }}</strong> video(s) seleccionado(s)
+                </div>
+              </div>
+
+              <div class="col-12">
+                <button class="btn btn-primary btn-lg w-100" (click)="subirVideos()"
+                  [disabled]="!categoriaSeleccionada || !senaSeleccionada || archivosSeleccionados.length === 0 || cargando">
+                  <span *ngIf="!cargando">
+                    <i class="bi bi-cloud-arrow-up"></i> Subir Videos
+                  </span>
+                  <span *ngIf="cargando">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    Subiendo...
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="seccionActiva === 'cargar-modelo'">
+        <div class="card shadow-sm border-info">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+              <i class="bi bi-file-earmark-arrow-up"></i> Cargar Modelo Preentrenado (.pth / .pt)
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label fw-bold">Archivo del Modelo (.pth o .pt)</label>
+                <input type="file" class="form-control" id="archivoModelo" (change)="onModeloFileSelect($event)"
+                  accept=".pth,.pt">
+                <small class="text-muted">Selecciona un archivo de modelo PyTorch entrenado</small>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Nombre del Modelo</label>
+                <input type="text" class="form-control" [(ngModel)]="nombreModeloCarga" placeholder="modelo_senas_v1"
+                  [disabled]="!archivoModeloSeleccionado">
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Descripción (Opcional)</label>
+                <input type="text" class="form-control" [(ngModel)]="descripcionModeloCarga"
+                  placeholder="Modelo entrenado externamente" [disabled]="!archivoModeloSeleccionado">
+              </div>
+
+              <div class="col-12" *ngIf="tieneClasesDetectadas">
+                <div class="alert alert-warning">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="alert-heading mb-1">
+                        <i class="bi bi-lightbulb"></i> ¡Clases Detectadas Automáticamente!
+                      </h6>
+                      <p class="mb-1"><strong>Clases encontradas:</strong> {{ textoClasesDetectadas }}</p>
+                      <small class="text-muted">Total: {{ clasesDetectadas.length }} clases detectadas</small>
+                    </div>
+                    <button class="btn btn-sm btn-warning" (click)="usarClasesDetectadas()">
+                      <i class="bi bi-check-lg"></i> Usar Clases Detectadas
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label fw-bold">Clases (JSON Array)</label>
+                <textarea class="form-control font-monospace" rows="4" [(ngModel)]="clasesModeloCarga"
+                  (blur)="formatearClases()" placeholder='["hola", "gracias", "adios", "por_favor", "ayuda"]'
+                  [disabled]="!archivoModeloSeleccionado"></textarea>
+                <div class="mt-2">
+                  <small class="text-muted d-block">
+                    <i class="bi bi-info-circle"></i> Formato: Array JSON de strings. Ejemplo:
+                    <code>["hola", "gracias", "adios"]</code>
+                  </small>
+                  <small class="text-muted">
+                    <i class="bi bi-lightning"></i> <strong>Tip:</strong> Las clases se detectarán automáticamente
+                    después de validar el modelo
+                  </small>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <button class="btn btn-outline-info w-100" (click)="validarModelo()"
+                      [disabled]="!archivoModeloSeleccionado || validandoModelo">
+                      <span *ngIf="!validandoModelo">
+                        <i class="bi bi-check-circle"></i> Validar Modelo
+                      </span>
+                      <span *ngIf="validandoModelo">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        Validando...
+                      </span>
+                    </button>
+                  </div>
+
+                  <div class="col-md-4">
+                    <button class="btn btn-outline-secondary w-100" (click)="formatearClases()"
+                      [disabled]="!clasesModeloCarga">
+                      <i class="bi bi-code-slash"></i> Formatear JSON
+                    </button>
+                  </div>
+
+                  <div class="col-md-4">
+                    <button class="btn btn-success w-100" (click)="cargarModelo()"
+                      [disabled]="!archivoModeloSeleccionado || !nombreModeloCarga || !clasesModeloCarga || cargandoModelo">
+                      <span *ngIf="!cargandoModelo">
+                        <i class="bi bi-upload"></i> Cargar Modelo
+                      </span>
+                      <span *ngIf="cargandoModelo">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        Cargando...
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12" *ngIf="resultadoValidacion">
+                <div class="alert" [class.alert-success]="resultadoValidacion.valido"
+                  [class.alert-danger]="!resultadoValidacion.valido">
+                  <h6 class="alert-heading">
+                    <i class="bi" [class.bi-check-circle-fill]="resultadoValidacion.valido"
+                      [class.bi-x-circle-fill]="!resultadoValidacion.valido"></i>
+                    {{ resultadoValidacion.valido ? 'Modelo Válido' : 'Modelo Inválido' }}
+                  </h6>
+                  <hr>
+                  <div *ngIf="resultadoValidacion.valido">
+                    <div class="row">
+                      <div class="col-md-6">
+                        <p class="mb-1"><strong>Tipo:</strong> {{ resultadoValidacion.tipo || 'No especificado' }}</p>
+                        <p class="mb-1"><strong>Tamaño:</strong> {{ resultadoValidacion.tamano_mb || 'N/A' }} MB</p>
+                        <p class="mb-1"><strong>Estructura:</strong>
+                          {{ resultadoValidacion.estructura || 'No especificada' }}
+                        </p>
+                      </div>
+                      <div class="col-md-6">
+                        <p class="mb-1" *ngIf="resultadoValidacion.num_parametros">
+                          <strong>Parámetros:</strong> {{ resultadoValidacion.num_parametros }}
+                        </p>
+                        <p class="mb-1" *ngIf="tieneClasesDetectadas">
+                          <strong>Clases Detectadas:</strong> {{ clasesDetectadas.length }}
+                        </p>
+                        <p class="mb-0 text-success">
+                          <i class="bi bi-check-lg"></i> El modelo es compatible con el sistema
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div *ngIf="!resultadoValidacion.valido">
+                    <p class="mb-2"><strong>Error:</strong> {{ resultadoValidacion.error }}</p>
+                    <p class="mb-0">Por favor, verifica que el archivo sea un modelo PyTorch válido.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="seccionActiva === 'entrenar'">
+        <div class="card shadow-sm border-primary">
+          <div class="card-body">
+            <h5 class="card-title mb-3">
+              <i class="bi bi-gear"></i> Configuración de Entrenamiento
+            </h5>
+
+            <div class="row g-3 mb-4">
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Nombre del Modelo (Obligatorio)</label>
+                <input type="text" class="form-control" [(ngModel)]="configuracion.nombre_modelo"
+                  placeholder="modelo_video_custom">
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Épocas de Entrenamiento</label>
+                <input type="number" class="form-control" [(ngModel)]="configuracion.epochs" min="10" max="200">
+                <small class="text-muted">Recomendado: 50-100 épocas</small>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-bold">
+                Seleccionar Categorías para Entrenar
+              </label>
+
+              <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-outline-primary" (click)="seleccionarTodasCategorias()">
+                  <i class="bi bi-check-all"></i> Seleccionar Todas
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" (click)="deseleccionarTodasCategorias()">
+                  <i class="bi bi-x-circle"></i> Deseleccionar Todas
+                </button>
+              </div>
+
+              <div *ngIf="categorias.length === 0" class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> No hay categorías disponibles
+              </div>
+
+              <div *ngIf="categorias.length > 0" class="row g-2">
+                <div *ngFor="let categoria of categorias" class="col-12 col-sm-6 col-md-4">
+                  <div class="form-check form-switch border rounded p-3"
+                    [class.bg-light]="estaCategoriaSeleccionada(categoria.id)">
+                    <input class="form-check-input" type="checkbox" [id]="'categoria-' + categoria.id"
+                      [checked]="estaCategoriaSeleccionada(categoria.id)"
+                      (click)="toggleCategoriaParaEntrenamiento(categoria.id)">
+                    <label class="form-check-label w-100" [for]="'categoria-' + categoria.id">
+                      <strong>{{ categoria.nombre | titlecase }}</strong>
+                      <br>
+                      <small class="text-muted">
+                        {{ categoria.total_videos }} videos
+                      </small>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div *ngIf="configuracion.categoria_ids.length > 0" class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i>
+                <strong>{{ configuracion.categoria_ids.length }}</strong> categoría(s) seleccionada(s)
+              </div>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button class="btn btn-success btn-lg" (click)="iniciarEntrenamiento()"
+                [disabled]="entrenando || configuracion.categoria_ids.length === 0 || totalVideosAprobados < 5">
+                <i class="bi bi-play-circle"></i> Iniciar Entrenamiento
+              </button>
+              <small class="text-muted text-center">
+                El entrenamiento puede tardar varios minutos
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="seccionActiva === 'asignaciones'">
+        <div class="card shadow-sm border-warning mb-4">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h5 class="card-title mb-2">
+                  <i class="bi bi-link-45deg"></i> Gestión de Modelos por Categoría
+                </h5>
+                <p class="text-muted mb-0">
+                  Asigna modelos específicos a cada categoría para mejorar la precisión del reconocimiento
+                </p>
+              </div>
+              <button class="btn btn-warning btn-lg" (click)="abrirModalAsignacion()">
+                <i class="bi bi-gear"></i> Configurar Asignaciones
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-3">
+              <i class="bi bi-list-check"></i> Estado de Asignaciones
+            </h5>
+
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead class="table-light">
+                  <tr>
+                    <th>CATEGORÍA</th>
+                    <th>MODELO ASIGNADO</th>
+                    <th>ESTADO</th>
+                    <th>ACCURACY</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let categoria of categoriasConModelos">
+                    <td><strong>{{ categoria.nombre }}</strong></td>
+                    <td>
+                      <span *ngIf="categoria.tiene_modelo" class="badge bg-primary">
+                        {{ categoria.modelo_nombre }}
+                      </span>
+                      <span *ngIf="!categoria.tiene_modelo" class="text-muted">
+                        <i class="bi bi-dash-circle"></i> Sin asignar
+                      </span>
+                    </td>
+                    <td>
+                      <i *ngIf="categoria.tiene_modelo && categoria.modelo_activo"
+                        class="bi bi-check-circle-fill text-success"></i>
+                      <i *ngIf="categoria.tiene_modelo && !categoria.modelo_activo"
+                        class="bi bi-exclamation-circle-fill text-warning"></i>
+                      <i *ngIf="!categoria.tiene_modelo" class="bi bi-x-circle text-secondary"></i>
+                    </td>
+                    <td>
+                      <span *ngIf="categoria.modelo_accuracy">
+                        {{ (categoria.modelo_accuracy * 100).toFixed(2) }}%
+                      </span>
+                      <span *ngIf="!categoria.modelo_accuracy" class="text-muted">
+                        N/A
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="seccionActiva === 'modelos'">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="card-title mb-0">
+                <i class="bi bi-boxes"></i> Modelos Entrenados
+              </h5>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="modoEnsemble" [checked]="modoEnsemble"
+                  (click)="toggleModoEnsemble()" style="transform: scale(1.3);">
+                <label class="form-check-label fw-bold" for="modoEnsemble">
+                  <i class="bi bi-diagram-3"></i> Modo Ensemble
+                </label>
+              </div>
+            </div>
+
+            <div *ngIf="modoEnsemble" class="card border-warning mb-4">
+              <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">
+                  <i class="bi bi-gear"></i> Configuración Ensemble
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <p class="text-muted mb-3">
+                      Selecciona al menos 2 modelos y asigna pesos para crear un ensemble.
+                      Los modelos se combinarán para mejorar la precisión.
+                    </p>
+                  </div>
+
+                  <div class="col-12" *ngIf="modelos.length > 0">
+                    <div class="row g-2">
+                      <div *ngFor="let modelo of modelos" class="col-12 col-md-6 col-lg-4">
+                        <div class="card border" [class.border-success]="estaModeloSeleccionadoEnsemble(modelo.nombre)"
+                          [class.border-light]="!estaModeloSeleccionadoEnsemble(modelo.nombre)">
+                          <div class="card-body p-3">
+                            <div class="form-check mb-2">
+                              <input class="form-check-input" type="checkbox" [id]="'ensemble-' + modelo.nombre"
+                                [checked]="estaModeloSeleccionadoEnsemble(modelo.nombre)"
+                                (change)="toggleModeloEnsemble(modelo.nombre)">
+                              <label class="form-check-label fw-bold" [for]="'ensemble-' + modelo.nombre">
+                                {{ modelo.nombre }}
+                              </label>
+                            </div>
+
+                            <div class="small text-muted mb-2">
+                              <span class="badge bg-primary me-1">{{ modelo.accuracy_porcentaje }}</span>
+                              <span class="badge bg-dark">{{ modelo.num_clases }} clases</span>
+                            </div>
+
+                            <div *ngIf="estaModeloSeleccionadoEnsemble(modelo.nombre)" class="mt-2">
+                              <label class="form-label small fw-bold">Peso:</label>
+                              <input type="number" class="form-control form-control-sm" min="0.1" max="10" step="0.1"
+                                [(ngModel)]="pesosEnsemble[modelo.nombre]"
+                                (change)="actualizarPesoEnsemble(modelo.nombre, $event)" placeholder="1.0">
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12" *ngIf="modelos.length === 0">
+                    <div class="alert alert-info">
+                      <i class="bi bi-info-circle"></i> No hay modelos disponibles para ensemble
+                    </div>
+                  </div>
+
+                  <div class="col-12" *ngIf="modelosSeleccionadosEnsemble.length > 0">
+                    <div class="alert alert-info">
+                      <h6 class="alert-heading">
+                        <i class="bi bi-list-check"></i> Resumen del Ensemble
+                      </h6>
+                      <p class="mb-2">
+                        <strong>{{ modelosSeleccionadosEnsemble.length }}</strong> modelo(s) seleccionado(s):
+                      </p>
+                      <ul class="mb-2">
+                        <li *ngFor="let nombre of modelosSeleccionadosEnsemble">
+                          {{ nombre }}: peso {{ (pesosEnsemble[nombre] || 1.0).toFixed(1) }}
+                        </li>
+                      </ul>
+                      <small class="text-muted">
+                        Los pesos se normalizarán automáticamente para sumar 1.0
+                      </small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-success" (click)="aplicarEnsemble()"
+                        [disabled]="modelosSeleccionadosEnsemble.length < 2 || configurandoEnsemble">
+                        <span *ngIf="!configurandoEnsemble">
+                          <i class="bi bi-check-lg"></i> Aplicar Ensemble
+                        </span>
+                        <span *ngIf="configurandoEnsemble">
+                          <span class="spinner-border spinner-border-sm me-2"></span>
+                          Configurando...
+                        </span>
+                      </button>
+
+                      <button class="btn btn-outline-secondary" (click)="limpiarSeleccionEnsemble()">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                      </button>
+
+                      <button class="btn btn-outline-danger" (click)="desactivarTodosModelos()">
+                        <i class="bi bi-power"></i> Desactivar Todos
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="col-12" *ngIf="modelosSeleccionadosEnsemble.length === 0 && modoEnsemble">
+                    <div class="alert alert-warning">
+                      <i class="bi bi-exclamation-triangle"></i>
+                      Selecciona al menos 2 modelos para crear un ensemble
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="modelos.length === 0" class="text-center text-muted py-4">
+              <p><i class="bi bi-inbox"></i> No hay modelos disponibles</p>
+            </div>
+
+            <div *ngIf="modelos.length > 0" class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Origen</th>
+                    <th>Fecha</th>
+                    <th>Accuracy</th>
+                    <th>Clases</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let modelo of modelos" [class.table-success]="modelo.activo"
+                    [class.table-warning]="modoEnsemble && estaModeloSeleccionadoEnsemble(modelo.nombre)">
+                    <td>
+                      <strong>{{ modelo.nombre }}</strong>
+                      <br>
+                      <small class="text-muted" *ngIf="modelo.descripcion">{{ modelo.descripcion }}</small>
+                    </td>
+                    <td>
+                      <span class="badge" [class.bg-info]="modelo.origen === 'entrenado_local'"
+                        [class.bg-warning]="modelo.origen === 'cargado_manualmente'"
+                        [class.bg-secondary]="modelo.origen === 'transferencia'">
+                        {{ modelo.origen === 'entrenado_local' ? 'Local' :
+                        modelo.origen === 'cargado_manualmente' ? 'Cargado' : 'Transfer' }}
+                      </span>
+                    </td>
+                    <td>
+                      <small>{{ modelo.fecha_entrenamiento | date:'short' }}</small>
+                    </td>
+                    <td>
+                      <span class="badge bg-primary">{{ modelo.accuracy_porcentaje }}</span>
+                    </td>
+                    <td>
+                      <span class="badge bg-dark">{{ modelo.num_clases || 'N/A' }}</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.bg-success]="modelo.activo" [class.bg-secondary]="!modelo.activo">
+                        {{ modelo.estado_texto }}
+                      </span>
+                      <span *ngIf="modoEnsemble && estaModeloSeleccionadoEnsemble(modelo.nombre)"
+                        class="badge bg-warning ms-1">
+                        <i class="bi bi-diagram-3"></i> Ensemble
+                      </span>
+                    </td>
+                    <td>
+                      <div class="btn-group-vertical btn-group-sm" role="group">
+                        <button class="btn" (click)="alternarEstado(modelo)" [class.btn-success]="!modelo.activo"
+                          [class.btn-warning]="modelo.activo" [disabled]="modoEnsemble">
+                          <i class="bi" [class.bi-play-fill]="!modelo.activo" [class.bi-pause-fill]="modelo.activo"></i>
+                          {{ modelo.activo ? 'Desactivar' : 'Activar' }}
+                        </button>
+
+                        <button class="btn btn-danger btn-sm" (click)="eliminarModelo(modelo, false)"
+                          [disabled]="modoEnsemble && estaModeloSeleccionadoEnsemble(modelo.nombre)">
+                          <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div *ngIf="configuracionEnsemble" class="mt-3">
+              <div class="alert alert-info">
+                <h6 class="alert-heading">
+                  <i class="bi bi-diagram-3"></i> Ensemble Activo
+                </h6>
+                <p class="mb-1">
+                  <strong>{{ configuracionEnsemble.total_modelos }}</strong> modelo(s) activo(s) en ensemble:
+                </p>
+                <ul class="mb-0">
+                  <li *ngFor="let modelo of configuracionEnsemble.modelos">
+                    {{ modelo.nombre }} (peso: {{ modelo.peso.toFixed(2) }}, accuracy:
+                    {{ (modelo.accuracy * 100).toFixed(1) }}%)
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="modal fade" [class.show]="mostrarModalAsignacion"
+    [style.display]="mostrarModalAsignacion ? 'block' : 'none'" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-white">
+          <h5 class="modal-title">
+            <i class="bi bi-link-45deg"></i> Asignar Modelos a Categorías
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="cerrarModalAsignacion()"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="alert alert-info mb-4">
+            <h6 class="alert-heading">
+              <i class="bi bi-info-circle"></i> ¿Por qué asignar modelos específicos?
+            </h6>
+            <p class="mb-0">
+              Cada categoría puede usar un modelo especializado para mejorar la precisión:
+            </p>
+            <ul class="mb-0 mt-2">
+              <li><strong>Abecedario</strong> → Modelo entrenado solo con letras</li>
+              <li><strong>Números</strong> → Modelo entrenado solo con dígitos</li>
+              <li><strong>Saludos</strong> → Modelo entrenado con palabras completas</li>
+            </ul>
+          </div>
+
+          <div *ngIf="cargando" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3">Cargando datos...</p>
+          </div>
+
+          <div *ngIf="!cargando">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 30%">Categoría</th>
+                    <th style="width: 25%">Modelo Actual</th>
+                    <th style="width: 35%">Nuevo Modelo</th>
+                    <th style="width: 10%">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let categoria of categoriasConModelos">
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <i [class]="'bi ' + (categoria.icono || 'bi-folder')  + ' text-primary fs-4 me-2'"></i>
+                        <div>
+                          <strong>{{ categoria.nombre }}</strong>
+                          <br>
+                          <small class="text-muted">
+                            {{ categoria.total_lecciones }} lecciones
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <div *ngIf="categoria.tiene_modelo">
+                        <span class="badge bg-success mb-1">
+                          {{ categoria.modelo_nombre }}
+                        </span>
+                        <br>
+                        <small class="text-muted">
+                          Accuracy: {{ (categoria.modelo_accuracy * 100).toFixed(1) }}%
+                        </small>
+                      </div>
+                      <div *ngIf="!categoria.tiene_modelo">
+                        <span class="badge bg-secondary">Sin modelo asignado</span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <select class="form-select" [value]="obtenerModeloSeleccionado(categoria.id) || ''"
+                        (change)="seleccionarModeloParaCategoria(categoria.id, $any($event.target).value)">
+                        <option value="">Sin cambios</option>
+                        <option value="null">Desasignar modelo</option>
+                        <option *ngFor="let modelo of modelosDisponibles" [value]="modelo.id"
+                          [disabled]="!modelo.activo">
+                          {{ modelo.nombre }}
+                          ({{ modelo.num_clases }} clases, {{ (modelo.accuracy * 100).toFixed(1) }}%)
+                          <span *ngIf="!modelo.activo"> - Inactivo</span>
+                        </option>
+                      </select>
+                    </td>
+
+                    <td>
+                      <button class="btn btn-sm btn-outline-danger" *ngIf="categoria.tiene_modelo"
+                        (click)="desasignarModeloDeCategoria(categoria.id)" title="Desasignar modelo actual">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="alert alert-warning mt-3" *ngIf="asignacionesModelo.size > 0">
+              <i class="bi bi-exclamation-triangle"></i>
+              <strong>{{ asignacionesModelo.size }}</strong> cambio(s) pendiente(s)
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalAsignacion()">
+            Cancelar
+          </button>
+
+          <button type="button" class="btn btn-warning" (click)="aplicarAsignacionesModelos()"
+            [disabled]="asignacionesModelo.size === 0 || cargando">
+            <i class="bi bi-check-lg"></i>
+            Aplicar Cambios ({{ asignacionesModelo.size }})
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop fade" [class.show]="mostrarModalAsignacion" *ngIf="mostrarModalAsignacion"
+    (click)="cerrarModalAsignacion()"></div>
+</div>

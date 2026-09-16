@@ -1,0 +1,53 @@
+<div class="visualizador-container">
+  <div class="canvas-wrapper">
+    <canvas #canvas></canvas>
+  </div>
+
+  <div class="controles">
+    <button (click)="dibujar()" class="btn btn-primary">
+      <i class="fas fa-sync"></i> Actualizar
+    </button>
+    <button (click)="descargarImagen()" class="btn btn-success">
+      <i class="fas fa-download"></i> Descargar
+    </button>
+  </div>
+
+  <div class="leyenda">
+    <h4>Leyenda de Puntos</h4>
+    <div class="leyenda-items">
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #FF5722;"></span>
+        <span>Muñeca (0)</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #4CAF50;"></span>
+        <span>Pulgar (1-4)</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #2196F3;"></span>
+        <span>Índice (5-8)</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #9C27B0;"></span>
+        <span>Medio (9-12)</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #FF9800;"></span>
+        <span>Anular (13-16)</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-box" style="background: #F44336;"></span>
+        <span>Meñique (17-20)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="info" *ngIf="puntos.length > 0">
+    <p><strong>Total de puntos:</strong> {{ puntos.length }}</p>
+  </div>
+
+  <div class="vacio" *ngIf="puntos.length === 0">
+    <i class="fas fa-hand-paper"></i>
+    <p>No hay puntos para visualizar</p>
+  </div>
+</div>

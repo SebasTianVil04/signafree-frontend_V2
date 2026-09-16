@@ -1,0 +1,129 @@
+<div class="reconocimiento-examen-contenedor-compacto">
+  
+  <div class="cargando-overlay" *ngIf="cargando && !error">
+    <div class="spinner"></div>
+    <p>Iniciando cámara y reconocimiento...</p>
+    <small>Por favor, permite el acceso a la cámara</small>
+  </div>
+
+  <div class="error-overlay" *ngIf="error">
+    <i class="fas fa-exclamation-triangle"></i>
+    <h3>{{ error }}</h3>
+    <p class="error-detalle">{{ errorDetalle }}</p>
+    <div class="instrucciones-error">
+      <h4>Cómo habilitar la cámara:</h4>
+      <ol>
+        <li>Haz clic en el <strong>icono de candado</strong> en la barra de direcciones</li>
+        <li>Busca la opción <strong>"Cámara"</strong></li>
+        <li>Selecciona <strong>"Permitir"</strong></li>
+        <li>Recarga la página o haz clic en Reintentar</li>
+      </ol>
+    </div>
+    <button class="btn btn-primario btn-small" (click)="inicializarCamara()">
+      <i class="fas fa-redo"></i> Reintentar
+    </button>
+  </div>
+
+  <div class="contenido-principal" [class.oculto]="!camaraActiva || error || cargando">
+    
+    <div class="video-y-info">
+      
+      <div class="video-section">
+        <div class="video-wrapper-compacto">
+          <video #videoElement autoplay playsinline muted class="video-feed-compacto"></video>
+          <canvas #canvasElement class="canvas-overlay-compacto"></canvas>
+          
+          <div class="guia-mano-examen" *ngIf="camaraActiva && !manoDetectada">
+            <div class="guia-contenido-examen">
+              <i class="fas fa-hand-paper"></i>
+              <p>Coloca tus manos aquí</p>
+              <small *ngIf="requiereDosManos">(Se necesitan ambas manos)</small>
+            </div>
+          </div>
+
+          <div class="estado-deteccion-overlay" *ngIf="manoDetectada && deteccionesConsecutivas > 0">
+            <div class="pulso-deteccion">
+              <i class="fas fa-bullseye"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        
+        <div class="card-sena-objetivo">
+          <div class="label-card">Seña a realizar:</div>
+          <div class="valor-sena">{{ senaObjetivo }}</div>
+        </div>
+
+        <div class="card-temporizador" [class.urgente]="temporizador <= 10">
+          <i class="fas fa-clock"></i>
+          <span class="tiempo-valor">{{ temporizador }}s</span>
+        </div>
+
+        <div class="card-info">
+          <div class="info-item">
+            <span class="info-label">Manos:</span>
+            <span class="info-valor" [class.activo]="manoDetectada">
+              {{ estadoMano }}
+              <i class="fas fa-check-circle" *ngIf="manoDetectada"></i>
+            </span>
+          </div>
+
+          <div class="info-item" *ngIf="senaDetectada && senaDetectada !== ''">
+            <span class="info-label">Detectada:</span>
+            <span class="info-valor detectada">{{ senaDetectada }}</span>
+          </div>
+
+          <div class="info-item" *ngIf="manoDetectada">
+            <span class="info-label">Confianza:</span>
+            <div class="confianza-visual">
+              <div class="barra-confianza">
+                <div class="relleno-confianza" 
+                     [style.width.%]="porcentajeConfianza" 
+                     [ngStyle]="{'background': colorConfianza}">
+                </div>
+              </div>
+              <span class="porcentaje-texto">{{ porcentajeConfianza }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-progreso" *ngIf="deteccionesConsecutivas > 0">
+          <div class="progreso-header">
+            <i class="fas fa-bolt"></i>
+            <span>{{ deteccionesConsecutivas }}/{{ umbralDeteccionEstable }} detecciones</span>
+          </div>
+          <div class="barra-progreso-detecciones">
+            <div class="progreso-fill" [style.width.%]="progresoDeteccion"></div>
+          </div>
+        </div>
+
+        <div class="card-procesando" *ngIf="estaProcesando && !deteccionesConsecutivas">
+          <i class="fas fa-spinner fa-spin"></i>
+          <span>Analizando seña...</span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="instrucciones-compactas">
+      <div class="instruccion-item">
+        <i class="fas fa-hand-paper"></i>
+        <span>Realiza la seña <strong>{{ senaObjetivo }}</strong> y mantén la posición estable</span>
+      </div>
+      <div class="instruccion-item">
+        <i class="fas fa-eye"></i>
+        <span *ngIf="!requiereDosManos">Mantén tu mano visible dentro del recuadro</span>
+        <span *ngIf="requiereDosManos">Mantén ambas manos visibles dentro del recuadro</span>
+      </div>
+      <div class="instruccion-item">
+        <i class="fas fa-check-double"></i>
+        <span>Se capturará automáticamente tras <strong>{{ umbralDeteccionEstable }}</strong> detecciones estables con confianza ≥ {{ (umbralConfianzaMinima * 100) }}%</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>

@@ -1,0 +1,197 @@
+<div class="contenedor-practica">
+
+  <div *ngIf="cargando" class="loader">
+    <div class="spinner"></div>
+    <p>Cargando práctica...</p>
+  </div>
+
+  <div *ngIf="error" class="error-mensaje">
+    <i class="fas fa-exclamation-triangle"></i>
+    <p>{{ error }}</p>
+    <button (click)="salir()" class="btn-salir">Volver</button>
+  </div>
+
+  <div *ngIf="!cargando && !error && !practicaCompletada" class="practica-activa">
+
+    <div class="header-practica">
+      <button (click)="salir()" class="btn-salir-mini">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="info-header">
+        <h2>{{ leccion?.titulo }}</h2>
+        <p>Clase {{ indiceActual + 1 }} de {{ clases.length }}</p>
+      </div>
+      <div class="estadisticas">
+        <span><i class="fas fa-clock"></i> {{ formatearTiempo(tiempoTranscurrido) }}</span>
+        <span><i class="fas fa-star"></i> {{ puntuacion }} pts</span>
+      </div>
+    </div>
+
+    <div class="barra-progreso">
+      <div class="progreso-fill" [style.width.%]="obtenerProgreso()"></div>
+    </div>
+
+    <div class="contenido-practica" *ngIf="claseActual && leccion">
+
+      <div class="layout-practica">
+
+        <div class="columna-referencia">
+
+          <div class="seccion-video">
+            <h3><i class="fas fa-play-circle"></i> Video de Referencia</h3>
+
+            <div class="video-contenedor" *ngIf="videoUrl">
+              <iframe [src]="videoUrl"
+                      frameborder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen>
+              </iframe>
+            </div>
+
+            <div class="imagen-referencia" *ngIf="!videoUrl && claseActual.imagen_referencia">
+              <img [src]="claseActual.imagen_referencia" [alt]="senaEsperada">
+            </div>
+
+            <div class="gif-referencia" *ngIf="!videoUrl && !claseActual.imagen_referencia && claseActual.gif_demostracion">
+              <img [src]="claseActual.gif_demostracion" [alt]="senaEsperada">
+            </div>
+
+            <div class="sin-multimedia" *ngIf="!videoUrl && !claseActual.imagen_referencia && !claseActual.gif_demostracion">
+              <i class="fas fa-hand-paper"></i>
+              <p>Seña: <strong>{{ senaEsperada }}</strong></p>
+            </div>
+          </div>
+
+          <div class="info-clase">
+            <h3>{{ claseActual.titulo }}</h3>
+            <p class="descripcion" *ngIf="claseActual.descripcion">
+              {{ claseActual.descripcion }}
+            </p>
+
+            <span class="badge-dificultad" [class]="obtenerDificultad()">
+              {{ obtenerEtiquetaDificultad() }}
+            </span>
+
+            <div class="tips-seccion" *ngIf="claseActual.tips">
+              <h4><i class="fas fa-lightbulb"></i> Tips</h4>
+              <div [innerHTML]="claseActual.tips"></div>
+            </div>
+
+            <div class="errores-seccion" *ngIf="claseActual.errores_comunes">
+              <h4><i class="fas fa-exclamation-triangle"></i> Errores Comunes</h4>
+              <div [innerHTML]="claseActual.errores_comunes"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="columna-reconocimiento">
+
+          <div class="instrucciones-practica" *ngIf="!practicaEnCurso && !mostrarRespuesta">
+            <h3>¿Qué seña es esta?</h3>
+            <p class="sena-objetivo">Realiza la seña: <strong>{{ senaEsperada }}</strong></p>
+
+            <div class="requisitos">
+              <p><i class="fas fa-info-circle"></i> <strong>Requisitos:</strong></p>
+              <ul>
+                <li>Precisión mínima: {{ (claseActual.precision_minima * 100).toFixed(0) }}%</li>
+                <li>Mantén la posición por 2-3 segundos</li>
+              </ul>
+            </div>
+
+            <button class="btn-grande btn-primario" (click)="iniciarPractica()">
+              <i class="fas fa-video"></i>
+              Activar Cámara y Practicar
+            </button>
+          </div>
+
+          <div class="area-reconocimiento" *ngIf="practicaEnCurso">
+            <app-camara-reconocimiento
+              [senaObjetivo]="senaEsperada"
+              (resultadoEmitido)="procesarResultado($event)">
+            </app-camara-reconocimiento>
+          </div>
+
+          <div class="resultado-respuesta" *ngIf="mostrarRespuesta"
+               [class.correcta]="respuestaCorrecta"
+               [class.incorrecta]="!respuestaCorrecta">
+
+            <div class="icono-resultado">
+              <i class="fas" [class.fa-check-circle]="respuestaCorrecta"
+                 [class.fa-times-circle]="!respuestaCorrecta"></i>
+            </div>
+
+            <h3>{{ respuestaCorrecta ? '¡Excelente!' : 'Intenta de nuevo' }}</h3>
+
+            <div class="detalles-resultado">
+              <div class="detalle-item">
+                <span class="label">Precisión:</span>
+                <span class="valor" [style.color]="colorPrecision">
+                  {{ (ultimaPrecision * 100).toFixed(1) }}%
+                </span>
+              </div>
+              <div class="detalle-item" *ngIf="ultimaSenaDetectada">
+                <span class="label">Seña detectada:</span>
+                <span class="valor">{{ ultimaSenaDetectada }}</span>
+              </div>
+            </div>
+
+            <p class="mensaje-feedback">{{ mensajeFeedback }}</p>
+
+            <div class="acciones-resultado">
+              <button class="btn btn-secundario" (click)="reintentar()">
+                <i class="fas fa-redo"></i>
+                Intentar de nuevo
+              </button>
+              <button class="btn btn-primario" (click)="siguienteSena()">
+                <i class="fas fa-arrow-right"></i>
+                {{ indiceActual < clases.length - 1 ? 'Siguiente Clase' : 'Finalizar' }}
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <div *ngIf="practicaCompletada" class="resultado-final">
+    <div class="icono-completado">
+      <i class="fas fa-trophy"></i>
+    </div>
+    <h1>¡Práctica Completada!</h1>
+
+    <div class="estadisticas-finales">
+      <div class="stat">
+        <span class="stat-valor">{{ puntuacion }}</span>
+        <span class="stat-label">Puntos obtenidos</span>
+      </div>
+      <div class="stat">
+        <span class="stat-valor">{{ formatearTiempo(tiempoTranscurrido) }}</span>
+        <span class="stat-label">Tiempo total</span>
+      </div>
+      <div class="stat">
+        <span class="stat-valor">{{ respuestasCorrectas }}/{{ clases.length }}</span>
+        <span class="stat-label">Clases completadas</span>
+      </div>
+      <div class="stat">
+        <span class="stat-valor">{{ obtenerPrecision().toFixed(1) }}%</span>
+        <span class="stat-label">Precisión promedio</span>
+      </div>
+    </div>
+
+    <div class="acciones-finales">
+      <button (click)="reiniciarPractica()" class="btn-reintentar">
+        <i class="fas fa-redo"></i> Practicar de nuevo
+      </button>
+      <button (click)="salir()" class="btn-salir-final">
+        <i class="fas fa-arrow-left"></i> Volver a lecciones
+      </button>
+    </div>
+  </div>
+
+</div>

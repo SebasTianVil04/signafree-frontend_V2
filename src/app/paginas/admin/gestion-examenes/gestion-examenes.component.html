@@ -1,0 +1,300 @@
+<div class="gestion-examenes-admin">
+  <div class="header-page">
+    <div class="titulo-seccion">
+      <i class="bi bi-clipboard-check"></i>
+      <div>
+        <h1>Gestión de Autoevaluación</h1>
+        <p>Administra las Autoevaluación del sistema de aprendizaje</p>
+      </div>
+    </div>
+    <button class="btn btn-primario" (click)="abrirModalCrear()">
+      <i class="bi bi-plus-circle"></i> Nueva Autoevaluación
+    </button>
+  </div>
+
+  <div class="filtros-card">
+    <div class="filtros-grid">
+      <div class="filtro-item">
+        <label>Buscar</label>
+        <input type="text" [(ngModel)]="filtros.buscar" (input)="aplicarFiltros()" placeholder="Título de la autoevaluación..." class="form-control">
+      </div>
+
+      <div class="filtro-item">
+        <label>Lección</label>
+        <select [(ngModel)]="filtros.leccion_id" (change)="aplicarFiltros()" class="form-control">
+          <option [ngValue]="undefined">Todas las lecciones</option>
+          <option *ngFor="let leccion of lecciones" [ngValue]="leccion.id">
+            {{ leccion.titulo }} ({{ leccion.categoria }})
+          </option>
+        </select>
+      </div>
+
+      <div class="filtro-item">
+        <label>Tipo</label>
+        <select [(ngModel)]="filtros.tipo" (change)="aplicarFiltros()" class="form-control">
+          <option value="">Todos</option>
+          <option value="nivel">Autoevaluación de Nivel</option>
+          <option value="final">Autoevaluación Final</option>
+        </select>
+      </div>
+
+      <div class="filtro-item">
+        <label>Estado</label>
+        <select [(ngModel)]="filtros.activo" (change)="aplicarFiltros()" class="form-control">
+          <option [ngValue]="undefined">Todos</option>
+          <option [ngValue]="true">Activos</option>
+          <option [ngValue]="false">Inactivos</option>
+        </select>
+      </div>
+
+      <div class="filtro-item">
+        <button class="btn btn-secundario btn-block" (click)="limpiarFiltros()">
+          <i class="bi bi-x-lg"></i> Limpiar
+        </button>
+      </div>
+    </div>
+
+    <p class="info-resultados">
+      <i class="bi bi-info-circle"></i>
+      Mostrando {{ examenesFiltrados.length }} de {{ examenes.length }} autoevaluaciones
+    </p>
+  </div>
+
+  <div class="cargando-container" *ngIf="cargando">
+    <div class="spinner"></div>
+    <p>Cargando autoevaluaciones...</p>
+  </div>
+
+  <div class="examenes-lista" *ngIf="!cargando && examenesFiltrados.length > 0">
+    <div class="tabla-responsive">
+      <table class="tabla-examenes">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Título</th>
+            <th>Lección</th>
+            <th>Tipo</th>
+            <th>Orden</th>
+            <th>Requisitos</th>
+            <th>Preguntas</th>
+            <th>Tiempo</th>
+            <th>Puntaje Mín.</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let examen of examenesFiltrados">
+            <td>{{ examen.id }}</td>
+            <td>
+              <div class="examen-titulo">
+                <strong>{{ examen.titulo }}</strong>
+                <small *ngIf="examen.descripcion">{{ examen.descripcion }}</small>
+              </div>
+            </td>
+            <td>
+              <span class="badge badge-info">{{ obtenerNombreLeccion(examen.leccion_id!) }}</span>
+            </td>
+            <td>
+              <span class="badge" [class.badge-nivel]="examen.tipo === 'nivel'" [class.badge-final]="examen.tipo === 'final'">
+                {{ examen.tipo === 'nivel' ? 'Nivel ' + examen.nivel : 'Final' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge badge-orden">{{ examen.orden || 1 }}</span>
+            </td>
+            <td>
+              <div class="requisitos-mini">
+                <span *ngIf="examen.requiere_todas_clases" class="req-badge req-todas">
+                  <i class="bi bi-check-all"></i> Todas las clases
+                </span>
+                <span *ngIf="!examen.requiere_todas_clases && examen.clases_requeridas! > 0" class="req-badge req-parcial">
+                  <i class="bi bi-check-circle"></i> {{ examen.clases_requeridas }} clases
+                </span>
+                <span *ngIf="!examen.requiere_todas_clases && examen.clases_requeridas === 0" class="req-badge req-ninguna">
+                  <i class="bi bi-unlock"></i> Sin requisitos
+                </span>
+              </div>
+            </td>
+            <td>
+              <div class="stat-mini">
+                <i class="bi bi-question-circle"></i>
+                {{ examen.total_preguntas || 0 }}
+              </div>
+            </td>
+            <td>
+              <div class="stat-mini" *ngIf="examen.tiempo_limite">
+                <i class="bi bi-clock"></i>
+                {{ examen.tiempo_limite }} min
+              </div>
+              <span *ngIf="!examen.tiempo_limite">Sin límite</span>
+            </td>
+            <td>
+              <strong>{{ examen.puntuacion_minima }}%</strong>
+            </td>
+            <td>
+              <label class="switch">
+                <input type="checkbox" [checked]="examen.activo" (change)="toggleActivo(examen)">
+                <span class="slider"></span>
+              </label>
+            </td>
+            <td>
+              <div class="acciones-grupo">
+                <button class="btn-icono btn-info" (click)="verDetalles(examen)" title="Ver detalles">
+                  <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn-icono btn-warning" (click)="editarExamen(examen)" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn-icono btn-success" (click)="gestionarPreguntas(examen)" title="Gestionar preguntas">
+                  <i class="bi bi-list-check"></i>
+                </button>
+                <button class="btn-icono btn-danger" (click)="eliminarExamen(examen)" title="Eliminar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sin-resultados" *ngIf="!cargando && examenesFiltrados.length === 0">
+    <i class="bi bi-clipboard-x"></i>
+    <h3>No hay autoevaluaciones</h3>
+    <p *ngIf="examenes.length === 0">Crea tu primera autoevaluación para comenzar</p>
+    <p *ngIf="examenes.length > 0">No se encontraron autoevaluaciones con los filtros aplicados</p>
+  </div>
+</div>
+
+<div class="modal" [class.show]="mostrarModal" *ngIf="mostrarModal">
+  <div class="modal-overlay" (click)="cerrarModal()"></div>
+  <div class="modal-content modal-lg">
+    <div class="modal-header">
+      <h3>
+        <i class="bi bi-clipboard-check"></i>
+        {{ modoEdicion ? 'Editar Autoevaluación' : 'Nueva Autoevaluación' }}
+      </h3>
+      <button class="btn-cerrar" (click)="cerrarModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <form [formGroup]="formularioExamen">
+        <div class="form-group">
+          <label>Título de la Autoevaluación *</label>
+          <input type="text" formControlName="titulo" class="form-control" [class.is-invalid]="mostrarError('titulo')" placeholder="Ej: Autoevaluación de Nivel 1 - Alfabeto">
+          <small class="error" *ngIf="mostrarError('titulo')">
+            <i class="bi bi-exclamation-circle"></i>
+            {{ getMensajeError('titulo') }}
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label>Descripción</label>
+          <textarea formControlName="descripcion" class="form-control" rows="3" placeholder="Describe el contenido de la autoevaluación..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Lección Asociada *</label>
+            <select formControlName="leccion_id" class="form-control" [class.is-invalid]="mostrarError('leccion_id')">
+              <option [ngValue]="null">Seleccionar lección...</option>
+              <option *ngFor="let leccion of lecciones" [ngValue]="leccion.id">
+                {{ leccion.titulo }} ({{ leccion.categoria }})
+              </option>
+            </select>
+            <small class="error" *ngIf="mostrarError('leccion_id')">
+              <i class="bi bi-exclamation-circle"></i>
+              {{ getMensajeError('leccion_id') }}
+            </small>
+          </div>
+
+          <div class="form-group col-md-6">
+            <label>Tipo de Autoevaluación *</label>
+            <select formControlName="tipo" class="form-control">
+              <option value="nivel">Autoevaluación de Nivel</option>
+              <option value="final">Autoevaluación Final</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-md-6" *ngIf="mostrarCampoNivel()">
+            <label>Nivel *</label>
+            <input type="number" formControlName="nivel" class="form-control" [class.is-invalid]="mostrarError('nivel')" min="1" max="10" placeholder="1-10">
+            <small class="error" *ngIf="mostrarError('nivel')">
+              <i class="bi bi-exclamation-circle"></i>
+              {{ getMensajeError('nivel') }}
+            </small>
+          </div>
+
+          <div class="form-group col-md-6">
+            <label>Orden en la Lección *</label>
+            <input type="number" formControlName="orden" class="form-control" [class.is-invalid]="mostrarError('orden')" min="1" placeholder="1, 2, 3...">
+            <small class="form-text">
+              <i class="bi bi-info-circle"></i>
+              Define el orden de aparición de la autoevaluación en la lección
+            </small>
+            <small class="error" *ngIf="mostrarError('orden')">
+              <i class="bi bi-exclamation-circle"></i>
+              {{ getMensajeError('orden') }}
+            </small>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" formControlName="requiere_todas_clases">
+            <span>Requiere completar todas las clases de la lección</span>
+          </label>
+          <small class="form-text">
+            <i class="bi bi-info-circle"></i>
+            Si está marcado, el estudiante debe completar todas las clases antes de poder tomar esta autoevaluación
+          </small>
+        </div>
+
+        <div class="form-group" *ngIf="!formularioExamen.get('requiere_todas_clases')?.value">
+          <label>Número de Clases Requeridas</label>
+          <input type="number" formControlName="clases_requeridas" class="form-control" min="0" placeholder="Ej: 3">
+          <small class="form-text">
+            <i class="bi bi-info-circle"></i>
+            Cantidad mínima de clases que el estudiante debe completar para acceder a esta autoevaluación (0 = sin requisitos)
+          </small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Tiempo Límite (minutos)</label>
+            <input type="number" formControlName="tiempo_limite" class="form-control" [class.is-invalid]="mostrarError('tiempo_limite')" min="1" placeholder="Ej: 30">
+            <small class="form-text">
+              <i class="bi bi-info-circle"></i>
+              Dejar vacío para sin límite
+            </small>
+          </div>
+
+          <div class="form-group col-md-6">
+            <label>Puntuación Mínima (%) *</label>
+            <input type="number" formControlName="puntuacion_minima" class="form-control" [class.is-invalid]="mostrarError('puntuacion_minima')" min="0" max="100" step="5" placeholder="70">
+            <small class="error" *ngIf="mostrarError('puntuacion_minima')">
+              <i class="bi bi-exclamation-circle"></i>
+              {{ getMensajeError('puntuacion_minima') }}
+            </small>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secundario" (click)="cerrarModal()">
+        <i class="bi bi-x-lg"></i> Cancelar
+      </button>
+      <button class="btn btn-primario" (click)="guardarExamen()" [disabled]="!esFormularioValido() || guardando">
+        <i class="bi" [class.bi-arrow-repeat]="guardando" [class.bi-spin]="guardando" [class.bi-check-lg]="!guardando && !modoEdicion" [class.bi-arrow-clockwise]="!guardando && modoEdicion"></i>
+        {{ guardando ? 'Guardando...' : (modoEdicion ? 'Actualizar' : 'Crear') }}
+      </button>
+    </div>
+  </div>
+</div>

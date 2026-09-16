@@ -1,0 +1,420 @@
+<div class="gestion-clases-container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-info">
+      <button class="btn-volver" (click)="volver()">
+        <i class="bi bi-arrow-left"></i> Volver
+      </button>
+      <div class="titulo-seccion">
+        <h1>Gestión de Clases</h1>
+        <p class="subtitulo">
+          <span class="leccion-info">
+            <i class="bi bi-book"></i>
+            <strong>Lección:</strong> {{ tituloLeccion }}
+          </span>
+          <span class="badge-categoria" *ngIf="leccion">
+            <i class="bi bi-tag-fill"></i>
+            {{ categoriaNombre }}
+          </span>
+        </p>
+      </div>
+    </div>
+    <button class="btn btn-primario" (click)="abrirModalNueva()">
+      <i class="bi bi-plus-circle-fill"></i> Nueva Clase
+    </button>
+  </div>
+
+  <!-- Alertas -->
+  <div *ngIf="mensaje" class="alert alert-success">
+    <i class="bi bi-check-circle-fill"></i>
+    <span>{{ mensaje }}</span>
+  </div>
+
+  <div *ngIf="error" class="alert alert-error">
+    <i class="bi bi-exclamation-circle-fill"></i>
+    <span>{{ error }}</span>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros-section">
+    <div class="filtros-grid">
+      <div class="filtro-item busqueda">
+        <label><i class="bi bi-search"></i> Buscar</label>
+        <input type="text" [(ngModel)]="filtros.busqueda" (ngModelChange)="aplicarFiltros()"
+          placeholder="Título, descripción, seña...">
+      </div>
+
+      <div class="filtro-item">
+        <label><i class="bi bi-funnel"></i> Estado</label>
+        <select [(ngModel)]="filtros.activa" (change)="aplicarFiltros()">
+          <option [ngValue]="undefined">Todas las clases</option>
+          <option [ngValue]="true">Solo activas</option>
+          <option [ngValue]="false">Solo inactivas</option>
+        </select>
+      </div>
+
+      <button class="btn-limpiar" (click)="limpiarFiltros()">
+        <i class="bi bi-arrow-clockwise"></i> Limpiar
+      </button>
+    </div>
+
+    <div class="filtros-stats">
+      <span class="stat-item">
+        <i class="bi bi-collection"></i>
+        <strong>{{ clasesFiltradas.length }}</strong> clases
+      </span>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="cargando" class="loading">
+    <div class="spinner"></div>
+    <p>Cargando clases...</p>
+  </div>
+
+  <!-- Tabla -->
+  <div *ngIf="!cargando" class="tabla-container">
+    <div class="tabla-wrapper">
+      <table class="tabla-clases">
+        <thead>
+          <tr>
+            <th><i class="bi bi-hash"></i> Orden</th>
+            <th><i class="bi bi-card-heading"></i> Información</th>
+            <th><i class="bi bi-hand-index"></i> Seña</th>
+            <th><i class="bi bi-play-circle"></i> Video</th>
+            <th><i class="bi bi-clock-history"></i> Duración</th>
+            <th><i class="bi bi-folder"></i> Recursos</th>
+            <th><i class="bi bi-clipboard-check"></i> Práctica</th>
+            <th><i class="bi bi-toggle-on"></i> Estado</th>
+            <th><i class="bi bi-gear"></i> Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let clase of clasesFiltradas" class="tabla-row">
+            <td>
+              <div class="badge-orden">{{ clase.orden }}</div>
+            </td>
+            <td>
+              <div class="titulo-celda">
+                <strong>{{ clase.titulo }}</strong>
+                <small *ngIf="clase.descripcion">
+                  {{ clase.descripcion.length > 60 ? (clase.descripcion | slice:0:60) + '...' : clase.descripcion }}
+                </small>
+              </div>
+            </td>
+            <td>
+              <span class="badge-sena" *ngIf="clase.sena">{{ clase.sena }}</span>
+              <span class="sin-dato" *ngIf="!clase.sena">-</span>
+            </td>
+            <td>
+              <span class="badge-video" [class.youtube]="clase.tipo_video === 'youtube'"
+                [class.drive]="clase.tipo_video === 'google_drive'" [class.vimeo]="clase.tipo_video === 'vimeo'">
+                <i class="bi" [class.bi-youtube]="clase.tipo_video === 'youtube'"
+                  [class.bi-google]="clase.tipo_video === 'google_drive'"
+                  [class.bi-vimeo]="clase.tipo_video === 'vimeo'"></i>
+                {{ clase.tipo_video === 'youtube' ? 'YouTube' :
+                clase.tipo_video === 'google_drive' ? 'Drive' : 'Vimeo' }}
+              </span>
+            </td>
+            <td>
+              <span class="duracion">
+                <i class="bi bi-stopwatch"></i>
+                {{ clase.duracion_estimada || 0 }} min
+              </span>
+            </td>
+            <td>
+              <div class="recursos-grid">
+                <span class="recurso-icon" *ngIf="clase.imagen_referencia" title="Imagen de referencia">
+                  <i class="bi bi-image-fill"></i>
+                </span>
+                <span class="recurso-icon" *ngIf="clase.gif_demostracion" title="GIF demostración">
+                  <i class="bi bi-file-earmark-play-fill"></i>
+                </span>
+                <span class="recurso-icon" *ngIf="clase.tips" title="Tips disponibles">
+                  <i class="bi bi-lightbulb-fill"></i>
+                </span>
+                <span class="recurso-icon" *ngIf="clase.errores_comunes" title="Errores comunes">
+                  <i class="bi bi-exclamation-diamond-fill"></i>
+                </span>
+                <span class="sin-dato"
+                  *ngIf="!clase.imagen_referencia && !clase.gif_demostracion && !clase.tips && !clase.errores_comunes">
+                  Sin recursos
+                </span>
+              </div>
+            </td>
+            <td>
+              <div class="practica-info">
+                <span class="badge-practica" [class.requerida]="clase.requiere_practica"
+                  [class.opcional]="!clase.requiere_practica">
+                  <i class="bi" [class.bi-check-circle-fill]="clase.requiere_practica"
+                    [class.bi-dash-circle]="!clase.requiere_practica"></i>
+                  {{ clase.requiere_practica ? 'Requerida' : 'Opcional' }}
+                </span>
+                <small *ngIf="clase.requiere_practica" class="practica-detalles">
+                  {{ clase.intentos_minimos }} intentos · {{ (clase.precision_minima * 100).toFixed(0) }}%
+                </small>
+              </div>
+            </td>
+            <td>
+              <span class="badge-estado" [class.activa]="clase.activa" [class.inactiva]="!clase.activa">
+                <i class="bi" [class.bi-check-circle-fill]="clase.activa"
+                  [class.bi-x-circle-fill]="!clase.activa"></i>
+                {{ clase.activa ? 'Activa' : 'Inactiva' }}
+              </span>
+            </td>
+            <td class="acciones">
+              <div class="acciones-group">
+                <button class="btn-icono btn-editar" (click)="abrirModalEditar(clase)" title="Editar clase">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+                <button class="btn-icono btn-toggle" (click)="toggleActiva(clase)"
+                  [title]="clase.activa ? 'Desactivar' : 'Activar'">
+                  <i class="bi" [class.bi-toggle2-on]="clase.activa" [class.bi-toggle2-off]="!clase.activa"></i>
+                </button>
+                <button class="btn-icono btn-eliminar" (click)="eliminarClase(clase)" title="Eliminar clase">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="clasesFiltradas.length === 0">
+            <td colspan="9" class="sin-datos">
+              <div class="sin-datos-content">
+                <i class="bi bi-inbox"></i>
+                <p>No se encontraron clases</p>
+                <small>Intenta ajustar los filtros o crea una nueva clase</small>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" *ngIf="mostrarModal" (click)="cerrarModal()">
+    <div class="modal-contenido" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="bi" [class.bi-plus-circle-fill]="!modoEdicion" [class.bi-pencil-square]="modoEdicion"></i>
+          <h2>{{ modoEdicion ? 'Editar Clase' : 'Nueva Clase' }}</h2>
+        </div>
+        <button class="btn-cerrar" (click)="cerrarModal()">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Información Básica -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-info-circle-fill"></i> Información Básica</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Título <span class="requerido">*</span></label>
+              <input type="text" [(ngModel)]="formulario.titulo" name="titulo"
+                placeholder="Ej: Aprende la letra A" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-row dos-columnas">
+            <div class="form-group">
+              <label>Seña <span class="requerido" *ngIf="formulario.requiere_practica">*</span></label>
+              <input type="text" [(ngModel)]="formulario.sena" name="sena" placeholder="Ej: A" maxlength="10"
+                class="form-control"
+                [class.requerido-border]="formulario.requiere_practica && (!formulario.sena || formulario.sena.trim().length === 0)">
+              <small><i class="bi bi-info-circle"></i> Letra o símbolo que se enseña</small>
+            </div>
+
+            <div class="form-group">
+              <label>Orden <span class="requerido">*</span></label>
+              <input type="number" [(ngModel)]="formulario.orden" name="orden" min="1" class="form-control">
+              <small><i class="bi bi-sort-numeric-down"></i> Posición en la lección</small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Descripción</label>
+              <textarea [(ngModel)]="formulario.descripcion" name="descripcion"
+                placeholder="Descripción breve de la clase..." rows="3" class="form-control"></textarea>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Contenido de Texto</label>
+              <textarea [(ngModel)]="formulario.contenido_texto" name="contenido_texto"
+                placeholder="Contenido educativo completo de la clase..." rows="4"
+                class="form-control"></textarea>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Duración Estimada (minutos)</label>
+              <input type="number" [(ngModel)]="formulario.duracion_estimada" name="duracion_estimada" min="1"
+                placeholder="10" class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <!-- Video -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-camera-video-fill"></i> Video de la Clase</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tipo de Video <span class="requerido">*</span></label>
+              <select [(ngModel)]="formulario.tipo_video" name="tipo_video" class="form-control">
+                <option *ngFor="let tipo of tiposVideo" [value]="tipo.valor">
+                  {{ tipo.etiqueta }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>URL del Video</label>
+              <div class="input-con-boton">
+                <input type="text" [(ngModel)]="formulario.video_url" name="video_url"
+                  placeholder="https://youtube.com/watch?v=..." class="form-control">
+                <button type="button" class="btn-extraer" (click)="extraerVideoId()" title="Extraer ID del video">
+                  <i class="bi bi-magic"></i> Extraer
+                </button>
+              </div>
+              <small><i class="bi bi-link-45deg"></i> Pega la URL completa y haz clic en extraer</small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>ID del Video</label>
+              <input type="text" [(ngModel)]="formulario.video_id" name="video_id"
+                placeholder="ID extraído automáticamente" class="form-control">
+              <small><i class="bi bi-code-slash"></i> Se extrae automáticamente de la URL</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recursos Adicionales -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-images"></i> Recursos Adicionales</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>URL Imagen de Referencia</label>
+              <input type="text" [(ngModel)]="formulario.imagen_referencia" name="imagen_referencia"
+                placeholder="https://..." class="form-control">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>URL GIF de Demostración</label>
+              <input type="text" [(ngModel)]="formulario.gif_demostracion" name="gif_demostracion"
+                placeholder="https://..." class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-lightbulb-fill"></i> Tips y Consejos</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tips</label>
+              <textarea [(ngModel)]="formulario.tips" name="tips"
+                placeholder="Consejos útiles para realizar la seña correctamente..." rows="3"
+                class="form-control"></textarea>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Errores Comunes</label>
+              <textarea [(ngModel)]="formulario.errores_comunes" name="errores_comunes"
+                placeholder="Errores frecuentes que cometen los estudiantes..." rows="3"
+                class="form-control"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Práctica -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-activity"></i> Configuración de Práctica</h3>
+
+          <div class="form-row">
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="formulario.requiere_practica" name="requiere_practica">
+                <span><i class="bi bi-check-circle"></i> Requiere práctica obligatoria</span>
+              </label>
+              <small *ngIf="formulario.requiere_practica" class="advertencia-sena">
+                <i class="bi bi-exclamation-triangle"></i>
+                Si marcas esta opción, la seña es obligatoria
+              </small>
+            </div>
+          </div>
+
+          <div *ngIf="formulario.requiere_practica" class="practica-config">
+            <div class="form-row tres-columnas">
+              <div class="form-group">
+                <label>Intentos Mínimos</label>
+                <input type="number" [(ngModel)]="formulario.intentos_minimos" name="intentos_minimos" min="1"
+                  class="form-control">
+                <small><i class="bi bi-arrow-repeat"></i> Número mínimo de intentos</small>
+              </div>
+
+              <div class="form-group">
+                <label>Precisión Mínima</label>
+                <input type="number" [(ngModel)]="formulario.precision_minima" name="precision_minima" min="0" max="1"
+                  step="0.05" class="form-control">
+                <small><i class="bi bi-percent"></i> Valor entre 0 y 1 (ej: 0.7 = 70%)</small>
+              </div>
+
+              <div class="form-group">
+                <div class="porcentaje-display">
+                  <span class="porcentaje-numero">{{ (formulario.precision_minima * 100).toFixed(0) }}</span>
+                  <span class="porcentaje-simbolo">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estado -->
+        <div class="seccion-form">
+          <h3><i class="bi bi-toggle-on"></i> Estado</h3>
+
+          <div class="form-row">
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="formulario.activa" name="activa">
+                <span><i class="bi bi-eye"></i> Clase Activa</span>
+              </label>
+              <small><i class="bi bi-people"></i> Los usuarios pueden acceder a esta clase</small>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secundario" (click)="cerrarModal()">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+        <button class="btn btn-primario" (click)="guardarClase()">
+          <i class="bi bi-check-circle-fill"></i> {{ modoEdicion ? 'Actualizar' : 'Guardar' }}
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>

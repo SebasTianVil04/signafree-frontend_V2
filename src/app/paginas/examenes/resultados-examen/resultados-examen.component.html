@@ -1,0 +1,132 @@
+<!-- src/app/paginas/examenes/resultados-examen/resultados-examen.component.html -->
+<div class="resultados-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1>Resultados de la Autoevaluación</h1>
+      <p *ngIf="examen">{{ examen.titulo }} - {{ getNivelTexto() }}</p>
+    </div>
+    <button (click)="volverALista()" class="btn btn-outline">
+      <i class="fas fa-arrow-left"></i> Volver a Autoevaluaciones
+    </button>
+  </div>
+
+  <!-- Resultado Actual (si acaba de terminar) -->
+  <div *ngIf="resultadoActual" class="resultado-actual-card">
+    <div class="resultado-header">
+      <h2>Resultado Reciente</h2>
+      <span class="badge" [ngClass]="resultadoActual.aprobado ? 'badge-success' : 'badge-danger'">
+        {{ resultadoActual.aprobado ? 'APROBADO' : 'NO APROBADO' }}
+      </span>
+    </div>
+
+    <div class="resultado-stats">
+      <div class="stat-card primary">
+        <div class="stat-value">{{ resultadoActual.porcentaje | number:'1.1-1' }}%</div>
+        <div class="stat-label">Puntuación</div>
+      </div>
+      <div class="stat-card" [ngClass]="resultadoActual.aprobado ? 'success' : 'danger'">
+        <div class="stat-value">{{ resultadoActual.respuestas_correctas }}/{{ resultadoActual.total_preguntas }}</div>
+        <div class="stat-label">Correctas</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-value">{{ formatTiempo(resultadoActual.tiempo_empleado) }}</div>
+        <div class="stat-label">Tiempo</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-value">{{ resultadoActual.puntuacion_minima }}%</div>
+        <div class="stat-label">Mínimo para aprobar</div>
+      </div>
+    </div>
+
+    <div class="resultado-actions">
+      <button (click)="tomarExamenNuevamente()" class="btn btn-primary">
+        <i class="fas fa-redo"></i> Intentar Nuevamente
+      </button>
+    </div>
+  </div>
+
+  <!-- Estadísticas Generales -->
+  <div *ngIf="resultados.length > 0" class="estadisticas-section">
+    <h3>Estadísticas de la Autoevaluación</h3>
+    <div class="estadisticas-grid">
+      <div class="estadistica-card">
+        <i class="fas fa-chart-line"></i>
+        <div class="estadistica-content">
+          <div class="estadistica-value">{{ totalIntentos }}</div>
+          <div class="estadistica-label">Total de Intentos</div>
+        </div>
+      </div>
+      <div class="estadistica-card">
+        <i class="fas fa-trophy"></i>
+        <div class="estadistica-content">
+          <div class="estadistica-value">{{ aprobados }}</div>
+          <div class="estadistica-label">Aprobados</div>
+        </div>
+      </div>
+      <div class="estadistica-card">
+        <i class="fas fa-percentage"></i>
+        <div class="estadistica-content">
+          <div class="estadistica-value">{{ promedioPorcentaje | number:'1.1-1' }}%</div>
+          <div class="estadistica-label">Promedio</div>
+        </div>
+      </div>
+      <div class="estadistica-card" *ngIf="mejorResultado">
+        <i class="fas fa-star"></i>
+        <div class="estadistica-content">
+          <div class="estadistica-value">{{ mejorResultado.porcentaje | number:'1.1-1' }}%</div>
+          <div class="estadistica-label">Mejor Resultado</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial de Intentos -->
+  <div *ngIf="resultados.length > 0" class="historial-section">
+    <h3>Historial de Intentos</h3>
+    <div class="intentos-list">
+      <div *ngFor="let resultado of resultados" class="intento-card">
+        <div class="intento-header">
+          <div class="intento-fecha">
+            <i class="fas fa-calendar"></i>
+            {{ resultado.fecha_finalizacion | date:'dd/MM/yyyy HH:mm' }}
+          </div>
+          <span class="badge" [ngClass]="resultado.aprobado ? 'badge-success' : 'badge-danger'">
+            {{ resultado.aprobado ? 'Aprobado' : 'No Aprobado' }}
+          </span>
+        </div>
+        
+        <div class="intento-stats">
+          <div class="intento-stat">
+            <span class="stat-value">{{ resultado.porcentaje | number:'1.1-1' }}%</span>
+            <span class="stat-label">Puntuación</span>
+          </div>
+          <div class="intento-stat">
+            <span class="stat-value">{{ resultado.respuestas_correctas }}/{{ resultado.total_preguntas }}</span>
+            <span class="stat-label">Correctas</span>
+          </div>
+          <div class="intento-stat">
+            <span class="stat-value">{{ formatTiempo(resultado.tiempo_empleado) }}</span>
+            <span class="stat-label">Tiempo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!cargando && resultados.length === 0 && !resultadoActual" class="empty-state">
+    <i class="fas fa-chart-bar"></i>
+    <h3>No hay resultados aún</h3>
+    <p>Completa la autoevaluación para ver tus resultados aquí</p>
+    <button (click)="tomarExamenNuevamente()" class="btn btn-primary">
+      <i class="fas fa-play"></i> Tomar Autoevaluación
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="cargando" class="loading-container">
+    <div class="spinner"></div>
+    <p>Cargando resultados...</p>
+  </div>
+</div>

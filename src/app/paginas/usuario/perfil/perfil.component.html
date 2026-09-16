@@ -1,0 +1,184 @@
+<div class="perfil-container">
+  <div class="perfil-card">
+    <!-- Header del Perfil -->
+    <div class="perfil-header">
+      <div class="avatar-section">
+        <div class="avatar-large">{{ iniciales }}</div>
+        <div class="usuario-info">
+          <h2 class="usuario-nombre">{{ usuario?.nombres }} {{ usuario?.apellido_paterno }} {{ usuario?.apellido_materno
+            }}</h2>
+          <p class="usuario-email">{{ usuario?.email }}</p>
+          <span class="usuario-badge" [class.admin-badge]="usuario?.rol === 'admin'">
+            {{ usuario?.rol === 'admin' ? 'Administrador' : 'Usuario' }}
+          </span>
+        </div>
+      </div>
+      <button *ngIf="!editando" class="btn-editar" (click)="toggleEditar()">
+        ✏️ Editar Perfil
+      </button>
+    </div>
+
+    <div class="perfil-divider"></div>
+
+    <!-- Formulario de Información Personal -->
+    <div class="perfil-section">
+      <h3 class="section-title">Información Personal</h3>
+
+      <form [formGroup]="perfilForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo de Usuario</label>
+            <input type="text" formControlName="tipo_usuario" class="form-input" readonly />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">{{ documentoLabel }}</label>
+            <input type="text" formControlName="documento" class="form-input" readonly />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombres *</label>
+            <input type="text" formControlName="nombres" class="form-input" placeholder="Nombres completos" readonly />
+            <p class="help-text">No se puede modificar</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Apellidos *</label>
+            <input type="text" formControlName="apellidos" class="form-input" placeholder="Apellidos completos"
+              readonly />
+            <p class="help-text">No se puede modificar</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Correo Electrónico *</label>
+          <input type="email" formControlName="email" class="form-input" placeholder="correo@ejemplo.com" readonly />
+          <p class="help-text">No se puede modificar</p>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+
+            <!-- Modo no edición: mostrar teléfono formateado -->
+            <div *ngIf="!editando" class="telefono-display">
+              <input type="text" [value]="telefonoFormateado" class="form-input" readonly />
+            </div>
+
+            <!-- Modo edición: mostrar selector + input -->
+            <!-- Reemplazar el input de teléfono en modo edición -->
+            <div *ngIf="editando" class="telefono-wrapper">
+              <select formControlName="codigo_pais" class="form-select codigo-pais" (change)="onCodigoPaisChange()">
+                <option *ngFor="let pais of codigosPais" [value]="pais.codigo">
+                  {{ pais.flag }} {{ pais.codigo }}
+                </option>
+              </select>
+              <input type="tel" formControlName="telefono" class="form-input telefono-input" placeholder="987654321"
+                [maxlength]="maxLongitudTelefono" (input)="validarSoloNumeros($event)" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Fecha de Nacimiento</label>
+            <input type="date" formControlName="fecha_nacimiento" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Dirección</label>
+          <input type="text" formControlName="direccion" class="form-input" placeholder="Av. Example 123, Lima" />
+        </div>
+
+        <div class="form-actions" *ngIf="editando">
+          <button type="button" class="btn-cancelar" (click)="toggleEditar()" [disabled]="cargando">
+            Cancelar
+          </button>
+          <button type="button" class="btn-guardar" (click)="guardarCambios()" [disabled]="cargando">
+            <span *ngIf="!cargando">💾 Guardar Cambios</span>
+            <span *ngIf="cargando">Guardando...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="perfil-divider"></div>
+
+    <!-- Sección de Cambio de Contraseña -->
+    <div class="perfil-section">
+      <div class="section-header">
+        <h3 class="section-title">Seguridad</h3>
+        <button class="btn-cambiar-password" (click)="toggleCambiarPassword()">
+          {{ cambiandoPassword ? '✕ Cancelar' : '🔒 Cambiar Contraseña' }}
+        </button>
+      </div>
+
+      <div class="password-section" *ngIf="cambiandoPassword">
+        <form [formGroup]="passwordForm">
+          <div class="form-group">
+            <label class="form-label">Contraseña Actual *</label>
+            <div class="password-wrapper">
+              <input [type]="mostrarPasswordActual ? 'text' : 'password'" formControlName="password_actual"
+                class="form-input"
+                [class.input-error]="passwordForm.get('password_actual')?.invalid && passwordForm.get('password_actual')?.touched"
+                placeholder="••••••••" />
+              <button type="button" class="password-toggle" (click)="mostrarPasswordActual = !mostrarPasswordActual">
+                <span *ngIf="!mostrarPasswordActual">👁️</span>
+                <span *ngIf="mostrarPasswordActual">🙈</span>
+              </button>
+            </div>
+            <div class="error-message"
+              *ngIf="passwordForm.get('password_actual')?.invalid && passwordForm.get('password_actual')?.touched">
+              <span>La contraseña actual es requerida</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nueva Contraseña *</label>
+            <div class="password-wrapper">
+              <input [type]="mostrarPasswordNueva ? 'text' : 'password'" formControlName="password_nueva"
+                class="form-input"
+                [class.input-error]="passwordForm.get('password_nueva')?.invalid && passwordForm.get('password_nueva')?.touched"
+                placeholder="••••••••" />
+              <button type="button" class="password-toggle" (click)="mostrarPasswordNueva = !mostrarPasswordNueva">
+                <span *ngIf="!mostrarPasswordNueva">👁️</span>
+                <span *ngIf="mostrarPasswordNueva">🙈</span>
+              </button>
+            </div>
+            <div class="error-message"
+              *ngIf="passwordForm.get('password_nueva')?.invalid && passwordForm.get('password_nueva')?.touched">
+              <ul class="password-requirements" *ngIf="obtenerErroresPassword().length > 0">
+                <li *ngFor="let error of obtenerErroresPassword()">{{ error }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Confirmar Nueva Contraseña *</label>
+            <div class="password-wrapper">
+              <input [type]="mostrarPasswordConfirmar ? 'text' : 'password'" formControlName="confirmar_password"
+                class="form-input"
+                [class.input-error]="(passwordForm.get('confirmar_password')?.invalid || passwordForm.errors?.['passwordsNoCoinciden']) && passwordForm.get('confirmar_password')?.touched"
+                placeholder="••••••••" />
+              <button type="button" class="password-toggle"
+                (click)="mostrarPasswordConfirmar = !mostrarPasswordConfirmar">
+                <span *ngIf="!mostrarPasswordConfirmar">👁️</span>
+                <span *ngIf="mostrarPasswordConfirmar">🙈</span>
+              </button>
+            </div>
+            <div class="error-message" *ngIf="passwordForm.get('confirmar_password')?.touched">
+              <span *ngIf="passwordForm.errors?.['passwordsNoCoinciden']">Las contraseñas no coinciden</span>
+            </div>
+          </div>
+
+          <button type="button" class="btn-guardar btn-block" (click)="cambiarPassword()"
+            [disabled]="cargando || passwordForm.invalid">
+            <span *ngIf="!cargando">🔒 Cambiar Contraseña</span>
+            <span *ngIf="cargando">Cambiando...</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

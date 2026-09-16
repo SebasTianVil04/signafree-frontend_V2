@@ -1,0 +1,353 @@
+.gestion-usuarios {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+
+  // Header
+  .h3 {
+    color: #2c3e50;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    
+    i {
+      color: #6366f1;
+    }
+  }
+
+  // Botón Exportar
+  .btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border: none;
+    padding: 0.6rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+  }
+
+  // Cards
+  .card {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    
+    .card-body {
+      padding: 1.5rem;
+    }
+
+    .card-footer {
+      background-color: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      padding: 1rem 1.5rem;
+    }
+  }
+
+  // Filtros
+  .input-group {
+    .input-group-text {
+      background-color: #f8f9fa;
+      border-right: none;
+      color: #6b7280;
+    }
+
+    .form-control {
+      border-left: none;
+      
+      &:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+      }
+    }
+  }
+
+  .form-select {
+    border-radius: 8px;
+    border-color: #d1d5db;
+    
+    &:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+    }
+  }
+
+  // Loading
+  .spinner-border {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  // Tabla
+  .table {
+    margin-bottom: 0;
+
+    thead {
+      background-color: #f9fafb;
+      
+      th {
+        font-weight: 600;
+        color: #374151;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        padding: 1rem;
+        border-bottom: 2px solid #e5e7eb;
+      }
+    }
+
+    tbody {
+      tr {
+        transition: background-color 0.2s ease;
+
+        &:hover {
+          background-color: #f9fafb;
+        }
+
+        td {
+          padding: 1rem;
+          vertical-align: middle;
+          color: #4b5563;
+        }
+      }
+    }
+  }
+
+  // Badges
+  .badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.75rem;
+    
+    &.bg-info {
+      background-color: #3b82f6 !important;
+      color: white !important;
+    }
+
+    &.bg-success {
+      background-color: #10b981 !important;
+    }
+
+    &.bg-danger {
+      background-color: #ef4444 !important;
+    }
+  }
+
+  // Botones de acciones
+  .btn-group {
+    gap: 0.25rem;
+
+    .btn {
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      transition: all 0.2s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+      }
+
+      &.btn-outline-primary {
+        color: #6366f1;
+        border-color: #6366f1;
+
+        &:hover {
+          background-color: #6366f1;
+          color: white;
+        }
+      }
+
+      &.btn-outline-danger {
+        color: #ef4444;
+        border-color: #ef4444;
+
+        &:hover {
+          background-color: #ef4444;
+          color: white;
+        }
+      }
+
+      &.btn-outline-success {
+        color: #10b981;
+        border-color: #10b981;
+
+        &:hover {
+          background-color: #10b981;
+          color: white;
+        }
+      }
+    }
+  }
+
+  // Paginación
+  .pagination {
+    .page-item {
+      margin: 0 0.25rem;
+
+      .page-link {
+        border-radius: 6px;
+        color: #6366f1;
+        border: 1px solid #e5e7eb;
+        padding: 0.5rem 0.75rem;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background-color: #f3f4f6;
+          border-color: #6366f1;
+        }
+      }
+
+      &.active .page-link {
+        background-color: #6366f1;
+        border-color: #6366f1;
+      }
+
+      &.disabled .page-link {
+        color: #9ca3af;
+        background-color: #f9fafb;
+      }
+    }
+  }
+
+  // Offcanvas (Panel de Estadísticas)
+  .offcanvas {
+    border-left: 1px solid #e5e7eb;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
+
+    &-header {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 1.5rem;
+
+      .offcanvas-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #2c3e50;
+      }
+    }
+
+    &-body {
+      padding: 1.5rem;
+    }
+  }
+
+  // Tarjetas de estadísticas
+  .stat-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    i {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: white;
+      border-radius: 8px;
+    }
+
+    h4 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    small {
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+  }
+
+  // Backdrop
+  .offcanvas-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+    
+    &.fade {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    &.show {
+      opacity: 1;
+    }
+  }
+
+  // Empty state
+  .bi-inbox {
+    color: #d1d5db;
+  }
+
+  // Alert
+  .alert {
+    border-radius: 8px;
+    border: none;
+
+    &.alert-danger {
+      background-color: #fef2f2;
+      color: #991b1b;
+      border-left: 4px solid #ef4444;
+    }
+  }
+
+  // Responsive
+  @media (max-width: 768px) {
+    padding: 1rem;
+
+    .table-responsive {
+      font-size: 0.875rem;
+    }
+
+    .btn-group {
+      flex-direction: column;
+      gap: 0.5rem;
+
+      .btn {
+        width: 100%;
+      }
+    }
+
+    .offcanvas {
+      width: 100% !important;
+    }
+
+    .pagination {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .h3 {
+      font-size: 1.25rem;
+    }
+
+    .stat-card {
+      h4 {
+        font-size: 1.25rem;
+      }
+    }
+  }
+}
+
+// Animaciones
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gestion-usuarios .card {
+  animation: fadeIn 0.4s ease;
+}

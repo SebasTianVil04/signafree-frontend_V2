@@ -1,0 +1,866 @@
+@use "sass:color";
+
+// Variables
+$primary-color: #3b82f6;
+$secondary-color: #6366f1;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$info-color: #06b6d4;
+
+$text-primary: #1f2937;
+$text-secondary: #6b7280;
+$text-light: #9ca3af;
+
+$bg-light: #f9fafb;
+$bg-card: #ffffff;
+$border-color: #e5e7eb;
+
+$shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+$shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+$shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+$border-radius: 12px;
+$border-radius-sm: 8px;
+$border-radius-lg: 16px;
+
+// Mixins
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin card {
+  background: $bg-card;
+  border-radius: $border-radius;
+  box-shadow: $shadow-md;
+  border: 1px solid $border-color;
+  padding: 1.5rem;
+}
+
+@mixin gradient-bg($color1, $color2) {
+  background: linear-gradient(135deg, $color1, $color2);
+}
+
+// Animaciones
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressFill {
+  0% { width: 0%; }
+  100% { width: var(--progress-width); }
+}
+
+// Estilos principales
+.progreso-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem 1rem;
+
+  .progreso-card {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-lg;
+    overflow: hidden;
+    animation: slideIn 0.6s ease-out;
+  }
+}
+
+// Encabezado
+.page-header {
+  background: linear-gradient(135deg, $primary-color, $secondary-color);
+  color: white;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+
+  h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  p {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.1rem;
+    opacity: 0.9;
+  }
+
+  .btn-actualizar {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .spinning {
+      animation: spin 1s linear infinite;
+    }
+  }
+}
+
+// Estados de carga y error
+.loading-spinner {
+  @include flex-center;
+  flex-direction: column;
+  padding: 4rem 2rem;
+  color: $text-secondary;
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid $border-color;
+    border-top: 4px solid $primary-color;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+}
+
+.error-message {
+  @include flex-center;
+  flex-direction: column;
+  padding: 3rem 2rem;
+  text-align: center;
+  color: $danger-color;
+
+  i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .btn-reintentar {
+    background: $danger-color;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: $border-radius-sm;
+    margin-top: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: color.adjust($danger-color, $lightness: -10%);
+      transform: translateY(-2px);
+    }
+  }
+}
+
+// Contenedor de estadísticas
+.stats-container {
+  padding: 2rem;
+}
+
+// Tarjeta de nivel
+.nivel-card {
+  @include card;
+  margin-bottom: 2rem;
+  text-align: center;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+
+  .nivel-header {
+    margin-bottom: 1rem;
+  }
+
+  .nivel-badge {
+    display: inline-block;
+    padding: 0.5rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+
+    &.nivel-principiante {
+      @include gradient-bg(#93c5fd, #60a5fa);
+      color: white;
+    }
+
+    &.nivel-aprendiz {
+      @include gradient-bg(#86efac, #4ade80);
+      color: white;
+    }
+
+    &.nivel-intermedio {
+      @include gradient-bg(#fbbf24, #f59e0b);
+      color: white;
+    }
+
+    &.nivel-avanzado {
+      @include gradient-bg(#f97316, #ea580c);
+      color: white;
+    }
+
+    &.nivel-experto {
+      @include gradient-bg(#8b5cf6, #7c3aed);
+      color: white;
+    }
+  }
+
+  .nivel-texto {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .exp-bar {
+    width: 100%;
+    height: 12px;
+    background: $border-color;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 1rem 0;
+    position: relative;
+
+    .exp-progress {
+      height: 100%;
+      background: linear-gradient(90deg, $success-color, $info-color);
+      border-radius: 6px;
+      transition: width 1s ease-in-out;
+      animation: progressFill 1.5s ease-out;
+    }
+  }
+
+  .exp-text {
+    font-size: 0.9rem;
+    color: $text-secondary;
+    font-weight: 500;
+  }
+}
+
+// Grid de estadísticas
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  @include card;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: $shadow-lg;
+  }
+
+  &.highlight {
+    border: 2px solid $warning-color;
+    background: linear-gradient(135deg, #fffbf0, #fef3c7);
+  }
+
+  .stat-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .stat-content {
+    h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: $text-primary;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: $primary-color;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      margin: 0 0 1rem 0;
+      color: $text-secondary;
+      font-size: 0.9rem;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: $border-color;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, $primary-color, $secondary-color);
+        border-radius: 4px;
+        transition: width 0.8s ease-in-out;
+      }
+    }
+
+    .stars-container {
+      margin: 0.5rem 0;
+
+      .star {
+        font-size: 1.2rem;
+        margin-right: 0.25rem;
+        color: $border-color;
+
+        &.active {
+          color: $warning-color;
+        }
+      }
+    }
+
+    .nivel-dominio {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+
+      &.dominio-excelente {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      &.dominio-bueno {
+        background: #f0f9ff;
+        color: #075985;
+      }
+
+      &.dominio-aceptable {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      &.dominio-basico {
+        background: #fef2f2;
+        color: #991b1b;
+      }
+    }
+
+    .racha-info {
+      small {
+        color: $text-light;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// Progreso por lecciones
+.lecciones-progress {
+  @include card;
+  margin-bottom: 2rem;
+
+  h3 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .lecciones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .leccion-progress-item {
+    @include flex-between;
+    padding: 1rem;
+    background: $bg-light;
+    border-radius: $border-radius-sm;
+    border: 1px solid $border-color;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: white;
+      border-color: $primary-color;
+      transform: translateX(5px);
+    }
+
+    .leccion-info {
+      flex: 1;
+
+      .leccion-titulo {
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 0.5rem;
+      }
+
+      .leccion-stats {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.85rem;
+
+        .clases-count {
+          color: $text-secondary;
+        }
+
+        .precision {
+          color: $success-color;
+          font-weight: 500;
+        }
+      }
+    }
+
+    .leccion-progress {
+      width: 200px;
+      margin: 0 1.5rem;
+
+      .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: $border-color;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, $success-color, $info-color);
+          border-radius: 3px;
+          transition: width 0.8s ease-in-out;
+        }
+      }
+
+      .estrellas {
+        text-align: center;
+
+        .star {
+          font-size: 1rem;
+          margin: 0 0.1rem;
+          color: $border-color;
+
+          &.active {
+            color: $warning-color;
+          }
+        }
+
+        .estrella-dorada {
+          margin-left: 0.5rem;
+          font-size: 1rem;
+        }
+      }
+    }
+
+    .leccion-status {
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+
+      &.estado-dorado {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #f59e0b;
+      }
+
+      &.estado-completado {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #22c55e;
+      }
+
+      &.estado-en-progreso {
+        background: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #3b82f6;
+      }
+
+      &.estado-pendiente {
+        background: #f3f4f6;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+      }
+    }
+  }
+}
+
+// Logros
+.logros-section {
+  @include card;
+  margin-bottom: 2rem;
+
+  h3 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .logros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+
+  .logro-card {
+    @include flex-center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: $bg-light;
+    border-radius: $border-radius-sm;
+    border: 1px solid $border-color;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: white;
+      border-color: $warning-color;
+      transform: translateY(-3px);
+    }
+
+    .logro-icon {
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+
+    .logro-content {
+      flex: 1;
+
+      h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: $text-primary;
+      }
+
+      p {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.85rem;
+        color: $text-secondary;
+        line-height: 1.4;
+      }
+
+      small {
+        color: $text-light;
+        font-size: 0.75rem;
+      }
+    }
+  }
+}
+
+// Ranking
+.ranking-section {
+  @include card;
+  margin-bottom: 2rem;
+
+  h3 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .ranking-item {
+    @include flex-between;
+    padding: 1rem 1.25rem;
+    background: $bg-light;
+    border-radius: $border-radius-sm;
+    border: 1px solid $border-color;
+    transition: all 0.3s ease;
+    position: relative;
+
+    &:hover {
+      background: white;
+      border-color: $primary-color;
+    }
+
+    &.current-user {
+      background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+      border-color: $primary-color;
+
+      &::before {
+        content: '👤 Tú';
+        position: absolute;
+        top: -8px;
+        right: 10px;
+        background: $primary-color;
+        color: white;
+        padding: 0.2rem 0.6rem;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+    }
+
+    .ranking-pos {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: $text-secondary;
+      width: 30px;
+      text-align: center;
+    }
+
+    .ranking-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin: 0 1rem;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .ranking-info {
+      flex: 1;
+
+      .ranking-nombre {
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 0.25rem;
+      }
+
+      .ranking-stats {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: $text-secondary;
+
+        span {
+          background: rgba(107, 114, 128, 0.1);
+          padding: 0.2rem 0.5rem;
+          border-radius: 10px;
+        }
+      }
+    }
+
+    .ranking-badge {
+      font-size: 1.5rem;
+      margin-left: 1rem;
+    }
+  }
+}
+
+// Botones de acción
+.action-buttons {
+  @include flex-center;
+  gap: 1rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+
+  .btn-primary, .btn-secondary, .btn-tertiary {
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    @include flex-center;
+    gap: 0.5rem;
+    text-decoration: none;
+    font-size: 1rem;
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: $shadow-md;
+    }
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, $primary-color, $secondary-color);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(135deg, color.adjust($primary-color, $lightness: -10%), color.adjust($secondary-color, $lightness: -10%));
+    }
+  }
+
+  .btn-secondary {
+    background: white;
+    color: $text-primary;
+    border: 2px solid $border-color;
+
+    &:hover {
+      border-color: $primary-color;
+      color: $primary-color;
+    }
+  }
+
+  .btn-tertiary {
+    background: linear-gradient(135deg, $success-color, $info-color);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(135deg, color.adjust($success-color, $lightness: -10%), color.adjust($info-color, $lightness: -10%));
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .progreso-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .page-header {
+    padding: 1.5rem 1rem;
+
+    h1 {
+      font-size: 2rem;
+    }
+  }
+
+  .stats-container {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .leccion-progress-item {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+
+    .leccion-progress {
+      width: 100%;
+      margin: 0;
+    }
+  }
+
+  .logros-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ranking-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+
+    .ranking-avatar {
+      margin: 0;
+    }
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .stat-card .stat-value {
+    font-size: 2rem;
+  }
+
+  .nivel-card {
+    padding: 1rem;
+  }
+}
+
+// Utilidades
+.text-muted {
+  color: $text-light !important;
+}
+
+.text-success {
+  color: $success-color !important;
+}
+
+.badge-count {
+  background: $primary-color;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+// Mejoras de accesibilidad
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+.ranking-avatar {
+  .avatar-iniciales {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 14px;
+    background-color: #4ECDC4; 
+  }
+}
+
+
+.ranking-item.current-user .avatar-iniciales {
+  border: 2px solid #FFD700;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}

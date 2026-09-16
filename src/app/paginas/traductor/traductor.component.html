@@ -1,0 +1,183 @@
+<div class="traductor-container container-fluid py-4">
+  <div class="encabezado mb-4 text-center">
+    <h1 class="display-4 fw-bold text-primary">
+      <i class="bi bi-hand-index me-3"></i> Traductor de Señas Peruano
+    </h1>
+    <p class="text-muted fs-5">Reconocimiento de lenguaje de señas en tiempo real</p>
+
+    <button class="btn btn-outline-info btn-sm" (click)="probarConexionServidor()">
+      <i class="bi bi-wifi"></i> Probar Conexión Servidor
+    </button>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ error }}
+    <button type="button" class="btn-close" (click)="error = null"></button>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-9">
+      <div class="card shadow-lg h-100">
+        <div class="card-header bg-primary text-white py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="card-title mb-0">
+              <i class="bi bi-camera-video-fill me-2"></i> Cámara con Detección de Manos
+            </h4>
+            <div *ngIf="manoDetectada" class="badge bg-success fs-5 px-3 py-2">
+              <i class="bi bi-check-circle-fill me-2"></i> Mano detectada
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body p-0">
+          <div class="camera-container position-relative bg-dark">
+            <video #videoElement autoplay muted playsinline class="w-100"
+              style="max-height: 700px; object-fit: contain;" [style.display]="camaraActiva ? 'block' : 'none'">
+            </video>
+
+            <canvas #canvasElement class="position-absolute top-0 start-0 w-100 h-100"
+              [style.display]="camaraActiva ? 'block' : 'none'">
+            </canvas>
+
+            <div *ngIf="!camaraActiva" class="d-flex align-items-center justify-content-center" style="height: 600px">
+              <div class="text-center text-white">
+                <i class="bi bi-camera-video-off display-1 mb-4"></i>
+                <h3 class="mb-3">Cámara desactivada</h3>
+                <p class="fs-5 text-muted">Presiona "Iniciar Cámara" para comenzar el reconocimiento</p>
+              </div>
+            </div>
+
+            <div *ngIf="camaraActiva" class="position-absolute top-0 start-0 m-3">
+              <div *ngIf="!manoDetectada" class="badge bg-warning text-dark fs-5 mb-2 px-3 py-2">
+                <i class="bi bi-exclamation-triangle me-2"></i> Sin mano detectada
+              </div>
+
+              <div *ngIf="procesando" class="badge bg-info fs-5 px-3 py-2">
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                Reconociendo...
+              </div>
+
+              <div *ngIf="reconocimientoContinuo" class="badge bg-success fs-5 mt-2 px-3 py-2">
+                <span class="spinner-grow spinner-grow-sm me-2"></span>
+                Modo continuo activo
+              </div>
+            </div>
+
+            <div *ngIf="camaraActiva && manoDetectada" class="position-absolute top-0 end-0 m-3">
+              <div class="badge bg-success fs-4 px-3 py-2">
+                <i class="bi bi-activity me-2"></i>
+                {{ confianzaDeteccion * 100 | number:'1.0-0' }}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-footer bg-light py-3">
+          <div *ngIf="!camaraActiva" class="d-grid">
+            <button class="btn btn-success btn-lg py-3" (click)="iniciarCamara()">
+              <i class="bi bi-camera-video me-2"></i> Iniciar Cámara
+            </button>
+          </div>
+
+          <div *ngIf="camaraActiva" class="row g-3">
+            <div class="col-12 col-md-4">
+              <button class="btn btn-primary btn-lg w-100 py-3" [disabled]="procesando || !manoDetectada"
+                (click)="capturarYReconocer()">
+                <i class="bi bi-camera-fill me-2"></i>
+                <span class="fw-bold">Capturar</span>
+              </button>
+            </div>
+            <div class="col-12 col-md-4">
+              <button class="btn btn-lg w-100 py-3" [class.btn-info]="!reconocimientoContinuo"
+                [class.btn-warning]="reconocimientoContinuo" (click)="toggleReconocimientoContinuo()">
+                <i [class.bi-play-circle]="!reconocimientoContinuo" [class.bi-pause-circle]="reconocimientoContinuo"
+                  class="bi me-2"></i>
+                <span class="fw-bold">{{ reconocimientoContinuo ? 'Pausar Continuo' : 'Modo Continuo' }}</span>
+              </button>
+            </div>
+            <div class="col-12 col-md-4">
+              <button class="btn btn-danger btn-lg w-100 py-3" (click)="detenerCamara()">
+                <i class="bi bi-stop-circle me-2"></i>
+                <span class="fw-bold">Detener</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-3">
+      <div class="card shadow-lg h-100">
+        <div class="card-header bg-success text-white py-3">
+          <h4 class="card-title mb-0">
+            <i class="bi bi-card-text me-2"></i> Resultado
+          </h4>
+        </div>
+
+        <div class="card-body d-flex flex-column">
+          <div *ngIf="resultadoReconocimiento" class="text-center mb-4 flex-shrink-0">
+            <div class="display-1 fw-bold mb-3" style="font-size: 4rem; line-height: 1;"
+              [class.text-success]="(resultadoReconocimiento?.confianza || 0) >= 0.7"
+              [class.text-warning]="(resultadoReconocimiento?.confianza || 0) >= 0.5 && (resultadoReconocimiento?.confianza || 0) < 0.7"
+              [class.text-danger]="(resultadoReconocimiento?.confianza || 0) < 0.5">
+              {{ resultadoReconocimiento?.texto_traducido || '?' }}
+            </div>
+
+            <div class="progress mb-3" style="height: 35px; border-radius: 20px;">
+              <div class="progress-bar fw-bold fs-5"
+                [class.bg-success]="(resultadoReconocimiento?.confianza || 0) >= 0.7"
+                [class.bg-warning]="(resultadoReconocimiento?.confianza || 0) >= 0.5 && (resultadoReconocimiento?.confianza || 0) < 0.7"
+                [class.bg-danger]="(resultadoReconocimiento?.confianza || 0) < 0.5"
+                [style.width.%]="(resultadoReconocimiento?.confianza || 0) * 100">
+                {{ (resultadoReconocimiento?.confianza || 0) * 100 | number:'1.0-0' }}%
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4 flex-grow-1">
+            <label class="form-label fw-bold fs-5">
+              <i class="bi bi-text-paragraph me-2"></i> Texto reconocido:
+            </label>
+            <div class="form-control form-control-lg bg-light"
+              style="min-height: 100px; font-size: 1.1rem; line-height: 1.4; overflow-y: auto;">
+              <span *ngIf="textoReconocido">{{ textoReconocido }}</span>
+              <span *ngIf="!textoReconocido" class="text-muted">Esperando señas...</span>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-outline-warning flex-fill"
+                [disabled]="historicoLetras.length === 0 && !textoReconocido" (click)="borrarUltima()">
+                <i class="bi bi-backspace me-1"></i> Borrar última
+              </button>
+              <button class="btn btn-outline-danger flex-fill"
+                [disabled]="historicoLetras.length === 0 && !textoReconocido" (click)="limpiarTexto()">
+                <i class="bi bi-trash me-1"></i> Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="resultadoReconocimiento?.alternativas?.length > 1" class="flex-shrink-0">
+            <h6 class="fw-bold text-secondary mb-3">
+              <i class="bi bi-list-ol me-2"></i> Otras posibilidades:
+            </h6>
+            <div class="list-group">
+              <div *ngFor="let alt of resultadoReconocimiento.alternativas.slice(0, 3); let i = index"
+                class="list-group-item d-flex justify-content-between align-items-center">
+                <span class="fs-6 fw-semibold">{{ i + 1 }}. {{ alt.sena }}</span>
+                <span class="badge rounded-pill fs-6" [class]="obtenerClaseConfianza(alt.confianza)">
+                  {{ alt.confianza * 100 | number:'1.0-0' }}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="!resultadoReconocimiento"
+            class="text-center py-5 text-muted flex-grow-1 d-flex flex-column justify-content-center">
+            <i class="bi bi-hand-index display-1 d-block mb-4"></i>
+            <h5 class="mb-3">Esperando señas</h5>
+            <p class="mb-0">Haz una seña frente a la cámara y presiona "Capturar"</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

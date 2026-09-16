@@ -1,0 +1,434 @@
+<div class="gestion-usuarios container-fluid py-4">
+  
+  <!-- Encabezado y botones de exportación -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3">
+      <i class="bi bi-people-fill me-2"></i>
+      Gestión de Usuarios
+    </h1>
+    <div class="btn-group">
+      <button class="btn btn-success" (click)="exportarExcel()">
+        <i class="bi bi-file-earmark-excel me-2"></i>
+        Exportar Excel
+      </button>
+      <button class="btn btn-danger" (click)="exportarPDF()">
+        <i class="bi bi-file-earmark-pdf me-2"></i>
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros de usuarios -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="bi bi-search"></i>
+            </span>
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="Buscar por nombre o email"
+              [(ngModel)]="filtroTexto"
+              (ngModelChange)="aplicarFiltros()">
+          </div>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <select class="form-select" [(ngModel)]="filtroTipo" (ngModelChange)="aplicarFiltros()">
+            <option value="todos">Todos los tipos</option>
+            <option value="peruano_mayor">Peruano Mayor</option>
+            <option value="peruano_menor">Peruano Menor</option>
+            <option value="extranjero">Extranjero</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <select class="form-select" [(ngModel)]="filtroEstado" (ngModelChange)="aplicarFiltros()">
+            <option value="todos">Todos</option>
+            <option value="activos">Activos</option>
+            <option value="inactivos">Inactivos</option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-2">
+          <button class="btn btn-outline-secondary w-100" (click)="limpiarFiltros()">
+            <i class="bi bi-x-circle me-2"></i>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de usuarios -->
+  <div *ngIf="!cargando && !error" class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Usuario</th>
+              <th>Email</th>
+              <th>Tipo</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Fecha Registro</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let usuario of usuariosPaginados">
+              <td>{{ usuario.id }}</td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-person-circle fs-3 text-primary me-2"></i>
+                  <div>
+                    <div class="fw-bold">{{ usuario.nombre_completo }}</div>
+                    <small class="text-muted" *ngIf="usuario.dni">
+                      DNI: {{ usuario.dni }}
+                    </small>
+                    <small class="text-muted" *ngIf="usuario.pasaporte">
+                      Pasaporte: {{ usuario.pasaporte }}
+                    </small>
+                  </div>
+                </div>
+              </td>
+              <td>{{ usuario.email }}</td>
+              <td>
+                <span class="badge bg-info text-dark">
+                  {{ obtenerEtiquetaTipoUsuario(usuario.tipo_usuario) }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [class.bg-warning]="usuario.es_admin" [class.bg-secondary]="!usuario.es_admin">
+                  {{ usuario.es_admin ? 'Admin' : 'Usuario' }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [class.bg-success]="usuario.activo" [class.bg-danger]="!usuario.activo">
+                  {{ usuario.activo ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td>{{ usuario.fecha_creacion | date:'dd/MM/yyyy' }}</td>
+              <td class="text-center">
+                <div class="btn-group" role="group">
+                  <button 
+                    class="btn btn-sm btn-outline-primary" 
+                    (click)="verEstadisticas(usuario)"
+                    title="Ver estadísticas">
+                    <i class="bi bi-bar-chart"></i>
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-info" 
+                    (click)="abrirModalEdicion(usuario)"
+                    title="Editar usuario">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-warning" 
+                    (click)="abrirModalRol(usuario)"
+                    title="Asignar rol">
+                    <i class="bi bi-shield-check"></i>
+                  </button>
+                  <button 
+                    class="btn btn-sm"
+                    [class.btn-outline-danger]="usuario.activo"
+                    [class.btn-outline-success]="!usuario.activo"
+                    (click)="cambiarEstadoUsuario(usuario)"
+                    [title]="usuario.activo ? 'Desactivar' : 'Activar'">
+                    <i class="bi" [class.bi-x-circle]="usuario.activo" [class.bi-check-circle]="!usuario.activo"></i>
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-danger" 
+                    (click)="eliminarUsuario(usuario)"
+                    title="Eliminar usuario">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Edición de Usuario -->
+  <div class="modal fade" 
+       [class.show]="mostrarModalEdicion" 
+       [style.display]="mostrarModalEdicion ? 'block' : 'none'"
+       tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title">
+            <i class="bi bi-pencil-square me-2"></i>
+            Editar Usuario
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="cerrarModalEdicion()"></button>
+        </div>
+        <div class="modal-body">
+          <form *ngIf="usuarioEditando">
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <label class="form-label fw-bold">Nombres</label>
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.nombres" name="nombres">
+              </div>
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Apellido Paterno</label>
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_paterno" name="apellido_paterno">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Apellido Materno</label>
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_materno" name="apellido_materno">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <label class="form-label fw-bold">Email</label>
+                <input type="email" class="form-control" [(ngModel)]="formEdicion.email" name="email">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Teléfono</label>
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.telefono" name="telefono" placeholder="+51987654321">
+                <small class="text-muted">Incluye código de país (ej: +51)</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Fecha de Nacimiento</label>
+                <input type="date" class="form-control" [(ngModel)]="formEdicion.fecha_nacimiento" name="fecha_nacimiento">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <label class="form-label fw-bold">Dirección</label>
+                <textarea class="form-control" rows="2" [(ngModel)]="formEdicion.direccion" name="direccion"></textarea>
+              </div>
+            </div>
+
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Nota:</strong> Los campos DNI/Pasaporte y tipo de usuario no se pueden modificar por seguridad.
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalEdicion()">Cancelar</button>
+          <button type="button" class="btn btn-primary" (click)="guardarEdicion()">
+            <i class="bi bi-check-lg me-2"></i>
+            Guardar Cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop para modal de edición -->
+  <div class="modal-backdrop fade" 
+       [class.show]="mostrarModalEdicion" 
+       *ngIf="mostrarModalEdicion"
+       (click)="cerrarModalEdicion()"></div>
+
+  <!-- Modal de Asignar Rol -->
+  <div class="modal fade" 
+       [class.show]="mostrarModalRol" 
+       [style.display]="mostrarModalRol ? 'block' : 'none'"
+       tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title">
+            <i class="bi bi-shield-check me-2"></i>
+            Asignar Rol
+          </h5>
+          <button type="button" class="btn-close" (click)="cerrarModalRol()"></button>
+        </div>
+        <div class="modal-body" *ngIf="usuarioCambiandoRol">
+          <div class="mb-3">
+            <p class="fw-bold">Usuario:</p>
+            <p>{{ usuarioCambiandoRol.nombre_completo }}</p>
+            <p class="text-muted small">{{ usuarioCambiandoRol.email }}</p>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Seleccionar Rol:</label>
+            <select class="form-select" [(ngModel)]="nuevoRol">
+              <option value="usuario">Usuario</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Advertencia:</strong> Los administradores tienen acceso completo al sistema.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalRol()">Cancelar</button>
+          <button type="button" class="btn btn-warning" (click)="guardarRol()">
+            <i class="bi bi-check-lg me-2"></i>
+            Asignar Rol
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop para modal de rol -->
+  <div class="modal-backdrop fade" 
+       [class.show]="mostrarModalRol" 
+       *ngIf="mostrarModalRol"
+       (click)="cerrarModalRol()"></div>
+
+  <!-- Modal de Estadísticas (MANTENIDO) -->
+  <div class="offcanvas offcanvas-end" 
+       [class.show]="usuarioSeleccionado" 
+       tabindex="-1" 
+       style="visibility: visible; width: 500px;"
+       *ngIf="usuarioSeleccionado">
+    
+    <div class="offcanvas-header bg-primary text-white">
+      <h5 class="offcanvas-title">
+        <i class="bi bi-graph-up me-2"></i>
+        Estadísticas y Reportes
+      </h5>
+      <button type="button" class="btn-close btn-close-white" (click)="cerrarEstadisticas()"></button>
+    </div>
+    
+    <div class="offcanvas-body">
+      <!-- Información del usuario -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-person-circle fs-2 text-primary me-3"></i>
+            <div>
+              <h6 class="mb-1">{{ usuarioSeleccionado.nombre_completo }}</h6>
+              <small class="text-muted">{{ usuarioSeleccionado.email }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros de fecha -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">Filtros de Fecha</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small">Fecha Inicio</label>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="fechaInicioModal">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Fecha Fin</label>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="fechaFinModal">
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" (click)="aplicarFiltrosEstadisticas()">
+              Aplicar Filtros
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="limpiarFiltrosEstadisticas()">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cargando estadísticas -->
+      <div *ngIf="cargandoEstadisticas" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-2 text-muted">Cargando estadísticas...</p>
+      </div>
+
+      <!-- Estadísticas Generales -->
+      <div *ngIf="!cargandoEstadisticas && estadisticasGenerales" class="mb-4">
+        <h6 class="mb-3">Estadísticas Generales</h6>
+        <div class="row g-2">
+          <div class="col-4">
+            <div class="card bg-light text-center">
+              <div class="card-body py-2">
+                <h5 class="text-primary mb-1">{{ estadisticasGenerales.total_sesiones }}</h5>
+                <small class="text-muted">TOTAL SESIONES</small>
+                <div class="mt-1">
+                  <span class="badge bg-success small">
+                    {{ estadisticasGenerales.sesiones_completadas }} ({{ estadisticasGenerales.porcentaje_completadas }}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="card bg-light text-center">
+              <div class="card-body py-2">
+                <h5 class="text-success mb-1">{{ estadisticasGenerales.usuarios_activos }}</h5>
+                <small class="text-muted">USUARIOS ACTIVOS</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="card bg-light text-center">
+              <div class="card-body py-2">
+                <h5 class="text-info mb-1">{{ estadisticasGenerales.tiempo_promedio_display }}</h5>
+                <small class="text-muted">TIEMPO PROMEDIO</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lecciones Populares -->
+      <div *ngIf="!cargandoEstadisticas && leccionesPopulares.length > 0">
+        <h6 class="mb-3">Lecciones Más Populares</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>RANKING</th>
+                <th>LECCIÓN</th>
+                <th>CATEGORÍA</th>
+                <th>COMPLETADAS</th>
+                <th>TIEMPO PROMEDIO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let leccion of leccionesPopulares; let i = index">
+                <td class="fw-bold">{{ i + 1 }}</td>
+                <td>{{ leccion.titulo }}</td>
+                <td>{{ leccion.categoria }}</td>
+                <td>{{ leccion.completadas }} veces</td>
+                <td>{{ leccion.tiempo_promedio_display || formatearTiempo(leccion.tiempo_promedio_segundos) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sin datos -->
+      <div *ngIf="!cargandoEstadisticas && (!estadisticasGenerales || leccionesPopulares.length === 0)" 
+           class="text-center py-4">
+        <i class="bi bi-inbox fs-1 text-muted"></i>
+        <p class="text-muted mt-2">No hay datos de estadísticas disponibles</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop para offcanvas -->
+  <div class="offcanvas-backdrop fade" 
+       [class.show]="usuarioSeleccionado" 
+       (click)="cerrarEstadisticas()"
+       *ngIf="usuarioSeleccionado"></div>
+
+</div>

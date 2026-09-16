@@ -1,0 +1,69 @@
+<footer class="footer">
+  <div class="footer-container">
+    <!-- Sección principal del footer -->
+    <div class="footer-main">
+      <!-- Información de la app -->
+      <div class="footer-section footer-about">
+        <div class="footer-logo">
+          <span class="logo-icon">🤟</span>
+          <span class="logo-text">SignaFree</span>
+        </div>
+        <p class="footer-description">
+          Plataforma educativa para el aprendizaje del Lenguaje de Señas Peruano. 
+          Aprende de forma interactiva con tecnología de reconocimiento de IA.
+        </p>
+        <div class="footer-social">
+          <a *ngFor="let red of redesSociales" 
+             [href]="red.url" 
+             [title]="red.nombre"
+             class="social-link">
+            {{ red.icono }}
+          </a>
+        </div>
+      </div>
+
+      <!-- Enlaces de Recursos -->
+      <div class="footer-section">
+        <h3 class="footer-title">Recursos</h3>
+        <ul class="footer-links">
+          <li *ngFor="let enlace of enlaces.recursos">
+            <a [href]="enlace.url">{{ enlace.nombre }}</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Enlaces de Soporte -->
+      <div class="footer-section">
+        <h3 class="footer-title">Soporte</h3>
+        <ul class="footer-links">
+          <li *ngFor="let enlace of enlaces.soporte">
+            <a [href]="enlace.url">{{ enlace.nombre }}</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Enlaces Legales -->
+      <div class="footer-section">
+        <h3 class="footer-title">Legal</h3>
+        <ul class="footer-links">
+          <li *ngFor="let enlace of enlaces.legal">
+            <a [href]="enlace.url">{{ enlace.nombre }}</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Separador -->
+    <div class="footer-divider"></div>
+
+    <!-- Pie del footer -->
+    <div class="footer-bottom">
+      <p class="copyright">
+        © {{ anioActual }} SignaFree. Todos los derechos reservados.
+      </p>
+      <p class="footer-note">
+        Hecho con <span class="heart">❤️</span> para la comunidad sorda del Perú
+      </p>
+    </div>
+  </div>
+</footer>

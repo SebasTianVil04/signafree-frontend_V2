@@ -1,0 +1,343 @@
+<div class="gestion-imagenes-dataset container-fluid py-4">
+
+  <div class="encabezado mb-4">
+    <h1 class="display-5 fw-bold text-primary">
+      <i class="bi bi-film me-2"></i>
+      Gestión Completa de Videos del Dataset
+    </h1>
+    <p class="text-muted">Administra todos los videos: aprobados, pendientes y rechazados</p>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>Error:</strong> {{ error }}
+    <button type="button" class="btn-close" (click)="error = null"></button>
+  </div>
+
+  <div *ngIf="mensaje" class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    {{ mensaje }}
+    <button type="button" class="btn-close" (click)="mensaje = null"></button>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-funnel-fill me-2"></i>
+            Filtros
+          </h5>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Estado del Video</label>
+            <select class="form-select" [(ngModel)]="estadoFiltro" (change)="onEstadoChange()">
+              <option *ngFor="let opcion of opcionesEstado" [ngValue]="opcion.valor">
+                {{ opcion.etiqueta }}
+              </option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Categoría</label>
+            <select class="form-select" [(ngModel)]="categoriaFiltro" (change)="onCategoriaChange()">
+              <option [ngValue]="null">Todas las categorías</option>
+              <option *ngFor="let categoria of categorias" [ngValue]="categoria.id">
+                {{ categoria.nombre | titlecase }}
+              </option>
+            </select>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary flex-fill" (click)="cargarTodosLosVideos()" [disabled]="cargando">
+              <i class="bi bi-arrow-clockwise me-2"></i>
+              Recargar
+            </button>
+            <button class="btn btn-outline-secondary flex-fill" (click)="limpiarFiltros()">
+              <i class="bi bi-x-circle me-2"></i>
+              Limpiar Filtros
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-graph-up-arrow me-2"></i>
+            Estadísticas del Dataset
+          </h5>
+          <div class="estadisticas">
+            <div class="row g-2">
+              <div class="col-6">
+                <div class="stat-card bg-primary bg-opacity-10 p-2 rounded">
+                  <small class="text-muted d-block">Total</small>
+                  <strong class="fs-5">{{ estadisticas.total }}</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                  <small class="text-muted d-block">Aprobados</small>
+                  <strong class="fs-5 text-success">{{ estadisticas.aprobados }}</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="stat-card bg-warning bg-opacity-10 p-2 rounded">
+                  <small class="text-muted d-block">Pendientes</small>
+                  <strong class="fs-5 text-warning">{{ estadisticas.pendientes }}</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                  <small class="text-muted d-block">Rechazados</small>
+                  <strong class="fs-5 text-danger">{{ estadisticas.rechazados }}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 p-2 bg-info bg-opacity-10 rounded text-center">
+              <small class="text-muted">Videos mostrados con filtros actuales</small>
+              <div><strong class="fs-4">{{ estadisticas.filtrados }}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-3 text-muted">Cargando videos...</p>
+  </div>
+
+  <div *ngIf="!cargando && videosFiltrados.length === 0" class="alert alert-info">
+    <i class="bi bi-inbox me-2"></i>
+    No hay videos que coincidan con los filtros seleccionados.
+  </div>
+
+  <div *ngIf="!cargando && videosFiltrados.length > 0" class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <h5 class="mb-0">
+        <i class="bi bi-collection-play me-2"></i>
+        Videos ({{ videosFiltrados.length }})
+      </h5>
+
+      <div class="btn-group" role="group">
+        <button
+          class="btn btn-success btn-sm"
+          (click)="aprobarTodos()"
+          [disabled]="videosFiltrados.length === 0 || procesandoMasivo"
+          title="Aprobar todos los videos visibles">
+          <i class="bi bi-check-all me-2"></i>
+          Aprobar Visibles
+        </button>
+        <button
+          class="btn btn-danger btn-sm"
+          (click)="eliminarTodos()"
+          [disabled]="videosFiltrados.length === 0 || procesandoMasivo"
+          title="Eliminar permanentemente todos los videos visibles">
+          <i class="bi bi-trash-fill me-2"></i>
+          Eliminar Visibles
+        </button>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white shadow-sm">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 60px;"></th>
+            <th>Seña</th>
+            <th>Categoría</th>
+            <th>Duración</th>
+            <th>FPS</th>
+            <th>Frames</th>
+            <th>Estado</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let video of videosFiltrados">
+            <td>
+              <button
+                class="btn btn-sm btn-dark rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 36px; height: 36px;"
+                (click)="verVideo(video)"
+                title="Ver video">
+                <i class="bi bi-play-fill"></i>
+              </button>
+            </td>
+            <td><strong>{{ video.sena || 'Sin nombre' }}</strong></td>
+            <td>{{ video.categoria_nombre || 'Sin categoría' }}</td>
+            <td>{{ video.duracion_segundos ? (video.duracion_segundos + 's') : 'N/A' }}</td>
+            <td>{{ video.fps || 'N/A' }}</td>
+            <td>{{ video.frames_extraidos || 0 }}</td>
+            <td>
+              <span [class]="obtenerClaseEstado(video)">
+                {{ obtenerEstadoVideo(video) | titlecase }}
+              </span>
+            </td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm" role="group">
+                <button
+                  *ngIf="!video.aprobado"
+                  class="btn btn-success"
+                  (click)="aprobarVideo(video)"
+                  title="Aprobar video">
+                  <i class="bi bi-check-lg"></i>
+                </button>
+                <button
+                  *ngIf="!video.rechazado"
+                  class="btn btn-warning"
+                  (click)="rechazarVideo(video)"
+                  title="Rechazar video">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+                <button
+                  class="btn btn-danger"
+                  (click)="eliminarVideo(video)"
+                  title="Eliminar permanentemente">
+                  <i class="bi bi-trash-fill"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div
+    class="modal fade"
+    [class.show]="mostrarModal"
+    [style.display]="mostrarModal ? 'block' : 'none'"
+    tabindex="-1"
+    *ngIf="videoSeleccionado">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="d-flex align-items-center gap-2">
+            <h5 class="modal-title mb-0">
+              <i class="bi bi-film me-2"></i>
+              {{ videoSeleccionado.sena }}
+            </h5>
+            <span [class]="obtenerClaseEstado(videoSeleccionado)">
+              {{ obtenerEstadoVideo(videoSeleccionado) | titlecase }}
+            </span>
+          </div>
+          <button type="button" class="btn-close" (click)="cerrarModal()"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="video-container mb-3">
+            <iframe
+              *ngIf="esVideoDeDrive(videoSeleccionado); else playerLocal"
+              [src]="obtenerUrlEmbedDriveSegura(videoSeleccionado)"
+              class="w-100"
+              style="height: 500px; border: 0;"
+              allow="autoplay">
+            </iframe>
+
+            <ng-template #playerLocal>
+              <video
+                *ngIf="obtenerUrlVideo(videoSeleccionado); else sinVideoModal"
+                [src]="obtenerUrlVideo(videoSeleccionado)"
+                controls
+                autoplay
+                class="w-100"
+                style="max-height: 500px; object-fit: contain;"
+                (error)="manejarErrorVideo($event, videoSeleccionado)">
+                Tu navegador no soporta el elemento video.
+              </video>
+              <ng-template #sinVideoModal>
+                <div class="bg-light d-flex align-items-center justify-content-center text-muted"
+                  style="height: 300px;">
+                  <div class="text-center">
+                    <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+                    <p class="mt-2 small">Video no disponible</p>
+                    <small>ID: {{videoSeleccionado.id}}</small>
+                  </div>
+                </div>
+              </ng-template>
+            </ng-template>
+          </div>
+
+          <div class="video-details">
+            <div class="row g-2">
+              <div class="col-6">
+                <strong>Seña:</strong> {{ videoSeleccionado.sena }}
+              </div>
+              <div class="col-6">
+                <strong>Categoría:</strong> {{ videoSeleccionado.categoria_nombre || 'N/A' }}
+              </div>
+              <div class="col-6">
+                <strong>Duración:</strong> {{ videoSeleccionado.duracion_segundos ? (videoSeleccionado.duracion_segundos + 's') : 'N/A' }}
+              </div>
+              <div class="col-6">
+                <strong>FPS:</strong> {{ videoSeleccionado.fps || 'N/A' }}
+              </div>
+              <div class="col-6">
+                <strong>Resolución:</strong> {{ videoSeleccionado.resolucion || 'N/A' }}
+              </div>
+              <div class="col-6">
+                <strong>Formato:</strong> {{ videoSeleccionado.formato || 'N/A' }}
+              </div>
+              <div class="col-6">
+                <strong>Frames:</strong> {{ videoSeleccionado.frames_extraidos || 0 }}
+              </div>
+              <div class="col-6">
+                <strong>Fecha:</strong> {{ videoSeleccionado.fecha_subida | date:'short' }}
+              </div>
+              <div class="col-12" *ngIf="videoSeleccionado.subido_por">
+                <strong>Subido por:</strong> {{ videoSeleccionado.subido_por }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button
+            *ngIf="!videoSeleccionado.aprobado"
+            type="button"
+            class="btn btn-success"
+            (click)="aprobarVideo(videoSeleccionado)">
+            <i class="bi bi-check-lg me-2"></i>
+            Aprobar
+          </button>
+          <button
+            *ngIf="!videoSeleccionado.rechazado"
+            type="button"
+            class="btn btn-warning"
+            (click)="rechazarVideo(videoSeleccionado)">
+            <i class="bi bi-x-lg me-2"></i>
+            Rechazar
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            (click)="eliminarVideo(videoSeleccionado)">
+            <i class="bi bi-trash-fill me-2"></i>
+            Eliminar
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="cerrarModal()">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="modal-backdrop fade"
+    [class.show]="mostrarModal"
+    *ngIf="mostrarModal"
+    (click)="cerrarModal()">
+  </div>
+
+</div>

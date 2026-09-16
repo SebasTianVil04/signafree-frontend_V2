@@ -1,0 +1,228 @@
+<div class="contenedor-lecciones">
+  <div class="encabezado">
+    <h1>
+      <i class="bi bi-book-fill me-2"></i>
+      Lecciones de Lenguaje de Señas
+    </h1>
+    <p class="subtitulo">
+      <i class="bi bi-play-circle-fill me-2"></i>
+      Aprende a tu ritmo con nuestras lecciones interactivas
+    </p>
+  </div>
+
+  <div class="filtros-container">
+    <div class="filtro-item">
+      <label>
+        <i class="bi bi-folder-fill me-1"></i>
+        Categoría
+      </label>
+      <select 
+        [(ngModel)]="filtros.categoria_id" 
+        (change)="onFiltroChange()"
+        [disabled]="categorias.length === 0">
+        <option [ngValue]="undefined">Todas las categorías</option>
+        <option *ngFor="let cat of categorias" [ngValue]="cat.id">
+          {{ cat.nombre }}
+        </option>
+      </select>
+      <small *ngIf="categorias.length === 0" class="text-muted">
+        <i class="bi bi-hourglass-split me-1"></i>
+        Cargando categorías...
+      </small>
+    </div>
+
+    <div class="filtro-item">
+      <label>
+        <i class="bi bi-bar-chart-fill me-1"></i>
+        Nivel
+      </label>
+      <select 
+        [(ngModel)]="filtros.nivel_dificultad" 
+        (change)="onFiltroChange()">
+        <option [ngValue]="undefined">Todos los niveles</option>
+        <option *ngFor="let nivel of niveles" [ngValue]="nivel.valor">
+          {{ nivel.etiqueta }}
+        </option>
+      </select>
+    </div>
+
+    <div class="filtro-item busqueda">
+      <label>
+        <i class="bi bi-search me-1"></i>
+        Buscar
+      </label>
+      <input 
+        type="text" 
+        [(ngModel)]="filtros.busqueda" 
+        (ngModelChange)="onFiltroChange()"
+        placeholder="Buscar por título o seña...">
+    </div>
+
+    <button class="btn-limpiar" (click)="limpiarFiltros()">
+      <i class="bi bi-arrow-clockwise me-1"></i>
+      Limpiar filtros
+    </button>
+  </div>
+
+  <div class="info-resultados">
+    <p>
+      <i class="bi bi-info-circle-fill me-2"></i>
+      <strong>{{ leccionesFiltradas.length }}</strong>
+      {{ leccionesFiltradas.length === 1 ? 'lección encontrada' : 'lecciones encontradas' }}
+      <span *ngIf="leccionesFiltradas.length !== totalLecciones">
+        de {{ totalLecciones }} totales
+      </span>
+    </p>
+  </div>
+
+  <div *ngIf="cargando" class="loader">
+    <div class="spinner"></div>
+    <p>
+      <i class="bi bi-cloud-arrow-down-fill me-2"></i>
+      Cargando lecciones...
+    </p>
+  </div>
+
+  <div *ngIf="error && !cargando" class="error-mensaje">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <p>{{ error }}</p>
+    <button (click)="cargarLecciones()" class="btn-reintentar">
+      <i class="bi bi-arrow-counterclockwise me-1"></i>
+      Reintentar
+    </button>
+  </div>
+
+  <div *ngIf="!cargando && !error && vistaGrid" class="lecciones-grid">
+    <div 
+      *ngFor="let leccion of leccionesFiltradas" 
+      class="leccion-card" 
+      (click)="verDetalle(leccion)">
+
+      <div class="leccion-imagen">
+        <div class="imagen-placeholder">
+          <i class="bi bi-book"></i>
+        </div>
+        
+        <span 
+          class="badge-nivel" 
+          [style.background-color]="obtenerColorNivel(leccion.nivel_dificultad)">
+          <i class="bi bi-bar-chart-fill me-1"></i>
+          {{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}
+        </span>
+        
+        <span class="badge-bloqueada" *ngIf="leccion.bloqueada">
+          <i class="bi bi-lock-fill me-1"></i>
+          Bloqueada
+        </span>
+      </div>
+
+      <div class="leccion-contenido">
+        <h3>{{ leccion.titulo }}</h3>
+        
+        <p class="leccion-categoria">
+          <i class="bi bi-folder-fill me-1"></i>
+          {{ obtenerNombreCategoria(leccion.categoria_id) }}
+        </p>
+        
+        <p class="leccion-sena">
+          <i class="bi bi-hand-index-thumb me-1"></i>
+          <strong>Seña:</strong> {{ leccion.sena }}
+        </p>
+        
+        <p class="leccion-descripcion" *ngIf="leccion.descripcion">
+          {{ leccion.descripcion.length > 80 ? (leccion.descripcion | slice:0:80) + '...' : leccion.descripcion }}
+        </p>
+
+        <div class="leccion-meta">
+          <span class="meta-item" *ngIf="leccion.total_clases">
+            <i class="bi bi-collection-fill me-1"></i>
+            {{ leccion.total_clases }} clases
+          </span>
+          <span class="meta-item">
+            <i class="bi bi-coin me-1"></i>
+            {{ leccion.puntos_base }} XP
+          </span>
+        </div>
+
+        <button 
+          (click)="iniciarLeccion(leccion, $event)" 
+          class="btn-iniciar"
+          [disabled]="!leccion.activa || leccion.bloqueada">
+          <i class="bi me-1" 
+            [class.bi-play-fill]="leccion.activa && !leccion.bloqueada"
+            [class.bi-lock-fill]="leccion.bloqueada"></i>
+          {{ leccion.activa && !leccion.bloqueada ? 'Iniciar Lección' : 'No disponible' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="!cargando && !error && !vistaGrid" class="lecciones-lista">
+    <div 
+      *ngFor="let leccion of leccionesFiltradas" 
+      class="leccion-item" 
+      (click)="verDetalle(leccion)">
+
+      <div class="item-imagen">
+        <i class="bi bi-book-fill"></i>
+      </div>
+
+      <div class="item-info">
+        <h3>{{ leccion.titulo }}</h3>
+        
+        <p class="item-sena">
+          <i class="bi bi-hand-index-thumb-fill me-1"></i>
+          {{ leccion.sena }}
+        </p>
+        
+        <p class="item-descripcion" *ngIf="leccion.descripcion">
+          {{ leccion.descripcion }}
+        </p>
+        
+        <div class="item-meta">
+          <span 
+            class="badge-nivel" 
+            [style.background-color]="obtenerColorNivel(leccion.nivel_dificultad)">
+            <i class="bi bi-bar-chart-fill me-1"></i>
+            {{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}
+          </span>
+          
+          <span>
+            <i class="bi bi-folder-fill me-1"></i>
+            {{ obtenerNombreCategoria(leccion.categoria_id) }}
+          </span>
+          
+          <span *ngIf="leccion.total_clases">
+            <i class="bi bi-collection-fill me-1"></i>
+            {{ leccion.total_clases }} clases
+          </span>
+          
+          <span>
+            <i class="bi bi-coin me-1"></i>
+            {{ leccion.puntos_base }} XP
+          </span>
+        </div>
+      </div>
+
+      <button 
+        (click)="iniciarLeccion(leccion, $event)" 
+        class="btn-iniciar-lista"
+        [disabled]="!leccion.activa || leccion.bloqueada">
+        <i class="bi me-1"
+          [class.bi-play-fill]="leccion.activa && !leccion.bloqueada"
+          [class.bi-lock-fill]="leccion.bloqueada"></i>
+        {{ leccion.activa && !leccion.bloqueada ? 'Iniciar' : 'Bloqueada' }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="!cargando && !error && leccionesFiltradas.length === 0" class="sin-resultados">
+    <i class="bi bi-inbox"></i>
+    <h3>No se encontraron lecciones</h3>
+    <p>No se encontraron lecciones con los filtros seleccionados.</p>
+    <button (click)="limpiarFiltros()" class="btn-limpiar">
+      <i class="bi bi-arrow-clockwise me-1"></i>
+      Limpiar filtros
+    </button>
+  </div>
+</div>

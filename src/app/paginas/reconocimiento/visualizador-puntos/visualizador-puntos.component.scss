@@ -1,0 +1,130 @@
+.visualizador-container {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-wrapper {
+  background: #f5f5f5;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+.controles {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    &.btn-primary {
+      background: #2196F3;
+      color: white;
+    }
+
+    &.btn-success {
+      background: #4CAF50;
+      color: white;
+    }
+  }
+}
+
+.leyenda {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+
+  h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #333;
+  }
+}
+
+.leyenda-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.leyenda-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .color-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+  }
+
+  span:last-child {
+    font-size: 14px;
+    color: #666;
+  }
+}
+
+.info {
+  text-align: center;
+  color: #666;
+  padding: 10px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.vacio {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+
+  i {
+    font-size: 48px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .controles {
+    flex-direction: column;
+
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  .leyenda-items {
+    grid-template-columns: 1fr;
+  }
+}

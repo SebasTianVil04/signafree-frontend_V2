@@ -1,0 +1,394 @@
+<div class="gestion-lecciones container-fluid py-4">
+  <div class="encabezado mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h1>Gestión de Lecciones</h1>
+        <p class="text-muted">Administra las lecciones del sistema de aprendizaje</p>
+      </div>
+      <button class="btn btn-primary btn-lg" (click)="abrirModalNuevo()">
+        <i class="bi bi-plus-circle-fill me-2"></i>
+        Nueva Lección
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>Error:</strong> {{ error }}
+    <button type="button" class="btn-close" (click)="error = null"></button>
+  </div>
+
+  <div *ngIf="mensaje" class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    {{ mensaje }}
+    <button type="button" class="btn-close" (click)="mensaje = null"></button>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3">
+        <i class="bi bi-funnel-fill me-2"></i>
+        Filtros
+      </h5>
+
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label">
+            <i class="bi bi-search me-1"></i>
+            Buscar
+          </label>
+          <input type="text" class="form-control" [(ngModel)]="filtros.busqueda" 
+            (ngModelChange)="aplicarFiltros()" placeholder="Título, seña o descripción...">
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">
+            <i class="bi bi-folder-fill me-1"></i>
+            Categoría
+          </label>
+          <select class="form-select" [(ngModel)]="filtros.categoria_id" 
+            (ngModelChange)="aplicarFiltros()">
+            <option [ngValue]="undefined">Todas las categorías</option>
+            <option *ngFor="let cat of categorias" [ngValue]="cat.id">
+              {{ cat.nombre }}
+            </option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">
+            <i class="bi bi-bar-chart-fill me-1"></i>
+            Nivel
+          </label>
+          <select class="form-select" [(ngModel)]="filtros.nivel" 
+            (ngModelChange)="aplicarFiltros()">
+            <option [ngValue]="undefined">Todos los niveles</option>
+            <option [ngValue]="1">Principiante</option>
+            <option [ngValue]="2">Intermedio</option>
+            <option [ngValue]="3">Avanzado</option>
+          </select>
+        </div>
+
+        <div class="col-12">
+          <button class="btn btn-outline-secondary" (click)="limpiarFiltros()">
+            <i class="bi bi-arrow-clockwise me-1"></i>
+            Limpiar Filtros
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <p class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Mostrando <strong>{{ leccionesFiltradas.length }}</strong> de <strong>{{ lecciones.length }}</strong> lecciones
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="text-muted mt-3">Cargando lecciones...</p>
+  </div>
+
+  <div *ngIf="!cargando && leccionesFiltradas.length === 0" class="text-center py-5">
+    <i class="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
+    <p class="text-muted fs-5">No hay lecciones para mostrar</p>
+  </div>
+
+  <div *ngIf="!cargando && leccionesFiltradas.length > 0" class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 60px;">
+              <i class="bi bi-hash me-1"></i>
+              ID
+            </th>
+            <th style="width: 250px;">
+              <i class="bi bi-card-heading me-1"></i>
+              Título / Seña
+            </th>
+            <th style="width: 120px;">
+              <i class="bi bi-folder me-1"></i>
+              Categoría
+            </th>
+            <th style="width: 100px;">
+              <i class="bi bi-bar-chart me-1"></i>
+              Nivel
+            </th>
+            <th style="width: 80px;">
+              <i class="bi bi-sort-numeric-down me-1"></i>
+              Orden
+            </th>
+            <th style="width: 100px;">
+              <i class="bi bi-coin me-1"></i>
+              Puntos
+            </th>
+            <th style="width: 80px;">
+              <i class="bi bi-collection me-1"></i>
+              Clases
+            </th>
+            <th style="width: 100px;">
+              <i class="bi bi-circle-fill me-1"></i>
+              Estado
+            </th>
+            <th style="width: 280px;">
+              <i class="bi bi-gear me-1"></i>
+              Acciones
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let leccion of leccionesFiltradas">
+            <td>
+              <span class="badge bg-secondary">{{ leccion.id }}</span>
+            </td>
+            <td>
+              <strong>{{ leccion.titulo }}</strong>
+              <br>
+              <small class="text-muted">
+                <i class="bi bi-hand-index me-1"></i>
+                {{ leccion.sena }}
+              </small>
+              <br>
+              <small class="text-muted" *ngIf="leccion.descripcion">
+                {{ leccion.descripcion.substring(0, 50) }}{{ leccion.descripcion.length > 50 ? '...' : '' }}
+              </small>
+            </td>
+            <td>
+              <span class="badge bg-info">{{ obtenerNombreCategoria(leccion.categoria_id) }}</span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="obtenerClaseNivel(leccion.nivel_dificultad)">
+                {{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}
+              </span>
+            </td>
+            <td>
+              <strong>{{ leccion.orden }}</strong>
+            </td>
+            <td>
+              <small class="text-muted">
+                <strong class="text-success">{{ leccion.puntos_base }}</strong>
+                /
+                <strong class="text-primary">{{ leccion.puntos_perfecto }}</strong>
+              </small>
+            </td>
+            <td>
+              <span class="badge bg-primary">
+                <i class="bi bi-collection me-1"></i>
+                {{ leccion.total_clases || 0 }}
+              </span>
+            </td>
+            <td>
+              <div class="estado-leccion">
+                <span class="badge" [class.bg-success]="leccion.activa && !leccion.bloqueada"
+                  [class.bg-warning]="leccion.bloqueada" [class.bg-danger]="!leccion.activa">
+                  <i class="bi me-1" [class.bi-check-circle-fill]="leccion.activa && !leccion.bloqueada"
+                    [class.bi-lock-fill]="leccion.bloqueada" [class.bi-dash-circle-fill]="!leccion.activa"></i>
+                  {{ leccion.activa && !leccion.bloqueada ? 'Activa' : leccion.bloqueada ? 'Bloqueada' : 'Inactiva' }}
+                </span>
+              </div>
+            </td>
+            <td>
+              <div class="btn-acciones">
+                <button class="btn-accion btn-clases" title="Gestionar clases" 
+                  (click)="gestionarClases(leccion)">
+                  <i class="bi bi-collection me-1"></i>
+                  Clases
+                </button>
+                <button class="btn-accion btn-editar" title="Editar lección" 
+                  (click)="editarLeccion(leccion)">
+                  <i class="bi bi-pencil-square me-1"></i>
+                  Editar
+                </button>
+                <button class="btn-accion btn-toggle" title="Activar/Desactivar" 
+                  (click)="toggleLeccion(leccion)" 
+                  [class.activa]="leccion.activa && !leccion.bloqueada"
+                  [class.inactiva]="!leccion.activa || leccion.bloqueada">
+                  <i class="bi me-1" [class.bi-play-circle-fill]="!leccion.activa || leccion.bloqueada"
+                    [class.bi-pause-circle-fill]="leccion.activa && !leccion.bloqueada"></i>
+                  {{ leccion.activa && !leccion.bloqueada ? 'Desactivar' : 'Activar' }}
+                </button>
+                <button class="btn-accion btn-eliminar" title="Eliminar lección" 
+                  (click)="confirmarEliminar(leccion)">
+                  <i class="bi bi-trash-fill me-1"></i>
+                  Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal" [class.show]="mostrarModal" [style.display]="mostrarModal ? 'block' : 'none'" tabindex="-1"
+    *ngIf="mostrarModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="bi me-2" [class.bi-journal-plus]="!modoEdicion" [class.bi-pencil-square]="modoEdicion"></i>
+            {{ modoEdicion ? 'Editar Lección' : 'Nueva Lección' }}
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="cerrarModal()"></button>
+        </div>
+
+        <div class="modal-body">
+          <div *ngIf="error" class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ error }}
+          </div>
+
+          <form>
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-folder-fill me-1"></i>
+                Categoría *
+              </label>
+              <select class="form-select" [(ngModel)]="formulario.categoria_id" 
+                name="categoria_id" required>
+                <option [ngValue]="null" disabled>Seleccionar categoría</option>
+                <option *ngFor="let cat of categorias" [ngValue]="cat.id">
+                  {{ cat.nombre }}
+                </option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-card-heading me-1"></i>
+                Título *
+              </label>
+              <input type="text" class="form-control" [(ngModel)]="formulario.titulo" 
+                name="titulo" placeholder="Ej: Aprende la letra A" maxlength="255" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-text-paragraph me-1"></i>
+                Descripción
+              </label>
+              <textarea class="form-control" rows="3" [(ngModel)]="formulario.descripcion" 
+                name="descripcion" placeholder="Descripción detallada"></textarea>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-hand-index-fill me-1"></i>
+                Seña *
+              </label>
+              <input type="text" class="form-control text-uppercase" [(ngModel)]="formulario.sena" 
+                name="sena" placeholder="EJ: A, HOLA, 1" maxlength="100" required>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label">
+                  <i class="bi bi-bar-chart-steps me-1"></i>
+                  Nivel de Dificultad *
+                </label>
+                <select class="form-select" [(ngModel)]="formulario.nivel_dificultad" 
+                  name="nivel" required>
+                  <option [ngValue]="1">Principiante (Nivel 1)</option>
+                  <option [ngValue]="2">Intermedio (Nivel 2)</option>
+                  <option [ngValue]="3">Avanzado (Nivel 3)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">
+                  <i class="bi bi-sort-numeric-down me-1"></i>
+                  Orden *
+                </label>
+                <input type="number" class="form-control" [(ngModel)]="formulario.orden" 
+                  name="orden" min="1" placeholder="1" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-arrow-left-circle me-1"></i>
+                Lección Previa (Opcional)
+              </label>
+              <select class="form-select" [(ngModel)]="formulario.leccion_previa_id" 
+                name="leccion_previa">
+                <option [ngValue]="null">Sin lección previa</option>
+                <option *ngFor="let lec of leccionesParaSelect" [ngValue]="lec.id">
+                  {{ lec.orden }}. {{ lec.titulo }} ({{ lec.sena }})
+                </option>
+              </select>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label">
+                  <i class="bi bi-coin me-1"></i>
+                  Puntos Base *
+                </label>
+                <input type="number" class="form-control" [(ngModel)]="formulario.puntos_base" 
+                  name="puntos_base" min="1" placeholder="10" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">
+                  <i class="bi bi-trophy-fill me-1"></i>
+                  Puntos Perfectos *
+                </label>
+                <input type="number" class="form-control" [(ngModel)]="formulario.puntos_perfecto"
+                  name="puntos_perfecto" min="1" placeholder="50" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label d-block mb-2">
+                <i class="bi bi-toggles me-1"></i>
+                Estados
+              </label>
+
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="estadoActivo" 
+                  [(ngModel)]="formulario.activa" name="activa">
+                <label class="form-check-label" for="estadoActivo">
+                  <i class="bi bi-check-circle me-1"></i>
+                  Lección activa
+                </label>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="estadoBloqueado" 
+                  [(ngModel)]="formulario.bloqueada" name="bloqueada">
+                <label class="form-check-label" for="estadoBloqueado">
+                  <i class="bi bi-lock me-1"></i>
+                  Lección bloqueada
+                </label>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModal()">
+            <i class="bi bi-x-circle me-2"></i>
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" (click)="guardarLeccion()" 
+            [disabled]="cargando">
+            <span *ngIf="!cargando">
+              <i class="bi me-2" [class.bi-save]="!modoEdicion" [class.bi-arrow-repeat]="modoEdicion"></i>
+              {{ modoEdicion ? 'Actualizar' : 'Crear' }} Lección
+            </span>
+            <span *ngIf="cargando">
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              Guardando...
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop fade" [class.show]="mostrarModal" *ngIf="mostrarModal"></div>
+
+</div>

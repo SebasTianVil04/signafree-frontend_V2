@@ -1,0 +1,254 @@
+<div class="panel-admin container-fluid py-4">
+  
+  <!-- Encabezado -->
+  <div class="encabezado-admin mb-4">
+    <h1 class="display-5 fw-bold text-primary">Panel de Administración</h1>
+    <p class="text-muted">Gestiona todos los aspectos de SignaFree</p>
+  </div>
+
+  <!-- Estado de carga -->
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-3 text-muted">Cargando estadísticas...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>Error:</strong> {{ error }}
+    <button type="button" class="btn btn-sm btn-danger ms-3" (click)="cargarDashboard()">
+      Reintentar
+    </button>
+  </div>
+
+  <!-- Contenido Principal -->
+  <div *ngIf="!cargando && !error && estadisticas" class="contenido-admin">
+    
+    <!-- Tarjetas de Estadísticas -->
+    <div class="seccion-estadisticas mb-5">
+      <h2 class="h4 mb-4">Resumen General</h2>
+      
+      <div class="row g-4">
+        
+        <!-- Tarjeta Usuarios -->
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card border-primary shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-people-fill fs-1 text-primary me-3"></i>
+                <div>
+                  <h5 class="card-title mb-0">Usuarios</h5>
+                </div>
+              </div>
+              
+              <h3 class="display-4 mb-2">{{ estadisticas.usuarios.total }}</h3>
+              
+              <div class="mb-3">
+                <small class="text-success d-block">
+                  <i class="bi bi-check-circle-fill"></i>
+                  {{ estadisticas.usuarios.activos }} activos
+                </small>
+                <small class="text-info d-block">
+                  <i class="bi bi-star-fill"></i>
+                  {{ estadisticas.usuarios.nuevos_mes }} nuevos este mes
+                </small>
+              </div>
+              
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-primary" 
+                     role="progressbar" 
+                     [style.width.%]="calcularPorcentajeUsuariosActivos()">
+                </div>
+              </div>
+              <small class="text-muted">{{ calcularPorcentajeUsuariosActivos() }}% activos</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjeta Lecciones -->
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card border-success shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-journal-text fs-1 text-success me-3"></i>
+                <div>
+                  <h5 class="card-title mb-0">Lecciones</h5>
+                </div>
+              </div>
+              
+              <h3 class="display-4 mb-2">{{ estadisticas.lecciones.total }}</h3>
+              
+              <div class="mb-3">
+                <small class="text-success d-block">
+                  <i class="bi bi-check-circle-fill"></i>
+                  {{ estadisticas.lecciones.activas }} activas
+                </small>
+              </div>
+              
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-success" 
+                     role="progressbar" 
+                     [style.width.%]="calcularPorcentajeLeccionesActivas()">
+                </div>
+              </div>
+              <small class="text-muted">{{ calcularPorcentajeLeccionesActivas() }}% activas</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjeta Exámenes -->
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card border-warning shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-clipboard-check fs-1 text-warning me-3"></i>
+                <div>
+                  <h5 class="card-title mb-0">Autoevaluaciones</h5>
+                </div>
+              </div>
+              
+              <h3 class="display-4 mb-2">{{ estadisticas.examenes.total }}</h3>
+              
+              <div class="mb-3">
+                <small class="text-success d-block">
+                  <i class="bi bi-check-circle-fill"></i>
+                  {{ estadisticas.examenes.completados }} completados
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjeta Rendimiento -->
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card border-info shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-graph-up fs-1 text-info me-3"></i>
+                <div>
+                  <h5 class="card-title mb-0">Rendimiento</h5>
+                </div>
+              </div>
+              
+              <h3 class="display-4 mb-2">
+                {{ estadisticas.rendimiento.progreso_promedio | number:'1.1-1' }}%
+              </h3>
+              
+              <div class="mb-3">
+                <small class="text-muted">Progreso promedio</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sección de Gráficos -->
+    <div class="seccion-graficos mb-5">
+      <h2 class="h4 mb-4">Análisis Visual</h2>
+      
+      <div class="row g-4">
+        
+        <!-- Gráfico de Usuarios -->
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <app-grafico-circular
+                [datos]="datosUsuarios"
+                [etiquetas]="etiquetasUsuarios"
+                [titulo]="'Distribución de Usuarios'"
+                [colores]="['#0d6efd', '#6c757d']"
+                [tipo]="'doughnut'">
+              </app-grafico-circular>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráfico de Lecciones -->
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <app-grafico-circular
+                [datos]="datosLecciones"
+                [etiquetas]="etiquetasLecciones"
+                [titulo]="'Estado de Lecciones'"
+                [colores]="['#198754', '#ffc107']"
+                [tipo]="'pie'">
+              </app-grafico-circular>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráfico de Progreso -->
+        <div class="col-12 col-lg-8">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <app-grafico-progreso
+                [datos]="datosProgreso"
+                [etiquetas]="etiquetasProgreso"
+                [titulo]="'Progreso Semanal'">
+              </app-grafico-progreso>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráfico de Exámenes -->
+        <div class="col-12 col-lg-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <app-grafico-estadisticas
+                [datos]="datosExamenes"
+                [etiquetas]="etiquetasExamenes"
+                [titulo]="'Exámenes'"
+                [tipo]="'bar'"
+                [color]="'#ffc107'"
+                [label]="'Cantidad'">
+              </app-grafico-estadisticas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sección de Accesos Rápidos -->
+    <div class="seccion-accesos">
+      <h2 class="h4 mb-4">Accesos Rápidos</h2>
+      
+      <div class="row g-4">
+        <div class="col-12 col-md-6 col-xl-3" *ngFor="let opcion of opcionesMenu">
+          <div class="card h-100 shadow-sm hover-card cursor-pointer" 
+               (click)="navegarA(opcion.ruta)"
+               [class.border-primary]="opcion.color === 'primary'"
+               [class.border-success]="opcion.color === 'success'"
+               [class.border-danger]="opcion.color === 'danger'"
+               [class.border-info]="opcion.color === 'info'">
+            <div class="card-body text-center">
+              <i [class]="opcion.icono + ' fs-1 mb-3'"
+                 [class.text-primary]="opcion.color === 'primary'"
+                 [class.text-success]="opcion.color === 'success'"
+                 [class.text-danger]="opcion.color === 'danger'"
+                 [class.text-info]="opcion.color === 'info'"></i>
+              
+              <h5 class="card-title">{{ opcion.titulo }}</h5>
+              <p class="card-text text-muted">{{ opcion.descripcion }}</p>
+              
+              <button class="btn btn-sm mt-2"
+                      [class.btn-primary]="opcion.color === 'primary'"
+                      [class.btn-success]="opcion.color === 'success'"
+                      [class.btn-danger]="opcion.color === 'danger'"
+                      [class.btn-info]="opcion.color === 'info'">
+                Ir al módulo
+                <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,328 @@
+<!-- src/app/paginas/admin/detalle-examen/detalle-examen.component.html -->
+<div class="detalle-examen-container">
+
+  <!-- Header -->
+  <div class="header-page">
+    <button class="btn-volver" (click)="volverALista()">
+      <i class="bi bi-arrow-left"></i> Volver a Exámenes
+    </button>
+
+    <div class="titulo-seccion">
+      <i class="bi bi-clipboard-check"></i>
+      <div>
+        <h1>Detalles de la Autoevaluación</h1>
+        <p>Información completa y estadísticas de la autoevaluación</p>
+      </div>
+    </div>
+
+    <div class="acciones-header">
+      <button class="btn btn-warning" (click)="editarExamen()" *ngIf="examen">
+        <i class="bi bi-pencil"></i> Editar
+      </button>
+      <button class="btn btn-primario" (click)="gestionarPreguntas()" *ngIf="examen">
+        <i class="bi bi-list-check"></i> Gestionar Preguntas
+      </button>
+    </div>
+  </div>
+
+  <!-- Cargando -->
+  <div class="cargando-container" *ngIf="cargando">
+    <div class="spinner"></div>
+    <p>Cargando autoevaluación...</p>
+  </div>
+
+  <!-- Contenido de la Autoevaluación -->
+  <div class="examen-content" *ngIf="!cargando && examen">
+    
+    <!-- Información Principal -->
+    <div class="card principal">
+      <div class="card-header">
+        <h3><i class="bi bi-info-circle"></i> Información de la Autoevaluación</h3>
+        <div class="estado-badge" [class]="getEstadoClass(examen.activo)">
+          {{ getEstadoLabel(examen.activo) }}
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-item full-width">
+            <label>Título</label>
+            <p class="valor">{{ examen.titulo }}</p>
+          </div>
+          
+          <div class="info-item full-width" *ngIf="examen.descripcion">
+            <label>Descripción</label>
+            <p class="valor">{{ examen.descripcion }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Tipo</label>
+            <span class="badge" [class.badge-nivel]="examen.tipo === 'nivel'" 
+                  [class.badge-final]="examen.tipo === 'final'">
+              {{ getTipoLabel(examen.tipo) }}
+            </span>
+          </div>
+
+          <div class="info-item" *ngIf="examen.nivel">
+            <label>Nivel</label>
+            <span class="badge badge-nivel-numero">
+              Nivel {{ examen.nivel }}
+            </span>
+          </div>
+
+          <div class="info-item">
+            <label>Lección</label>
+            <p class="valor">ID: {{ examen.leccion_id }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Orden</label>
+            <p class="valor">{{ examen.orden }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Puntuación Mínima</label>
+            <p class="valor">{{ examen.puntuacion_minima }}%</p>
+          </div>
+
+          <div class="info-item">
+            <label>Tiempo Límite</label>
+            <p class="valor">{{ examen.tiempo_limite ? examen.tiempo_limite + ' minutos' : 'Sin límite' }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Total Preguntas</label>
+            <p class="valor">{{ examen.total_preguntas || 0 }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Puntos Totales</label>
+            <p class="valor">{{ examen.puntos_totales || 0 }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Clases Requeridas</label>
+            <p class="valor">{{ examen.clases_requeridas }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Requiere Todas las Clases</label>
+            <p class="valor">{{ examen.requiere_todas_clases ? 'Sí' : 'No' }}</p>
+          </div>
+
+          <div class="info-item">
+            <label>Fecha Creación</label>
+            <p class="valor">{{ examen.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="card estadisticas">
+      <div class="card-header">
+        <h3><i class="bi bi-graph-up"></i> Estadísticas</h3>
+        <span class="cargando-estadisticas" *ngIf="cargandoEstadisticas">
+          <i class="bi bi-arrow-repeat spinner"></i> Cargando...
+        </span>
+      </div>
+      <div class="card-body">
+        
+        <!-- Sin Estadísticas -->
+        <div class="sin-estadisticas" *ngIf="!estadisticas && !cargandoEstadisticas">
+          <i class="bi bi-bar-chart"></i>
+          <p>No hay estadísticas disponibles</p>
+        </div>
+
+        <!-- Con Estadísticas -->
+        <div *ngIf="estadisticas && !cargandoEstadisticas">
+          
+          <!-- Sin Intentos -->
+          <div class="sin-intentos" *ngIf="estadisticas.total_intentos === 0">
+            <i class="bi bi-people"></i>
+            <h4>No hay intentos registrados</h4>
+            <p>Aún no hay usuarios que hayan realizado esta autoevaluación</p>
+          </div>
+
+          <!-- Con Intentos -->
+          <div *ngIf="estadisticas.total_intentos > 0">
+            
+            <!-- Estadísticas Principales -->
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-icono total">
+                  <i class="bi bi-people"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-valor">{{ estadisticas.total_intentos }}</span>
+                  <span class="stat-label">Total Intentos</span>
+                </div>
+              </div>
+
+              <div class="stat-item">
+                <div class="stat-icono promedio">
+                  <i class="bi bi-speedometer2"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-valor">{{ estadisticas.promedio_puntuacion }}%</span>
+                  <span class="stat-label">Promedio</span>
+                </div>
+              </div>
+
+              <div class="stat-item">
+                <div class="stat-icono aprobados">
+                  <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-valor">{{ estadisticas.tasa_aprobacion }}%</span>
+                  <span class="stat-label">Tasa Aprobación</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Distribución de Puntuaciones -->
+            <div class="distribucion-section" *ngIf="estadisticas.distribucion_puntuaciones?.length">
+              <h4>Distribución de Puntuaciones</h4>
+              <div class="distribucion-grid">
+                <div class="distribucion-item" *ngFor="let dist of estadisticas.distribucion_puntuaciones">
+                  <div class="distribucion-header">
+                    <span class="rango">{{ dist.rango }}%</span>
+                    <span class="cantidad">{{ dist.cantidad }} intentos</span>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar" 
+                         [ngClass]="{
+                           'bg-danger': dist.rango === '0-20',
+                           'bg-warning': dist.rango === '21-40',
+                           'bg-info': dist.rango === '41-60',
+                           'bg-primary': dist.rango === '61-80',
+                           'bg-success': dist.rango === '81-100' || dist.rango === 'Aprobados',
+                           'bg-secondary': dist.rango === 'Reprobados'
+                         }"
+                         [style.width]="(dist.cantidad / estadisticas.total_intentos) * 100 + '%'">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Intentos Recientes -->
+            <div class="intentos-recientes" *ngIf="estadisticas.intentos_recientes?.length">
+              <h4>Últimos Intentos</h4>
+              <div class="tabla-intentos">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Usuario</th>
+                      <th>Puntuación</th>
+                      <th>Detalle</th>
+                      <th>Estado</th>
+                      <th>Fecha</th>
+                      <th>Duración</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let intento of estadisticas.intentos_recientes">
+                      <td>
+                        <div class="usuario-info">
+                          <strong>{{ intento.usuario_nombre }}</strong>
+                          <small>{{ intento.usuario_email }}</small>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="puntuacion" 
+                              [class.aprobado]="intento.puntuacion >= examen.puntuacion_minima"
+                              [class.reprobado]="intento.puntuacion < examen.puntuacion_minima">
+                          {{ intento.puntuacion }}%
+                        </span>
+                      </td>
+                      <td>
+                        <small class="text-muted">
+                          {{ intento.puntuacion_obtenida }}/{{ intento.puntuacion_maxima }}
+                        </small>
+                      </td>
+                      <td>
+                        <span class="badge" 
+                              [class.badge-success]="intento.aprobado"
+                              [class.badge-danger]="!intento.aprobado">
+                          {{ intento.aprobado ? 'Aprobado' : 'Reprobado' }}
+                        </span>
+                      </td>
+                      <td>
+                        {{ intento.fecha_intento | date:'dd/MM/yy HH:mm' }}
+                      </td>
+                      <td>
+                        {{ intento.duracion_segundos }}s
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Progreso en el Tiempo -->
+            <div class="progreso-tiempo" *ngIf="estadisticas.progreso_tiempo?.length">
+              <h4>Evolución en el Tiempo</h4>
+              <div class="progreso-grid">
+                <div class="progreso-item" *ngFor="let progreso of estadisticas.progreso_tiempo">
+                  <div class="progreso-fecha">{{ progreso.fecha | date:'dd/MM' }}</div>
+                  <div class="progreso-stats">
+                    <span class="intentos">{{ progreso.intentos }} intentos</span>
+                    <span class="promedio">{{ progreso.promedio_puntuacion }}% promedio</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acciones Rápidas -->
+    <div class="card acciones">
+      <div class="card-header">
+        <h3><i class="bi bi-lightning"></i> Acciones Rápidas</h3>
+      </div>
+      <div class="card-body">
+        <div class="acciones-grid">
+          <button class="btn-accion btn-editar" (click)="editarExamen()">
+            <i class="bi bi-pencil"></i>
+            <span>Editar Autoevaluacion</span>
+          </button>
+
+          <button class="btn-accion btn-preguntas" (click)="gestionarPreguntas()">
+            <i class="bi bi-list-check"></i>
+            <span>Gestionar Preguntas</span>
+            <small *ngIf="examen.total_preguntas > 0">{{ examen.total_preguntas }} preguntas</small>
+          </button>
+
+          <button class="btn-accion" 
+                  [class.btn-activar]="!examen.activo" 
+                  [class.btn-desactivar]="examen.activo" 
+                  (click)="toggleActivo()">
+            <i class="bi" 
+               [class.bi-toggle-on]="examen.activo" 
+               [class.bi-toggle-off]="!examen.activo"></i>
+            <span>{{ examen.activo ? 'Desactivar' : 'Activar' }} Autoevaluacion</span>
+          </button>
+
+          <button class="btn-accion btn-estadisticas" (click)="cargarEstadisticas(examen.id!)">
+            <i class="bi bi-arrow-repeat"></i>
+            <span>Actualizar Estadísticas</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sin Examen -->
+  <div class="sin-resultados" *ngIf="!cargando && !examen">
+    <i class="bi bi-clipboard-x"></i>
+    <h3>No se encontró el examen</h3>
+    <p>El examen que buscas no existe o no tienes permisos para verlo</p>
+    <button class="btn btn-primario" (click)="volverALista()">
+      <i class="bi bi-arrow-left"></i> Volver a Exámenes
+    </button>
+  </div>
+
+</div>

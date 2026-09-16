@@ -1,0 +1,18 @@
+<!-- src/app/componentes/compartidos/notificaciones/notificaciones.component.html -->
+<div class="notificaciones-contenedor">
+  <div *ngFor="let notificacion of notificaciones"
+       class="notificacion"
+       [class.exito]="notificacion.tipo === 'exito'"
+       [class.error]="notificacion.tipo === 'error'"
+       [class.advertencia]="notificacion.tipo === 'advertencia'"
+       [class.info]="notificacion.tipo === 'info'"
+       [@slideIn]>
+    <div class="notificacion-contenido">
+      <i class="fas" [ngClass]="obtenerIcono(notificacion.tipo)"></i>
+      <span class="mensaje">{{ notificacion.mensaje }}</span>
+    </div>
+    <button class="btn-cerrar" (click)="eliminarNotificacion(notificacion.id!)">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+</div>

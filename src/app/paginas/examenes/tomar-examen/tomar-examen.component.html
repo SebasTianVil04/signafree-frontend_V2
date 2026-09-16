@@ -1,0 +1,340 @@
+<div class="tomar-examen-container">
+
+  <div class="examen-header">
+    <button class="btn-volver" (click)="volverALista()" *ngIf="!examenIniciado">
+      <i class="bi bi-arrow-left"></i> Volver
+    </button>
+
+    <div class="examen-info">
+      <h2>{{ examen?.titulo }}</h2>
+      <p class="descripcion">{{ examen?.descripcion }}</p>
+    </div>
+
+    <div class="timer" *ngIf="examenIniciado" [class.urgente]="tiempoRestante <= 60">
+      <i class="bi bi-clock"></i>
+      <span>{{ tiempoFormateado }}</span>
+    </div>
+  </div>
+
+  <div class="pantalla-inicio" *ngIf="!examenIniciado && !examenCompletado">
+    <div class="tarjeta-info">
+      <div class="icono-examen">
+        <i class="bi bi-clipboard-check"></i>
+      </div>
+
+      <h3>Información de la Autoevaluación</h3>
+
+      <div class="detalles-grid">
+        <div class="detalle-item">
+          <i class="bi bi-question-circle"></i>
+          <div class="detalle-contenido">
+            <span class="label">Preguntas</span>
+            <span class="valor">{{ examen?.total_preguntas }}</span>
+          </div>
+        </div>
+
+        <div class="detalle-item">
+          <i class="bi bi-clock"></i>
+          <div class="detalle-contenido">
+            <span class="label">Tiempo Límite</span>
+            <span class="valor">{{ examen?.tiempo_limite }} min</span>
+          </div>
+        </div>
+
+        <div class="detalle-item">
+          <i class="bi bi-star-fill"></i>
+          <div class="detalle-contenido">
+            <span class="label">Puntuación Mínima</span>
+            <span class="valor">{{ examen?.puntuacion_minima }}%</span>
+          </div>
+        </div>
+
+        <div class="detalle-item">
+          <i class="bi bi-trophy-fill"></i>
+          <div class="detalle-contenido">
+            <span class="label">Puntos Totales</span>
+            <span class="valor">{{ examen?.puntos_totales }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="instrucciones">
+        <h4><i class="bi bi-info-circle"></i> Instrucciones:</h4>
+        <ul>
+          <li><i class="bi bi-check-lg"></i> Lee cada pregunta cuidadosamente</li>
+          <li><i class="bi bi-check-lg"></i> Para preguntas de reconocimiento: realiza la seña con claridad</li>
+          <li><i class="bi bi-check-lg"></i> Puedes navegar entre preguntas antes de finalizar</li>
+          <li><i class="bi bi-check-lg"></i> La autoevaluación se evalúa al finalizar, no durante</li>
+          <li><i class="bi bi-check-lg"></i> Tiempo límite: {{ examen?.tiempo_limite }} minutos</li>
+          <li><i class="bi bi-check-lg"></i> Necesitas {{ examen?.puntuacion_minima }}% para aprobar</li>
+        </ul>
+      </div>
+
+      <button class="btn btn-primario btn-grande" (click)="iniciarExamen()">
+        <i class="bi bi-play-fill"></i> Iniciar Autoevaluación
+      </button>
+    </div>
+  </div>
+
+  <div class="progreso-container" *ngIf="examenIniciado && !examenCompletado">
+    <div class="barra-progreso">
+      <div class="progreso-fill" [style.width.%]="progresoExamen"></div>
+    </div>
+    <div class="progreso-info">
+      <span class="texto-progreso">
+        <i class="bi bi-list-ol"></i> Pregunta {{ preguntaActualIndex + 1 }} de {{ examen?.total_preguntas }}
+      </span>
+      <span class="respondidas-info">
+        <i class="bi bi-check-circle-fill"></i> {{ contadorRespuestas }} respondidas
+      </span>
+    </div>
+  </div>
+
+  <div class="navegacion-preguntas" *ngIf="examenIniciado && !examenCompletado && preguntas.length > 1">
+    <div class="controles-navegacion">
+      <button class="btn-navegacion" (click)="preguntaAnterior()" [disabled]="preguntaActualIndex === 0">
+        <i class="bi bi-chevron-left"></i> Anterior
+      </button>
+
+      <div class="indicadores-preguntas">
+        <button *ngFor="let pregunta of preguntas; let i = index" class="indicador-pregunta"
+          [class.actual]="i === preguntaActualIndex" [class.respondida]="estaRespondida(pregunta.id)"
+          [class.pendiente]="!estaRespondida(pregunta.id)" (click)="cambiarPregunta(i)"
+          [title]="estaRespondida(pregunta.id) ? 'Respondida' : 'Pendiente'">
+          {{ i + 1 }}
+          <i class="bi bi-check-lg check-icon" *ngIf="estaRespondida(pregunta.id)"></i>
+        </button>
+      </div>
+
+      <button class="btn-navegacion" (click)="preguntaSiguiente()"
+        [disabled]="preguntaActualIndex === preguntas.length - 1">
+        Siguiente <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- CRÍTICO: Contenedor de pregunta con ngSwitch para forzar destrucción -->
+  <ng-container *ngIf="examenIniciado && !examenCompletado && preguntaActual">
+
+    <div class="pregunta-card">
+      <div class="pregunta-header">
+        <h3><i class="bi bi-question-lg"></i> Pregunta {{ preguntaActualIndex + 1 }}</h3>
+        <span class="puntos-badge">
+          <i class="bi bi-star-fill"></i> {{ preguntaActual.puntos }} pts
+        </span>
+      </div>
+
+      <div class="pregunta-contenido">
+        <p class="enunciado">{{ preguntaActual.pregunta }}</p>
+
+        <div class="imagen-referencia" *ngIf="preguntaActual.imagen_sena">
+          <img [src]="preguntaActual.imagen_sena" [alt]="preguntaActual.sena_esperada">
+          <div class="imagen-overlay">
+            <i class="bi bi-image"></i> Imagen de referencia
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRÍTICO: Usar ng-container con ngSwitch para forzar reconstrucción -->
+    <ng-container [ngSwitch]="preguntaActual.tipo_pregunta">
+      
+      <!-- Pregunta de RECONOCIMIENTO -->
+      <div *ngSwitchCase="'reconocimiento'" class="reconocimiento-area-compacta">
+        <div class="reconocimiento-header">
+          <h4>
+            <i class="bi bi-camera-video"></i> 
+            Realiza la seña: <strong>{{ preguntaActual.sena_esperada }}</strong>
+          </h4>
+          <button class="btn-reiniciar-camara" (click)="reiniciarPreguntaActual()">
+            <i class="bi bi-arrow-clockwise"></i> Reiniciar
+          </button>
+        </div>
+
+        <!-- CRÍTICO: Usar trackBy con el ID de la pregunta para forzar recreación -->
+        <ng-container *ngIf="mostrarCamara">
+          <app-camara-reconocimiento-examen
+            [senaObjetivo]="preguntaActual.sena_esperada"
+            (resultadoEmitido)="procesarRespuestaReconocimiento($event)"
+            [attr.data-pregunta-id]="preguntaActual.id">
+          </app-camara-reconocimiento-examen>
+        </ng-container>
+
+        <div class="aviso-respuesta" *ngIf="estaRespondida(preguntaActual.id)">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>Respuesta registrada: "{{ respuestas.get(preguntaActual.id.toString())?.respuestaUsuario }}"</span>
+          <small>Puedes cambiar de pregunta o reintentar</small>
+        </div>
+      </div>
+
+      <!-- Pregunta de OPCIÓN MÚLTIPLE -->
+      <div *ngSwitchCase="'multiple'" class="opciones-container">
+        <h4><i class="bi bi-list-check"></i> Selecciona la respuesta correcta:</h4>
+        <div class="opciones-grid">
+          <button 
+            type="button"
+            *ngFor="let opcion of obtenerOpcionesPregunta(preguntaActual); trackBy: trackByKey"
+            class="opcion-btn"
+            [class.seleccionada]="respuestaSeleccionada === opcion.key"
+            (click)="seleccionarOpcion(opcion.key)"
+            [attr.data-key]="opcion.key">
+            <span class="opcion-key">{{ opcion.key.toUpperCase() }}</span>
+            <span class="opcion-texto">{{ opcion.value }}</span>
+            <i class="bi bi-check-lg opcion-check" *ngIf="respuestaSeleccionada === opcion.key"></i>
+          </button>
+        </div>
+
+        <div class="acciones-pregunta">
+          <button 
+            type="button"
+            class="btn btn-primario btn-confirmar" 
+            [disabled]="!respuestaSeleccionada"
+            (click)="confirmarRespuesta()">
+            <i class="bi bi-check-lg"></i> Confirmar Respuesta
+          </button>
+        </div>
+      </div>
+
+      <!-- Pregunta VERDADERO/FALSO -->
+      <div *ngSwitchCase="'verdadero_falso'" class="verdadero-falso-container">
+        <h4><i class="bi bi-toggle-on"></i> Selecciona la respuesta correcta:</h4>
+        <div class="opciones-vf">
+          <button 
+            type="button"
+            class="btn-vf verdadero"
+            [class.seleccionada]="respuestaSeleccionada === 'verdadero'"
+            (click)="seleccionarOpcion('verdadero')">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Verdadero</span>
+          </button>
+
+          <button 
+            type="button"
+            class="btn-vf falso"
+            [class.seleccionada]="respuestaSeleccionada === 'falso'"
+            (click)="seleccionarOpcion('falso')">
+            <i class="bi bi-x-circle-fill"></i>
+            <span>Falso</span>
+          </button>
+        </div>
+
+        <div class="acciones-pregunta">
+          <button 
+            type="button"
+            class="btn btn-primario btn-confirmar" 
+            [disabled]="!respuestaSeleccionada"
+            (click)="confirmarRespuesta()">
+            <i class="bi bi-check-lg"></i> Confirmar Respuesta
+          </button>
+        </div>
+      </div>
+
+    </ng-container>
+
+    <div class="boton-finalizar-container">
+      <button class="btn btn-success btn-grande" (click)="finalizarExamen()">
+        <i class="bi bi-check-circle"></i> Finalizar Autoevaluación
+      </button>
+    </div>
+
+  </ng-container>
+
+  <div class="pantalla-resultados" *ngIf="examenCompletado && resultado">
+    <div class="tarjeta-resultados">
+
+      <div class="icono-resultado" [class.aprobado]="resultado.aprobado" [class.reprobado]="!resultado.aprobado">
+        <i class="bi" [class.bi-check-circle-fill]="resultado.aprobado"
+          [class.bi-x-circle-fill]="!resultado.aprobado"></i>
+      </div>
+
+      <h2 *ngIf="resultado.aprobado" class="titulo-resultado exito">
+        <i class="bi bi-trophy-fill"></i> ¡Felicitaciones!
+      </h2>
+      <h2 *ngIf="!resultado.aprobado" class="titulo-resultado error">
+        <i class="bi bi-emoji-frown"></i> No Aprobado
+      </h2>
+
+      <p class="mensaje-resultado">
+        {{ resultado.aprobado ? 'Has aprobado el examen exitosamente' : 'Necesitas practicar más para aprobar' }}
+      </p>
+
+      <div class="estadisticas-resultados">
+        <div class="stat-card">
+          <div class="stat-icono porcentaje">
+            <i class="bi bi-graph-up"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-valor">{{ resultado.porcentaje }}%</div>
+            <div class="stat-label">Puntuación</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icono correctas">
+            <i class="bi bi-check-lg"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-valor">{{ resultado.respuestas_correctas }}/{{ resultado.total_preguntas }}</div>
+            <div class="stat-label">Correctas</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icono tiempo">
+            <i class="bi bi-clock"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-valor">{{ formatearTiempo(resultado.tiempo_empleado) }}</div>
+            <div class="stat-label">Tiempo</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icono puntos">
+            <i class="bi bi-star-fill"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-valor">{{ resultado.puntuacion_obtenida }}</div>
+            <div class="stat-label">Puntos</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="barra-nota-container">
+        <div class="barra-nota">
+          <div class="barra-nota-fill" [style.width.%]="resultado.porcentaje" [class.aprobado]="resultado.aprobado"
+            [class.reprobado]="!resultado.aprobado">
+          </div>
+        </div>
+        <div class="nota-minima">
+          <i class="bi bi-flag-fill"></i> Mínimo: {{ resultado.puntuacion_minima }}%
+        </div>
+      </div>
+
+      <div class="botones-resultados">
+        <button class="btn btn-secundario" (click)="verDetalles()">
+          <i class="bi bi-bar-chart-fill"></i> Ver Detalles
+        </button>
+
+        <button class="btn btn-warning" (click)="reiniciarExamen()" *ngIf="!resultado.aprobado">
+          <i class="bi bi-arrow-repeat"></i> Reintentar
+        </button>
+
+        <button class="btn btn-primario" (click)="continuarLeccion()" *ngIf="resultado.aprobado">
+          <i class="bi bi-arrow-right"></i> Continuar
+        </button>
+
+        <button class="btn btn-outline" (click)="volverALista()">
+          <i class="bi bi-list-ul"></i> Volver a Autoevaluaciones
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="cargando-container" *ngIf="cargando">
+    <div class="spinner"></div>
+    <p><i class="bi bi-hourglass-split"></i> Cargando autoevaluación...</p>
+  </div>
+
+</div>

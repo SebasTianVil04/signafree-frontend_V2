@@ -1,0 +1,486 @@
+// Variables de color y espaciado
+$primary-color: #3B82F6;
+$primary-dark: #2563EB;
+$success-color: #10B981;
+$error-color: #EF4444;
+$warning-color: #F59E0B;
+$gray-50: #F9FAFB;
+$gray-100: #F3F4F6;
+$gray-200: #E5E7EB;
+$gray-300: #D1D5DB;
+$gray-600: #4B5563;
+$gray-700: #374151;
+$gray-900: #111827;
+
+$border-radius: 8px;
+$border-radius-lg: 12px;
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+$transition-default: all 0.2s ease-in-out;
+
+.olvidaste-contrasena-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  
+  @media (max-width: 768px) {
+    padding: 10px;
+    justify-content: flex-start;
+    padding-top: 40px;
+  }
+}
+
+.auth-card {
+  background: white;
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-lg;
+  width: 100%;
+  max-width: 480px;
+  padding: 0;
+  overflow: hidden;
+  animation: slideUp 0.4s ease-out;
+  
+  @media (max-width: 480px) {
+    margin: 0 10px;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-header {
+  text-align: center;
+  padding: 40px 40px 20px;
+  background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
+  color: white;
+  
+  @media (max-width: 480px) {
+    padding: 30px 20px 15px;
+  }
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  
+  .logo-icon {
+    font-size: 32px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  }
+  
+  .logo-text {
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+}
+
+.header-content {
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    
+    @media (max-width: 480px) {
+      font-size: 22px;
+    }
+  }
+  
+  p {
+    font-size: 16px;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.5;
+    
+    @media (max-width: 480px) {
+      font-size: 14px;
+    }
+  }
+}
+
+.success-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.auth-content {
+  padding: 30px 40px 40px;
+  
+  @media (max-width: 480px) {
+    padding: 25px 20px 30px;
+  }
+}
+
+// Alertas
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: $border-radius;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease-out;
+  
+  &.alert-error {
+    background-color: #FEF2F2;
+    color: #B91C1C;
+    border: 1px solid #FECACA;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+// Formulario
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: $gray-700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  
+  .required {
+    color: $error-color;
+  }
+}
+
+.input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  padding-right: 45px;
+  border: 2px solid $gray-200;
+  border-radius: $border-radius;
+  font-size: 16px;
+  transition: $transition-default;
+  background: white;
+  
+  &:focus {
+    outline: none;
+    border-color: $primary-color;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  &.error {
+    border-color: $error-color;
+    
+    &:focus {
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    }
+  }
+  
+  &::placeholder {
+    color: $gray-300;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 16px; // Evita zoom en iOS
+  }
+}
+
+.input-icon {
+  position: absolute;
+  right: 12px;
+  font-size: 18px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.error-message {
+  color: $error-color;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Botones
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: $border-radius;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: $transition-default;
+  text-decoration: none;
+  min-height: 48px;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  &.btn-block {
+    width: 100%;
+  }
+  
+  &.btn-primary {
+    background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
+    color: white;
+    box-shadow: $shadow-sm;
+    
+    &:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: $shadow-md;
+    }
+    
+    &:not(:disabled):active {
+      transform: translateY(0);
+    }
+    
+    &.loading {
+      background: $gray-300;
+      cursor: wait;
+    }
+  }
+  
+  &.btn-outline {
+    background: white;
+    color: $primary-color;
+    border: 2px solid $primary-color;
+    
+    &:not(:disabled):hover {
+      background: $primary-color;
+      color: white;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 16px;
+    padding: 14px 20px;
+    min-height: 52px;
+  }
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: $primary-color;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 0;
+  transition: $transition-default;
+  
+  &:hover {
+    color: $primary-dark;
+    text-decoration: underline;
+  }
+}
+
+.auth-footer {
+  text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid $gray-100;
+}
+
+// Estado de éxito
+.success-message {
+  text-align: center;
+  
+  .success-details {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: $gray-50;
+    border-radius: $border-radius;
+    
+    p {
+      margin: 0 0 8px;
+      color: $gray-700;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    .email-sent {
+      font-weight: 600;
+      color: $primary-color;
+      word-break: break-word;
+    }
+  }
+  
+  .instructions {
+    text-align: left;
+    margin-bottom: 25px;
+    
+    h3 {
+      color: $gray-900;
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+    
+    ol {
+      margin: 0;
+      padding-left: 20px;
+      color: $gray-700;
+      
+      li {
+        margin-bottom: 6px;
+        line-height: 1.5;
+      }
+    }
+  }
+  
+  .help-note {
+    text-align: left;
+    background: #FEF3C7;
+    border-left: 4px solid $warning-color;
+    padding: 16px 20px;
+    border-radius: $border-radius;
+    margin-bottom: 25px;
+    
+    p {
+      margin: 0 0 8px;
+      color: #92400E;
+      font-weight: 600;
+    }
+    
+    ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #92400E;
+      
+      li {
+        margin-bottom: 4px;
+        line-height: 1.4;
+      }
+    }
+  }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  
+  .btn {
+    flex: 1;
+  }
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+    
+    .btn {
+      width: 100%;
+    }
+  }
+}
+
+// Información adicional
+.additional-info {
+  margin-top: 30px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.info-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: $border-radius-lg;
+  padding: 24px;
+  text-align: left;
+  box-shadow: $shadow-md;
+  
+  h3 {
+    color: $gray-900;
+    margin: 0 0 12px;
+    font-size: 18px;
+  }
+  
+  p {
+    color: $gray-700;
+    margin: 0 0 12px;
+    line-height: 1.5;
+  }
+  
+  ul {
+    margin: 0;
+    padding-left: 20px;
+    color: $gray-600;
+    
+    li {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    margin: 0 10px;
+    padding: 20px;
+  }
+}

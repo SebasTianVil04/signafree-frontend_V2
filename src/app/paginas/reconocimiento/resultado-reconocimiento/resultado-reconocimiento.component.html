@@ -1,0 +1,68 @@
+<div class="resultado-container" *ngIf="resultado">
+  <div class="resultado-card">
+    <button class="btn-close" (click)="onCerrar()">
+      <i class="fas fa-times"></i>
+    </button>
+
+    <div class="resultado-header">
+      <div class="icono-resultado" [style.background]="colorConfianza">
+        <i class="fas fa-hand-paper"></i>
+      </div>
+      <h2>{{ resultado.senaDetectada }}</h2>
+      <p class="mensaje-confianza">{{ mensajeConfianza }}</p>
+    </div>
+
+    <div class="confianza-section">
+      <div class="confianza-label">
+        <span>Nivel de Confianza</span>
+        <span class="confianza-porcentaje">
+          {{ (resultado.confianza * 100).toFixed(1) }}%
+        </span>
+      </div>
+      
+      <div class="confianza-barra">
+        <div class="confianza-fill" 
+             [style.width.%]="resultado.confianza * 100"
+             [style.background]="colorConfianza">
+        </div>
+      </div>
+
+      <div class="confianza-indicadores">
+        <span [class.active]="nivelConfianza === 'bajo'" class="indicador bajo">Bajo</span>
+        <span [class.active]="nivelConfianza === 'medio'" class="indicador medio">Medio</span>
+        <span [class.active]="nivelConfianza === 'alto'" class="indicador alto">Alto</span>
+      </div>
+    </div>
+
+    <div class="puntos-section" *ngIf="mostrarPuntos && resultado.puntosMano && resultado.puntosMano.length > 0">
+      <h3>Puntos Clave Detectados</h3>
+      <app-visualizador-puntos 
+        [puntos]="resultado.puntosMano"
+        [ancho]="400"
+        [alto]="300">
+      </app-visualizador-puntos>
+    </div>
+
+    <div class="metadata" *ngIf="resultado.timestamp">
+      <i class="fas fa-clock"></i>
+      <span>{{ resultado.timestamp | date:'short' }}</span>
+    </div>
+
+    <div class="acciones">
+      <button class="btn btn-primary" (click)="onIntentarNuevamente()">
+        <i class="fas fa-redo"></i> Intentar Nuevamente
+      </button>
+      <button class="btn btn-secondary" (click)="compartirResultado()">
+        <i class="fas fa-share-alt"></i> Compartir
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="resultado-vacio" *ngIf="!resultado">
+  <div class="vacio-content">
+    <i class="fas fa-hand-point-up"></i>
+    <h3>No hay resultados</h3>
+    <p>Realiza un reconocimiento para ver los resultados aquí</p>
+  </div>
+</div>

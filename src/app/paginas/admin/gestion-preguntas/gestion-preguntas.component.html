@@ -1,0 +1,326 @@
+<!-- src/app/paginas/admin/gestion-preguntas/gestion-preguntas.component.html -->
+<div class="gestion-preguntas">
+
+  <div class="header-page">
+    <button class="btn-volver" (click)="volver()">
+      <i class="bi bi-arrow-left"></i> Volver
+    </button>
+
+    <div class="titulo-seccion">
+      <i class="bi bi-question-circle"></i>
+      <div>
+        <h1>Preguntas del Autoevaluacion</h1>
+        <p *ngIf="examen">{{ examen.titulo }}</p>
+      </div>
+    </div>
+
+    <button class="btn btn-primario" (click)="abrirModalCrear()">
+      <i class="bi bi-plus-lg"></i> Nueva Pregunta
+    </button>
+  </div>
+
+  <!-- Información del Autoevaluacion -->
+  <div class="info-examen-card" *ngIf="examen">
+    <div class="info-grid">
+      <div class="info-item">
+        <i class="bi bi-list-ol"></i>
+        <div>
+          <span class="label">Total Preguntas</span>
+          <span class="valor">{{ preguntas.length }}</span>
+        </div>
+      </div>
+      <div class="info-item">
+        <i class="bi bi-star-fill"></i>
+        <div>
+          <span class="label">Puntos Totales</span>
+          <span class="valor">{{ calcularPuntosTotales() }}</span>
+        </div>
+      </div>
+      <div class="info-item">
+        <i class="bi bi-clock"></i>
+        <div>
+          <span class="label">Tiempo Límite</span>
+          <span class="valor">{{ examen.tiempo_limite || 'Sin límite' }} min</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cargando -->
+  <div class="cargando-container" *ngIf="cargando">
+    <div class="spinner"></div>
+    <p>Cargando preguntas...</p>
+  </div>
+
+  <!-- Lista de Preguntas -->
+  <div class="preguntas-lista" *ngIf="!cargando && preguntas.length > 0">
+    <div 
+      *ngFor="let pregunta of preguntas; let i = index"
+      class="pregunta-card">
+      
+      <div class="pregunta-header">
+        <div class="orden-badge">{{ pregunta.orden }}</div>
+        <div class="tipo-badge" [class]="'tipo-' + pregunta.tipo_pregunta">
+          {{ getTipoLabel(pregunta.tipo_pregunta) }}
+        </div>
+        <div class="puntos-badge">
+          <i class="bi bi-star-fill"></i> {{ pregunta.puntos }} pts
+        </div>
+      </div>
+
+      <div class="pregunta-contenido">
+        <h4>{{ pregunta.pregunta }}</h4>
+
+        <!-- Reconocimiento -->
+        <div class="detalles-pregunta" *ngIf="pregunta.tipo_pregunta === 'reconocimiento'">
+          <div class="detalle-item">
+            <strong>Seña esperada:</strong>
+            <span class="sena-tag">{{ pregunta.sena_esperada }}</span>
+          </div>
+          <div class="detalle-item" *ngIf="pregunta.imagen_sena">
+            <strong>Imagen:</strong>
+            <img [src]="pregunta.imagen_sena" alt="Seña" class="img-preview">
+          </div>
+        </div>
+
+        <!-- Opción Múltiple -->
+        <div class="opciones-preview" *ngIf="pregunta.tipo_pregunta === 'multiple' && pregunta.opciones">
+          <div class="opcion-item" *ngFor="let opcion of getOpcionesArray(pregunta.opciones)">
+            <span class="opcion-key">{{ opcion.key }})</span>
+            <span class="opcion-texto" [class.correcta]="opcion.key === pregunta.respuesta_correcta">
+              {{ opcion.value }}
+              <i class="bi bi-check-circle-fill" *ngIf="opcion.key === pregunta.respuesta_correcta"></i>
+            </span>
+          </div>
+          <div class="detalle-item" *ngIf="pregunta.imagen_sena">
+            <strong>Imagen:</strong>
+            <img [src]="pregunta.imagen_sena" alt="Imagen de pregunta" class="img-preview">
+          </div>
+        </div>
+
+        <!-- Verdadero/Falso -->
+        <div class="respuesta-preview" *ngIf="pregunta.tipo_pregunta === 'verdadero_falso'">
+          <strong>Respuesta correcta:</strong>
+          <span class="respuesta-tag" [class.verdadero]="pregunta.respuesta_correcta === 'verdadero'">
+            {{ pregunta.respuesta_correcta === 'verdadero' ? 'Verdadero' : 'Falso' }}
+          </span>
+          <div class="detalle-item" *ngIf="pregunta.imagen_sena">
+            <strong>Imagen:</strong>
+            <img [src]="pregunta.imagen_sena" alt="Imagen de pregunta" class="img-preview">
+          </div>
+        </div>
+      </div>
+
+      <div class="pregunta-acciones">
+        <button class="btn-icono btn-warning" (click)="editarPregunta(pregunta)" title="Editar">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn-icono btn-info" (click)="moverPregunta(pregunta, 'arriba')" 
+                [disabled]="i === 0" title="Subir">
+          <i class="bi bi-arrow-up"></i>
+        </button>
+        <button class="btn-icono btn-info" (click)="moverPregunta(pregunta, 'abajo')" 
+                [disabled]="i === preguntas.length - 1" title="Bajar">
+          <i class="bi bi-arrow-down"></i>
+        </button>
+        <button class="btn-icono btn-danger" (click)="eliminarPregunta(pregunta)" title="Eliminar">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sin Preguntas -->
+  <div class="sin-resultados" *ngIf="!cargando && preguntas.length === 0">
+    <i class="bi bi-question-circle"></i>
+    <h3>No hay preguntas</h3>
+    <p>Agrega preguntas para este examen</p>
+    <button class="btn btn-primario" (click)="abrirModalCrear()">
+      <i class="bi bi-plus-lg"></i> Crear Primera Pregunta
+    </button>
+  </div>
+
+</div>
+
+<!-- Modal Crear/Editar Pregunta -->
+<div class="modal" [class.show]="mostrarModal" *ngIf="mostrarModal">
+  <div class="modal-overlay" (click)="cerrarModal()"></div>
+  <div class="modal-content modal-xl">
+    <div class="modal-header">
+      <h3>
+        <i class="bi bi-question-circle"></i>
+        {{ modoEdicion ? 'Editar Pregunta' : 'Nueva Pregunta' }}
+      </h3>
+      <button class="btn-cerrar" (click)="cerrarModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <form [formGroup]="formularioPregunta">
+        
+        <div class="form-row">
+          <div class="form-group col-md-8">
+            <label>Enunciado de la Pregunta *</label>
+            <textarea 
+              formControlName="pregunta"
+              class="form-control"
+              rows="3"
+              placeholder="Ej: Realiza la seña de la letra A"></textarea>
+            <small class="error" *ngIf="formularioPregunta.get('pregunta')?.touched && formularioPregunta.get('pregunta')?.invalid">
+              <i class="bi bi-exclamation-circle"></i>
+              El enunciado es obligatorio
+            </small>
+          </div>
+
+          <div class="form-group col-md-4">
+            <label>Tipo de Pregunta *</label>
+            <select formControlName="tipo_pregunta" class="form-control">
+              <option value="reconocimiento">Reconocimiento de Seña</option>
+              <option value="multiple">Opción Múltiple</option>
+              <option value="verdadero_falso">Verdadero/Falso</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Reconocimiento -->
+        <div *ngIf="formularioPregunta.get('tipo_pregunta')?.value === 'reconocimiento'">
+          <div class="form-group">
+            <label>Seña Esperada *</label>
+            <input 
+              type="text" 
+              formControlName="sena_esperada"
+              class="form-control"
+              placeholder="Ej: A, B, C...">
+            <small class="error" *ngIf="formularioPregunta.get('sena_esperada')?.touched && formularioPregunta.get('sena_esperada')?.invalid">
+              <i class="bi bi-exclamation-circle"></i>
+              La seña esperada es obligatoria
+            </small>
+          </div>
+        </div>
+
+        <!-- Opción Múltiple -->
+        <div *ngIf="formularioPregunta.get('tipo_pregunta')?.value === 'multiple'">
+          <div class="opciones-editor">
+            <h5><i class="bi bi-list-check"></i> Opciones de Respuesta</h5>
+            
+            <div class="form-group" *ngFor="let key of ['a', 'b', 'c', 'd']">
+              <label>Opción {{ key.toUpperCase() }}</label>
+              <input 
+                type="text" 
+                [(ngModel)]="opcionesMultiple[key]"
+                [ngModelOptions]="{standalone: true}"
+                class="form-control"
+                [placeholder]="'Texto de la opción ' + key.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+              <label>Respuesta Correcta *</label>
+              <select formControlName="respuesta_correcta" class="form-control">
+                <option value="">Seleccionar...</option>
+                <option value="a">A</option>
+                <option value="b">B</option>
+                <option value="c">C</option>
+                <option value="d">D</option>
+              </select>
+              <small class="error" *ngIf="formularioPregunta.get('respuesta_correcta')?.touched && formularioPregunta.get('respuesta_correcta')?.invalid">
+                <i class="bi bi-exclamation-circle"></i>
+                Debe seleccionar una respuesta correcta
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label>URL de Imagen (opcional)</label>
+              <input 
+                type="text" 
+                formControlName="imagen_sena"
+                class="form-control"
+                placeholder="/assets/imagenes/pregunta.png">
+              <small class="form-text">
+                <i class="bi bi-info-circle"></i>
+                Imagen de apoyo visual para la pregunta
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verdadero/Falso -->
+        <div *ngIf="formularioPregunta.get('tipo_pregunta')?.value === 'verdadero_falso'">
+          <div class="form-group">
+            <label>Respuesta Correcta *</label>
+            <select formControlName="respuesta_correcta" class="form-control">
+              <option value="">Seleccionar...</option>
+              <option value="verdadero">Verdadero</option>
+              <option value="falso">Falso</option>
+            </select>
+            <small class="error" *ngIf="formularioPregunta.get('respuesta_correcta')?.touched && formularioPregunta.get('respuesta_correcta')?.invalid">
+              <i class="bi bi-exclamation-circle"></i>
+              Debe seleccionar una respuesta correcta
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label>URL de Imagen (opcional)</label>
+            <input 
+              type="text" 
+              formControlName="imagen_sena"
+              class="form-control"
+              placeholder="/assets/imagenes/pregunta.png">
+            <small class="form-text">
+              <i class="bi bi-info-circle"></i>
+              Imagen de apoyo visual para la pregunta
+            </small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Puntos *</label>
+            <input 
+              type="number" 
+              formControlName="puntos"
+              class="form-control"
+              min="1"
+              placeholder="10">
+            <small class="error" *ngIf="formularioPregunta.get('puntos')?.touched && formularioPregunta.get('puntos')?.invalid">
+              <i class="bi bi-exclamation-circle"></i>
+              Los puntos son obligatorios y deben ser mayor a 0
+            </small>
+          </div>
+
+          <div class="form-group col-md-6">
+            <label>Orden *</label>
+            <input 
+              type="number" 
+              formControlName="orden"
+              class="form-control"
+              min="1"
+              [placeholder]="preguntas.length + 1">
+            <small class="error" *ngIf="formularioPregunta.get('orden')?.touched && formularioPregunta.get('orden')?.invalid">
+              <i class="bi bi-exclamation-circle"></i>
+              El orden es obligatorio
+            </small>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secundario" (click)="cerrarModal()">
+        <i class="bi bi-x-lg"></i> Cancelar
+      </button>
+      <button 
+        class="btn btn-primario" 
+        (click)="guardarPregunta()"
+        [disabled]="formularioPregunta.invalid || guardando">
+        <i class="bi" 
+           [class.bi-arrow-repeat]="guardando" 
+           [class.bi-spin]="guardando" 
+           [class.bi-check-lg]="!guardando && !modoEdicion"
+           [class.bi-arrow-clockwise]="!guardando && modoEdicion"></i>
+        {{ guardando ? 'Guardando...' : (modoEdicion ? 'Actualizar' : 'Crear') }}
+      </button>
+    </div>
+  </div>
+</div>

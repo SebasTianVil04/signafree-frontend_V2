@@ -1,0 +1,193 @@
+<div class="progreso-container">
+  <div class="progreso-card">
+    <!-- Encabezado -->
+    <div class="page-header">
+      <h1>Mi Progreso</h1>
+      <p>Monitorea tu avance en el aprendizaje de LSP</p>
+      <button class="btn-actualizar" (click)="recargarDatos()" [disabled]="cargando">
+        <i class="bi bi-arrow-clockwise" [class.spinning]="cargando"></i>
+        {{ cargando ? 'Actualizando...' : 'Actualizar' }}
+      </button>
+    </div>
+
+    <!-- Estado de carga -->
+    <div *ngIf="cargando" class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Cargando estadísticas...</p>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error && !cargando" class="error-message">
+      <i class="bi bi-exclamation-triangle"></i>
+      {{ error }}
+      <button (click)="recargarDatos()" class="btn-reintentar">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Contenido de Estadísticas -->
+    <div *ngIf="mostrarDatos" class="stats-container">
+
+      <!-- Tarjeta de Nivel y Experiencia -->
+      <div class="nivel-card">
+        <div class="nivel-header">
+          <div class="nivel-badge" [class]="obtenerColorNivel(estadisticas.nivel_actual)">
+            Nivel {{ estadisticas.nivel_actual }}
+          </div>
+          <div class="nivel-texto">{{ obtenerNivelTexto(estadisticas.nivel_actual) }}</div>
+        </div>
+        <div class="exp-bar">
+          <div class="exp-progress" [style.width.%]="estadisticas.progreso_nivel"></div>
+        </div>
+        <div class="exp-text">
+          {{ estadisticas.xp_total }} XP • {{ estadisticas.exp_restante }} XP para nivel {{ estadisticas.nivel_actual +
+          1 }}
+        </div>
+      </div>
+
+      <!-- Estadísticas Principales -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📚</div>
+          <div class="stat-content">
+            <h3>Progreso General</h3>
+            <div class="stat-value">{{ estadisticas.porcentaje_completado }}%</div>
+            <p>{{ estadisticas.clases_completadas }} de {{ estadisticas.total_clases }} clases</p>
+            <div class="progress-bar">
+              <div class="progress-fill" [style.width.%]="estadisticas.porcentaje_completado"></div>
+            </div>
+            <small>{{ estadisticas.lecciones_completadas }} de {{ estadisticas.total_lecciones }} lecciones
+              completadas</small>
+          </div>
+        </div>
+
+        <!-- Puntos Totales -->
+        <div class="stat-card highlight">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-content">
+            <h3>Puntos Totales</h3>
+            <div class="stat-value">{{ estadisticas.total_puntos }}</div>
+            <p>Puntos acumulados</p>
+            <div class="stars-container">
+              <span class="star" *ngFor="let star of [1,2,3]"
+                [class.active]="star <= estadisticas.total_estrellas">★</span>
+            </div>
+            <small>{{ estadisticas.total_estrellas }} estrellas obtenidas</small>
+          </div>
+        </div>
+
+        <!-- Precisión Global -->
+        <div class="stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-content">
+            <h3>Precisión Global</h3>
+            <div class="stat-value">{{ estadisticas.precision_global }}%</div>
+            <p>En todas las prácticas</p>
+            <div class="nivel-dominio" [class]="obtenerClaseDominio(estadisticas.precision_global)">
+              {{ obtenerNivelDominio(estadisticas.precision_global) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Racha Actual -->
+        <div class="stat-card">
+          <div class="stat-icon">🔥</div>
+          <div class="stat-content">
+            <h3>Racha Actual</h3>
+            <div class="stat-value">{{ estadisticas.racha_actual }} días</div>
+            <p>Días consecutivos practicando</p>
+            <div class="racha-info">
+              <small>Mejor racha: {{ estadisticas.mejor_racha }} días</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progreso por Lecciones -->
+      <div class="lecciones-progress" *ngIf="progresosLecciones.length > 0">
+        <h3>📊 Progreso por Lecciones</h3>
+        <div class="lecciones-list">
+          <div *ngFor="let progreso of progresosLecciones" class="leccion-progress-item">
+            <div class="leccion-info">
+              <div class="leccion-titulo">{{ progreso.leccion_titulo }}</div>
+              <div class="leccion-stats">
+                <span class="clases-count">{{ progreso.clases_completadas }}/{{ progreso.total_clases }} clases</span>
+                <span class="precision">Precisión: {{ (progreso.mejor_precision * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+            <div class="leccion-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="progreso.porcentaje_completado"></div>
+              </div>
+              <div class="estrellas">
+                <span class="star" *ngFor="let star of [1,2,3]" [class.active]="star <= progreso.estrellas">★</span>
+                <span *ngIf="progreso.estrella_dorada" class="estrella-dorada">🌟</span>
+              </div>
+            </div>
+            <div class="leccion-status" [class]="obtenerClaseEstadoLeccion(progreso)">
+              {{ obtenerTextoEstadoLeccion(progreso) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logros y Recompensas -->
+      <div class="logros-section" *ngIf="estadisticas.logros_desbloqueados > 0">
+        <h3>🏆 Logros Desbloqueados</h3>
+        <div class="logros-grid">
+          <div class="logro-card" *ngFor="let logro of logrosDesbloqueados">
+            <div class="logro-icon">{{ logro.emoji }}</div>
+            <div class="logro-content">
+              <h4>{{ logro.titulo }}</h4>
+              <p>{{ logro.descripcion }}</p>
+              <small>Desbloqueado: {{ logro.fecha_desbloqueo | date:'shortDate' }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ranking -->
+      <div class="ranking-section" *ngIf="ranking.length > 0">
+        <h3>🏅 Ranking Global</h3>
+        <div class="ranking-list">
+          <div *ngFor="let usuario of ranking; let i = index" class="ranking-item"
+            [class.current-user]="usuario.es_actual">
+            <div class="ranking-pos">{{ i + 1 }}</div>
+            <div class="ranking-avatar">
+              <div class="avatar-iniciales" [style.background-color]="obtenerColorAvatar(usuario.nombre_usuario)">
+                {{ obtenerIniciales(usuario.nombre_usuario) }}
+              </div>
+            </div>
+            <div class="ranking-info">
+              <div class="ranking-nombre">{{ usuario.nombre_usuario }}</div>
+              <div class="ranking-stats">
+                <span>Nivel {{ usuario.nivel }}</span>
+                <span>{{ usuario.puntos_totales }} Puntos</span>
+                <span>{{ usuario.lecciones_completadas }} lecciones</span>
+              </div>
+            </div>
+            <div class="ranking-badge" *ngIf="i < 3">
+              {{ i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de Acción -->
+      <div class="action-buttons">
+        <button class="btn-primary" routerLink="/lecciones">
+          <i class="bi bi-play-circle"></i>
+          Continuar Aprendiendo
+        </button>
+        <button class="btn-secondary" (click)="recargarDatos()">
+          <i class="bi bi-arrow-clockwise"></i>
+          Actualizar Progreso
+        </button>
+        <button class="btn-tertiary" routerLink="/examenes">
+          <i class="bi bi-mortarboard"></i>
+          Realizar Exámenes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

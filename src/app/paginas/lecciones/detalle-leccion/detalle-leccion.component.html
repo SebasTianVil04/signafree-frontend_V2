@@ -1,0 +1,406 @@
+<div class="contenedor-detalle">
+
+  <div *ngIf="cargando" class="loader">
+    <div class="spinner"></div>
+    <p>Cargando lección...</p>
+  </div>
+
+  <div *ngIf="error" class="error-mensaje">
+    <i class="bi bi-exclamation-circle-fill"></i>
+    <p>{{ error }}</p>
+    <button (click)="volver()" class="btn btn-primario">
+      <i class="bi bi-arrow-left"></i> Volver a lecciones
+    </button>
+  </div>
+
+  <div *ngIf="!cargando && !error && leccion" class="detalle-leccion">
+
+    <div *ngIf="mostrarAlertaBloqueo" class="alerta-bloqueo">
+      <div class="alerta-contenido">
+        <i class="bi bi-lock-fill"></i>
+        <div class="alerta-texto">
+          <h4>Lección Bloqueada</h4>
+          <p>{{ mensajeBloqueo }}</p>
+        </div>
+        <button class="btn-alerta" (click)="volver()">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
+    </div>
+
+    <div class="hero-section" [style.background]="obtenerGradienteNivel(leccion.nivel_dificultad)">
+      <div class="hero-overlay"></div>
+
+      <div class="hero-content">
+        <button (click)="volver()" class="btn-volver-hero">
+          <i class="bi bi-arrow-left-circle-fill"></i> Volver
+        </button>
+
+        <div class="hero-info">
+          <div class="badges-top">
+            <span class="badge-nivel" [style.background-color]="obtenerColorNivel(leccion.nivel_dificultad)">
+              <i class="bi bi-bar-chart-fill me-1"></i>
+              {{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}
+            </span>
+            <span class="badge-categoria" *ngIf="leccion.categoria_nombre">
+              <i class="bi bi-folder-fill"></i> {{ leccion.categoria_nombre }}
+            </span>
+            <span class="badge-completada" *ngIf="esCompletada()">
+              <i class="bi bi-check-circle-fill"></i> Completada
+            </span>
+            <span class="badge-estrella" *ngIf="tieneEstrellaDorada()">
+              <i class="bi bi-star-fill"></i> Perfecta
+            </span>
+            <span class="badge-bloqueada" *ngIf="leccion.bloqueada">
+              <i class="bi bi-lock-fill"></i> Bloqueada
+            </span>
+          </div>
+
+          <h1 class="hero-titulo">{{ leccion.titulo }}</h1>
+
+          <p class="hero-descripcion">
+            {{ leccion.descripcion || 'Aprende nuevas señas del lenguaje de señas peruano' }}
+          </p>
+
+          <div class="hero-stats">
+            <div class="stat-item">
+              <i class="bi bi-book-fill"></i>
+              <span>{{ totalClases }} clases</span>
+            </div>
+            <div class="stat-item">
+              <i class="bi bi-hourglass-split"></i>
+              <span>{{ duracionTotal }} min</span>
+            </div>
+            <div class="stat-item">
+              <i class="bi bi-hand-index-thumb"></i>
+              <span>Seña: {{ senaLeccion }}</span>
+            </div>
+            <div class="stat-item">
+              <i class="bi bi-coin"></i>
+              <span>{{ leccion.puntos_base }} - {{ leccion.puntos_perfecto }} XP</span>
+            </div>
+          </div>
+
+          <div class="hero-actions">
+            <button (click)="iniciarLeccion()" class="btn-iniciar-hero" [disabled]="!leccion.activa || leccion.bloqueada"
+              [class.bloqueada]="leccion.bloqueada">
+              <i class="bi" [class.bi-play-circle-fill]="leccion.activa && !leccion.bloqueada"
+                [class.bi-lock-fill]="leccion.bloqueada"></i>
+              {{ obtenerTextoBoton() }}
+            </button>
+
+            <button (click)="actualizarEstado()" class="btn-actualizar" *ngIf="leccion?.bloqueada">
+              <i class="bi bi-arrow-clockwise"></i>
+              Actualizar Estado
+            </button>
+          </div>
+
+          <div *ngIf="leccion.bloqueada && leccion.leccion_previa_id" class="info-bloqueo">
+            <p><i class="bi bi-info-circle-fill"></i> Completa la lección anterior para desbloquear esta lección.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="contenido-principal">
+
+      <div class="tabs-navegacion">
+        <button class="tab-btn" [class.activa]="tabActiva === 'clases'" (click)="cambiarTab('clases')">
+          <i class="bi bi-list-ul"></i>
+          <span>Clases ({{ totalClases }})</span>
+        </button>
+        <button class="tab-btn" [class.activa]="tabActiva === 'info'" (click)="cambiarTab('info')">
+          <i class="bi bi-info-circle-fill"></i>
+          <span>Información</span>
+        </button>
+        <button class="tab-btn" [class.activa]="tabActiva === 'progreso'" (click)="cambiarTab('progreso')"
+          *ngIf="leccion.progreso">
+          <i class="bi bi-graph-up"></i>
+          <span>Mi Progreso</span>
+        </button>
+      </div>
+
+      <div *ngIf="tabActiva === 'clases'" class="tab-contenido">
+
+        <div class="progreso-clases-header" *ngIf="leccion.progreso">
+          <div class="progreso-info">
+            <h3>Tu Progreso</h3>
+            <p>{{ clasesCompletadas }} de {{ totalClases }} clases completadas</p>
+          </div>
+          <div class="progreso-barra">
+            <div class="barra-fill" [style.width.%]="porcentajeClasesCompletadas()"></div>
+          </div>
+          <span class="progreso-porcentaje">{{ porcentajeClasesCompletadas() }}%</span>
+        </div>
+
+        <div *ngIf="leccion.bloqueada" class="mensaje-bloqueo-leccion">
+          <div class="bloqueo-icono">
+            <i class="bi bi-lock-fill"></i>
+          </div>
+          <div class="bloqueo-contenido">
+            <h4>Lección Bloqueada</h4>
+            <p>{{ mensajeBloqueo }}</p>
+            <button class="btn-primario" (click)="volver()">
+              <i class="bi bi-arrow-left"></i> Volver a Lecciones
+            </button>
+            <button class="btn-actualizar" (click)="actualizarEstado()" style="margin-left: 10px;">
+              <i class="bi bi-arrow-clockwise"></i>
+              Actualizar Estado
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="clases.length === 0 && !leccion.bloqueada" class="sin-clases">
+          <i class="bi bi-inbox"></i>
+          <p>No hay clases disponibles para esta lección.</p>
+        </div>
+
+        <div *ngIf="clases.length > 0 && !leccion.bloqueada" class="clases-grid">
+          <div *ngFor="let clase of clases; let i = index" class="clase-card" [class.completada]="clase.completada"
+            [class.bloqueada]="clase.bloqueada">
+
+            <div class="clase-header">
+              <div class="clase-numero-badge">{{ clase.orden }}</div>
+
+              <div class="clase-estado">
+                <i class="bi bi-check-circle-fill" *ngIf="clase.completada"></i>
+                <i class="bi bi-lock-fill" *ngIf="clase.bloqueada"></i>
+                <i class="bi bi-play-circle-fill" *ngIf="!clase.completada && !clase.bloqueada"></i>
+              </div>
+            </div>
+
+            <div class="clase-contenido">
+              <h4 class="clase-titulo">{{ clase.titulo }}</h4>
+              <p class="clase-descripcion" *ngIf="clase.descripcion">
+                {{ clase.descripcion.length > 100 ? (clase.descripcion | slice:0:100) + '...' : clase.descripcion }}
+              </p>
+
+              <div class="clase-recursos">
+                <span class="recurso-badge" *ngIf="clase.duracion_estimada">
+                  <i class="bi bi-clock-fill"></i> {{ clase.duracion_estimada }} min
+                </span>
+                <span class="recurso-badge" *ngIf="clase.video_url || clase.video_id">
+                  <i class="bi bi-camera-video-fill"></i> Video
+                </span>
+                <span class="recurso-badge" *ngIf="clase.imagen_referencia">
+                  <i class="bi bi-image-fill"></i> Imagen
+                </span>
+                <span class="recurso-badge" *ngIf="clase.gif_demostracion">
+                  <i class="bi bi-film"></i> GIF
+                </span>
+              </div>
+
+              <div class="clase-tips" *ngIf="clase.tips && !clase.bloqueada">
+                <div class="tips-header">
+                  <i class="bi bi-lightbulb-fill"></i>
+                  <strong>Tips</strong>
+                </div>
+                <p>{{ clase.tips }}</p>
+              </div>
+
+              <div *ngIf="clase.bloqueada" class="mensaje-bloqueo-clase">
+                <i class="bi bi-lock-fill"></i>
+                <span>Completa la clase anterior para desbloquear</span>
+              </div>
+            </div>
+
+            <div class="clase-footer">
+              <button class="btn-clase" [disabled]="clase.bloqueada" (click)="comenzarClase(clase)">
+                <i class="bi" [class.bi-play-fill]="!clase.bloqueada" [class.bi-lock-fill]="clase.bloqueada"></i>
+                {{ clase.bloqueada ? 'Bloqueada' : (clase.completada ? 'Repasar' : 'Comenzar') }}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tabActiva === 'info'" class="tab-contenido">
+        <div class="info-section">
+
+          <div class="info-card">
+            <h3><i class="bi bi-info-circle-fill"></i> Acerca de esta lección</h3>
+            <p>{{ leccion.descripcion || 'Esta lección te ayudará a aprender nuevas señas del lenguaje de señas
+              peruano.' }}</p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-speedometer2"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Nivel de dificultad</strong>
+                <span>{{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}</span>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon categoria">
+                <i class="bi bi-folder2-open"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Categoría</strong>
+                <span>{{ leccion.categoria_nombre || 'General' }}</span>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-sort-numeric-up-alt"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Orden</strong>
+                <span>Lección #{{ leccion.orden }}</span>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-hand-index-thumb-fill"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Seña</strong>
+                <span>{{ senaLeccion }}</span>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-star-fill"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Puntos base</strong>
+                <span>{{ leccion.puntos_base }} XP</span>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-trophy-fill"></i>
+              </div>
+              <div class="info-texto">
+                <strong>Puntos perfectos</strong>
+                <span>{{ leccion.puntos_perfecto }} XP</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="requisitos-card" *ngIf="leccion.leccion_previa_id">
+            <h4><i class="bi bi-list-check"></i> Requisitos</h4>
+            <p>Debes completar la lección anterior antes de acceder a esta.</p>
+          </div>
+
+          <div class="objetivos-card">
+            <h4><i class="bi bi-bullseye"></i> ¿Qué aprenderás?</h4>
+            <ul>
+              <li><i class="bi bi-check-lg"></i> Reconocer y reproducir la seña correctamente</li>
+              <li><i class="bi bi-check-lg"></i> Comprender el contexto de uso</li>
+              <li><i class="bi bi-check-lg"></i> Practicar con retroalimentación en tiempo real</li>
+              <li><i class="bi bi-check-lg"></i> Dominar la técnica con precisión</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <div *ngIf="tabActiva === 'progreso' && leccion.progreso" class="tab-contenido">
+        <div class="progreso-section">
+
+          <div class="progreso-header">
+            <h3><i class="bi bi-graph-up"></i> Tu Progreso</h3>
+            <span class="badge-estado" [class.completada]="leccion.progreso.completada">
+              <i class="bi me-1" [class.bi-check-circle-fill]="leccion.progreso.completada"
+                [class.bi-hourglass-split]="!leccion.progreso.completada"></i>
+              {{ leccion.progreso.completada ? 'Completada' : 'En progreso' }}
+            </span>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon precision">
+                <i class="bi bi-bullseye"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Mejor Precisión</span>
+                <span class="stat-value">{{ (leccion.progreso.mejor_precision * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon intentos">
+                <i class="bi bi-arrow-repeat"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Total Intentos</span>
+                <span class="stat-value">{{ leccion.progreso.total_intentos }}</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon puntos">
+                <i class="bi bi-coin"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Puntos Obtenidos</span>
+                <span class="stat-value">{{ leccion.progreso.total_puntos }} XP</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon estrella" [class.obtenida]="tieneEstrellaDorada()">
+                <i class="bi" [class.bi-trophy-fill]="tieneEstrellaDorada()" [class.bi-trophy]="!tieneEstrellaDorada()"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Estrella Dorada</span>
+                <span class="stat-value">{{ tieneEstrellaDorada() ? '¡Obtenida!' : 'No obtenida' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="progreso-visual">
+            <h4><i class="bi bi-arrow-up-right-circle-fill me-2"></i>Dominio de la seña</h4>
+            <div class="barra-progreso-grande">
+              <div class="barra-fill-grande" [style.width.%]="obtenerPorcentajeProgreso()"
+                [style.background]="obtenerColorProgreso()">
+              </div>
+            </div>
+            <div class="progreso-labels">
+              <span>0%</span>
+              <span class="progreso-actual">{{ obtenerPorcentajeProgreso().toFixed(1) }}%</span>
+              <span>100%</span>
+            </div>
+          </div>
+
+          <div class="fechas-progreso">
+            <div class="fecha-item" *ngIf="leccion.progreso.fecha_inicio">
+              <i class="bi bi-calendar2-check-fill"></i>
+              <div>
+                <strong>Iniciada</strong>
+                <span>{{ leccion.progreso.fecha_inicio | date:'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+            </div>
+            <div class="fecha-item" *ngIf="leccion.progreso.fecha_completada">
+              <i class="bi bi-flag-fill"></i>
+              <div>
+                <strong>Completada</strong>
+                <span>{{ leccion.progreso.fecha_completada | date:'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+            </div>
+            <div class="fecha-item" *ngIf="leccion.progreso.ultima_practica">
+              <i class="bi bi-clock-history"></i>
+              <div>
+                <strong>Última práctica</strong>
+                <span>{{ leccion.progreso.ultima_practica | date:'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

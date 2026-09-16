@@ -1,0 +1,478 @@
+<div class="gestion-categorias">
+  <div class="alertas-container">
+    <div *ngIf="mensaje" class="alerta alerta-exito">
+      <i class="bi bi-check-circle-fill"></i>
+      <span>{{ mensaje }}</span>
+      <button class="btn-cerrar" (click)="mensaje = null">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>
+
+    <div *ngIf="error" class="alerta alerta-error">
+      <i class="bi bi-exclamation-circle-fill"></i>
+      <span>{{ error }}</span>
+      <button class="btn-cerrar" (click)="error = null">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="header-section">
+    <div class="titulo-seccion">
+      <h1>
+        <i class="bi bi-folder-fill"></i>
+        Gestión de Categorías
+      </h1>
+      <p class="subtitulo">Administra las categorías del sistema de señas</p>
+    </div>
+
+    <div class="botones-header">
+      <button class="btn btn-outline btn-lg" (click)="sincronizarConDataset()">
+        <i class="bi bi-arrow-repeat"></i>
+        Sincronizar Dataset
+      </button>
+
+      <button class="btn btn-outline btn-lg" (click)="abrirModalTipos()">
+        <i class="bi bi-gear-fill"></i>
+        Gestionar Tipos
+      </button>
+
+      <button class="btn btn-primary btn-lg" (click)="abrirModalCrear()">
+        <i class="bi bi-plus-circle"></i>
+        Nueva Categoría
+      </button>
+    </div>
+  </div>
+
+  <div class="estadisticas-grid">
+    <div class="stat-card">
+      <div class="stat-icono stat-total">
+        <i class="bi bi-folder"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ categorias.length }}</h3>
+        <p>Total Categorías</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icono stat-activas">
+        <i class="bi bi-check-circle"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ totalActivas }}</h3>
+        <p>Activas</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icono stat-inactivas">
+        <i class="bi bi-x-circle"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ totalInactivas }}</h3>
+        <p>Inactivas</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icono stat-tipos">
+        <i class="bi bi-grid"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ tiposCategoria.length }}</h3>
+        <p>Tipos Disponibles</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="filtros-section">
+    <div class="barra-busqueda">
+      <i class="bi bi-search"></i>
+      <input type="text" placeholder="Buscar categorías..." [(ngModel)]="textoBusqueda" (input)="onBuscar()">
+    </div>
+
+    <div class="filtros-grupo">
+      <select class="select-filtro" [(ngModel)]="tipoFiltro" (change)="onCambiarFiltroTipo()">
+        <option value="">Todos los tipos</option>
+        <option *ngFor="let tipo of tiposCategoria" [value]="tipo.id">
+          {{ tipo.etiqueta }}
+        </option>
+      </select>
+
+      <button class="btn-filtro" [class.activo]="mostrarInactivas" (click)="toggleMostrarInactivas()">
+        <i class="bi bi-eye"></i>
+        {{ mostrarInactivas ? 'Todas' : 'Solo activas' }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="cargando && categorias.length === 0" class="loader-container">
+    <div class="spinner"></div>
+    <p>Cargando categorías...</p>
+  </div>
+
+  <div class="categorias-grid" *ngIf="!cargando || categorias.length > 0">
+    <div *ngFor="let categoria of categoriasFiltradas" class="categoria-card" [class.inactiva]="!categoria.activa">
+
+      <div class="card-header" [style.background-color]="categoria.color">
+        <div class="header-info">
+          <i [class]="obtenerClaseIcono(categoria.icono) + ' categoria-icono'"></i>
+          <div class="header-badges">
+            <span class="badge badge-nivel">Nivel {{ categoria.nivel_requerido }}</span>
+            <span class="badge badge-orden">Orden {{ categoria.orden }}</span>
+          </div>
+        </div>
+        <span class="badge-estado" [class.activo]="categoria.activa">
+          {{ categoria.activa ? 'Activa' : 'Inactiva' }}
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="categoria-nombre">{{ categoria.nombre }}</h3>
+
+        <div class="categoria-tipo">
+          <span class="tipo-badge" [style.background-color]="obtenerColorTipo(categoria.tipo_id)">
+            {{ obtenerEtiquetaTipo(categoria.tipo_id) }}
+          </span>
+        </div>
+
+        <p class="categoria-descripcion" *ngIf="categoria.descripcion">
+          {{ categoria.descripcion }}
+        </p>
+        <p class="categoria-descripcion sin-descripcion" *ngIf="!categoria.descripcion">
+          Sin descripción
+        </p>
+
+        <div class="card-footer">
+          <div class="lecciones-count">
+            <i class="bi bi-book"></i>
+            <span>{{ categoria.total_lecciones || 0 }} lecciones</span>
+          </div>
+
+          <div class="acciones-grupo">
+            <button class="btn-accion btn-editar" (click)="abrirModalEditar(categoria)" title="Editar">
+              <i class="bi bi-pencil-fill"></i>
+            </button>
+
+            <button class="btn-accion btn-toggle" [class.activar]="!categoria.activa" (click)="cambiarEstado(categoria)"
+              [title]="categoria.activa ? 'Desactivar' : 'Activar'">
+              <i class="bi" [ngClass]="categoria.activa ? 'bi-toggle-on' : 'bi-toggle-off'"></i>
+            </button>
+
+            <button class="btn-accion btn-eliminar" (click)="eliminarCategoria(categoria)" title="Eliminar">
+              <i class="bi bi-trash-fill"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="estado-vacio" *ngIf="categoriasFiltradas.length === 0">
+      <i class="bi bi-inbox"></i>
+      <h3>No se encontraron categorías</h3>
+      <p>{{ textoBusqueda ? 'Intenta con otros términos de búsqueda' : 'Crea tu primera categoría' }}</p>
+      <button class="btn btn-primary" (click)="abrirModalCrear()" *ngIf="!textoBusqueda">
+        <i class="bi bi-plus-circle"></i>
+        Crear Categoría
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="mostrarModal" (click)="cerrarModal()">
+  <div class="modal-container modal-categoria" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <i class="bi" [ngClass]="modoEdicion ? 'bi-pencil-square' : 'bi-plus-circle'"></i>
+        {{ modoEdicion ? 'Editar Categoría' : 'Nueva Categoría' }}
+      </h2>
+      <button class="btn-cerrar-modal" (click)="cerrarModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <form [formGroup]="categoriaForm" (ngSubmit)="guardarCategoria()">
+      <div class="modal-body">
+
+        <div class="form-group tipo-selector-group">
+          <div class="label-row">
+            <label>Tipo de Categoría *</label>
+            <button type="button" class="btn-nuevo-tipo" *ngIf="!mostrarFormTipoInline" (click)="abrirFormTipoInline()">
+              <i class="bi bi-plus-circle"></i>
+              Nuevo Tipo
+            </button>
+          </div>
+
+          <div class="tipos-grid" *ngIf="tiposCategoria.length > 0 && !mostrarFormTipoInline">
+            <div *ngFor="let tipo of tiposCategoria" class="tipo-opcion"
+              [class.seleccionado]="f['tipo_id'].value === tipo.id" (click)="seleccionarTipoCategoria(tipo.id)">
+              <div class="tipo-opcion-icono" [style.background-color]="tipo.color">
+                <i [class]="obtenerClaseIcono(tipo.icono)"></i>
+              </div>
+              <span class="tipo-nombre">{{ tipo.etiqueta }}</span>
+              <i class="bi bi-check-circle-fill check-icon"></i>
+            </div>
+          </div>
+
+          <div class="info-mensaje" *ngIf="tiposCategoria.length === 0 && !mostrarFormTipoInline">
+            <i class="bi bi-info-circle"></i>
+            <div>
+              <p>Aún no hay tipos de categoría.</p>
+              <button type="button" class="btn btn-primary btn-sm" (click)="abrirFormTipoInline()">
+                <i class="bi bi-plus-circle"></i>
+                Crear el primero
+              </button>
+            </div>
+          </div>
+
+          <div class="form-tipo-inline" *ngIf="mostrarFormTipoInline" [formGroup]="tipoForm">
+            <div class="form-tipo-inline-header">
+              <h4>
+                <i class="bi bi-tag-fill"></i>
+                Nuevo Tipo de Categoría
+              </h4>
+              <button type="button" class="btn-cerrar-inline" (click)="cancelarFormTipoInline()">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="valor">Identificador *</label>
+                <input type="text" id="valor" class="form-control" formControlName="valor" placeholder="ej: animales"
+                  [class.invalido]="ft['valor'].touched && ft['valor'].invalid">
+                <small class="form-text">Solo minúsculas y guión bajo</small>
+                <div class="error-mensaje" *ngIf="ft['valor'].touched && ft['valor'].errors">
+                  <span *ngIf="ft['valor'].errors['required']">Requerido</span>
+                  <span *ngIf="ft['valor'].errors['pattern']">Solo letras minúsculas y _</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="etiqueta">Nombre para mostrar *</label>
+                <input type="text" id="etiqueta" class="form-control" formControlName="etiqueta"
+                  placeholder="ej: Animales"
+                  [class.invalido]="ft['etiqueta'].touched && ft['etiqueta'].invalid">
+                <div class="error-mensaje" *ngIf="ft['etiqueta'].touched && ft['etiqueta'].errors">
+                  <span>Requerido</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Icono *</label>
+                <app-icon-picker [iconoSeleccionado]="ft['icono'].value"
+                  (iconoSeleccionadoChange)="tipoForm.patchValue({ icono: $event })">
+                </app-icon-picker>
+                <div class="error-mensaje" *ngIf="ft['icono'].touched && ft['icono'].errors">
+                  <span>Seleccione un icono</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="color-tipo-inline">Color *</label>
+                <div class="color-picker-wrapper">
+                  <input type="color" id="color-tipo-inline" class="form-control-color" formControlName="color">
+                  <span class="color-valor">{{ ft['color'].value }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-tipo-inline-actions">
+              <button type="button" class="btn btn-secondary" (click)="cancelarFormTipoInline()">
+                Cancelar
+              </button>
+              <button type="button" class="btn btn-primary" (click)="guardarTipoInline()"
+                [disabled]="tipoForm.invalid">
+                <i class="bi bi-check-circle"></i>
+                Crear y Seleccionar
+              </button>
+            </div>
+          </div>
+
+          <div class="error-mensaje" *ngIf="f['tipo_id'].touched && f['tipo_id'].errors?.['required'] && !mostrarFormTipoInline">
+            Seleccione un tipo de categoría
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="nombre">Nombre *</label>
+          <input type="text" id="nombre" class="form-control" formControlName="nombre" placeholder="Ej: Saludos Básicos"
+            [class.invalido]="f['nombre'].touched && f['nombre'].invalid">
+          <div class="error-mensaje" *ngIf="f['nombre'].touched && f['nombre'].errors">
+            <span *ngIf="f['nombre'].errors['required']">El nombre es requerido</span>
+            <span *ngIf="f['nombre'].errors['maxlength']">Máximo 100 caracteres</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="descripcion">Descripción</label>
+          <textarea id="descripcion" class="form-control" formControlName="descripcion" rows="3"
+            placeholder="Describe brevemente esta categoría..."></textarea>
+          <small class="caracteres-contador">
+            {{ f['descripcion'].value?.length || 0 }} / 500
+          </small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Icono</label>
+            <app-icon-picker [iconoSeleccionado]="f['icono'].value"
+              (iconoSeleccionadoChange)="categoriaForm.patchValue({ icono: $event })">
+            </app-icon-picker>
+          </div>
+          <div class="form-group">
+            <label for="color">Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="color" class="form-control-color" formControlName="color">
+              <span class="color-valor">{{ f['color'].value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="orden">Orden *</label>
+            <input type="number" id="orden" class="form-control" formControlName="orden" min="1"
+              [class.invalido]="f['orden'].touched && f['orden'].invalid">
+            <div class="error-mensaje" *ngIf="f['orden'].touched && f['orden'].errors">
+              <span>Mínimo 1</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="nivel_requerido">Nivel Requerido *</label>
+            <input type="number" id="nivel_requerido" class="form-control" formControlName="nivel_requerido" min="1"
+              max="10" [class.invalido]="f['nivel_requerido'].touched && f['nivel_requerido'].invalid">
+            <div class="error-mensaje" *ngIf="f['nivel_requerido'].touched && f['nivel_requerido'].errors">
+              <span>Entre 1 y 10</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="modoEdicion">
+          <label class="switch-container">
+            <input type="checkbox" formControlName="activa" class="switch-input">
+            <span class="switch-slider"></span>
+            <span class="switch-label">Categoría activa</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="cerrarModal()">
+          Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="categoriaForm.invalid || cargando">
+          <span *ngIf="cargando" class="spinner-small"></span>
+          <i *ngIf="!cargando" class="bi" [ngClass]="modoEdicion ? 'bi-check-circle' : 'bi-plus-circle'"></i>
+          {{ modoEdicion ? 'Actualizar' : 'Crear' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="mostrarModalTipos" (click)="cerrarModalTipos()">
+  <div class="modal-container modal-tipos" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <i class="bi bi-gear-fill"></i>
+        Gestión de Tipos de Categorías
+      </h2>
+      <button class="btn-cerrar-modal" (click)="cerrarModalTipos()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <form [formGroup]="tipoForm" (ngSubmit)="guardarTipo()" class="form-tipo">
+        <h3>{{ modoEdicionTipo ? 'Editar Tipo' : 'Nuevo Tipo de Categoría' }}</h3>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="valor-modal">Identificador *</label>
+            <input type="text" id="valor-modal" class="form-control" formControlName="valor" placeholder="ej: animales"
+              [class.invalido]="ft['valor'].touched && ft['valor'].invalid" [disabled]="modoEdicionTipo">
+            <small class="form-text">Solo letras minúsculas y guión bajo</small>
+            <div class="error-mensaje" *ngIf="ft['valor'].touched && ft['valor'].errors">
+              <span *ngIf="ft['valor'].errors['required']">Requerido</span>
+              <span *ngIf="ft['valor'].errors['pattern']">Solo letras minúsculas y _</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="etiqueta-modal">Nombre para mostrar *</label>
+            <input type="text" id="etiqueta-modal" class="form-control" formControlName="etiqueta" placeholder="ej: Animales"
+              [class.invalido]="ft['etiqueta'].touched && ft['etiqueta'].invalid">
+            <div class="error-mensaje" *ngIf="ft['etiqueta'].touched && ft['etiqueta'].errors">
+              <span>Requerido</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Icono *</label>
+            <app-icon-picker [iconoSeleccionado]="ft['icono'].value"
+              (iconoSeleccionadoChange)="tipoForm.patchValue({ icono: $event })">
+            </app-icon-picker>
+            <div class="error-mensaje" *ngIf="ft['icono'].touched && ft['icono'].errors">
+              <span>Seleccione un icono</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="color-tipo">Color *</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="color-tipo" class="form-control-color" formControlName="color">
+              <span class="color-valor">{{ ft['color'].value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" *ngIf="modoEdicionTipo" (click)="cancelarEdicionTipo()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="tipoForm.invalid">
+            <i class="bi" [ngClass]="modoEdicionTipo ? 'bi-check-circle' : 'bi-plus-circle'"></i>
+            {{ modoEdicionTipo ? 'Actualizar' : 'Agregar' }}
+          </button>
+        </div>
+      </form>
+
+      <hr class="divider">
+
+      <div class="tipos-lista" *ngIf="tiposCategoria.length > 0">
+        <h3>Tipos de Categoría</h3>
+        <div class="tipos-items">
+          <div *ngFor="let tipo of tiposCategoria" class="tipo-item" [style.border-left-color]="tipo.color">
+            <div class="tipo-info">
+              <i [class]="obtenerClaseIcono(tipo.icono) + ' tipo-icono-grande'"></i>
+              <div>
+                <strong>{{ tipo.etiqueta }}</strong>
+                <small>{{ tipo.valor }}</small>
+              </div>
+            </div>
+            <div class="tipo-acciones">
+              <button class="btn-icono btn-editar-tipo" (click)="editarTipo(tipo)" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icono btn-eliminar-tipo" (click)="eliminarTipo(tipo)" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-mensaje" *ngIf="tiposCategoria.length === 0">
+        <i class="bi bi-info-circle"></i>
+        <p>Aún no has creado tipos de categoría. Crea el primer tipo para comenzar a organizar tus categorías.</p>
+      </div>
+    </div>
+  </div>
+</div>
