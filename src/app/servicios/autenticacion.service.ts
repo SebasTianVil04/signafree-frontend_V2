@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpContext } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { environment } from '../../environments/environment';
 import {
@@ -26,6 +26,7 @@ import { MANEJO_LOCAL_ERRORES } from '../interceptores/error.interceptor';
 export class AutenticacionService {
   private usuarioActualSubject: BehaviorSubject<Usuario | null>;
   public usuarioActual: Observable<Usuario | null>;
+  private cargaUsuario$?: Observable<Usuario | null>;
 
   private readonly PERMISOS_ADMIN: string[] = [
     'admin.dashboard.ver',
@@ -87,7 +88,31 @@ export class AutenticacionService {
     return this.usuarioActualSubject.value;
   }
 
+  cargarUsuarioSiEsNecesario(): Observable<Usuario | null> {
+    const token = localStorage.getItem('token');
+    if (!token) return of(null);
 
+    if (this.usuarioActualValor) return of(this.usuarioActualValor);
+
+    if (!this.cargaUsuario$) {
+      this.cargaUsuario$ = this.http.get<Usuario>(
+        `${environment.apiUrl}/usuarios/perfil`
+      ).pipe(
+        tap(usuario => {
+          const usuarioNormalizado = this.normalizarUsuario(usuario);
+          localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
+          this.usuarioActualSubject.next(usuarioNormalizado);
+          this.cargaUsuario$ = undefined;
+        }),
+        catchError(() => {
+          this.cargaUsuario$ = undefined;
+          this.limpiarSesion();
+          return of(null);
+        })
+      );
+    }
+    return this.cargaUsuario$;
+  }
 
   login(credenciales: LoginRequest): Observable<AuthResponse> {
     const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
@@ -131,14 +156,13 @@ export class AutenticacionService {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
     this.usuarioActualSubject.next(null);
+    this.cargaUsuario$ = undefined;
     this.router.navigate(['/login']);
   }
 
   estaAutenticado(): boolean {
-    return !!this.usuarioActualValor;
+    return !!localStorage.getItem('token');
   }
-
-
 
   esAdmin(): boolean {
     return esUsuarioAdmin(this.usuarioActualValor);
@@ -160,28 +184,34 @@ export class AutenticacionService {
     return this.tieneRol('usuario');
   }
 
-
-
   tienePermiso(codigo: string): boolean {
+    const usuario = this.usuarioActualValor;
+    if (!usuario) return false;
     if (this.esAdmin()) return true;
-    return !!this.usuarioActualValor?.permisos?.includes(codigo);
+    return (usuario.permisos ?? []).includes(codigo);
   }
 
   tieneAlgunPermiso(...codigos: string[]): boolean {
+    const usuario = this.usuarioActualValor;
+    if (!usuario) return false;
     if (this.esAdmin()) return true;
-    const permisos = this.usuarioActualValor?.permisos || [];
+    const permisos = usuario.permisos ?? [];
     return codigos.some(codigo => permisos.includes(codigo));
   }
 
   tieneTodosLosPermisos(...codigos: string[]): boolean {
+    const usuario = this.usuarioActualValor;
+    if (!usuario) return false;
     if (this.esAdmin()) return true;
-    const permisos = this.usuarioActualValor?.permisos || [];
+    const permisos = usuario.permisos ?? [];
     return codigos.every(codigo => permisos.includes(codigo));
   }
 
   tieneAlgunPermisoDe(prefijo: string): boolean {
+    const usuario = this.usuarioActualValor;
+    if (!usuario) return false;
     if (this.esAdmin()) return true;
-    const permisos = this.usuarioActualValor?.permisos || [];
+    const permisos = usuario.permisos ?? [];
     return permisos.some(p => p.startsWith(prefijo));
   }
 
@@ -191,8 +221,6 @@ export class AutenticacionService {
     if (this.tieneAlgunPermiso(...this.PERMISOS_GESTION)) return true;
     return false;
   }
-
-
 
   obtenerTipoUsuario(): TipoUsuario | null {
     return this.usuarioActualValor?.tipo_usuario || null;
@@ -210,12 +238,9 @@ export class AutenticacionService {
     return this.usuarioActualValor?.tipo_usuario === 'extranjero';
   }
 
-
   obtenerToken(): string | null {
     return localStorage.getItem('token');
   }
-
-
 
   obtenerDocumentoIdentidad(): string {
     const usuario = this.usuarioActualValor;
@@ -231,8 +256,6 @@ export class AutenticacionService {
     if (!usuario) return 'Documento';
     return ValidacionUtils.obtenerTipoDocumento(usuario);
   }
-
-
 
   obtenerUsuarioActual(): Usuario | null {
     const usuarioStr = localStorage.getItem('usuario');
@@ -260,9 +283,8 @@ export class AutenticacionService {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
     this.usuarioActualSubject.next(null);
+    this.cargaUsuario$ = undefined;
   }
-
-
 
   obtenerTelefonoCompleto(codigoPais: string, numero: string): string | null {
     if (!numero || numero.trim() === '') return null;
@@ -284,8 +306,6 @@ export class AutenticacionService {
     if (!telefono) return 'No especificado';
     return ValidacionUtils.formatearTelefono(telefono);
   }
-
-
 
   validarDni(dni: string): boolean {
     return ValidacionUtils.esDniValido(dni);
@@ -318,7 +338,6 @@ export class AutenticacionService {
       { email: email.trim().toLowerCase() }
     );
   }
-
 
   solicitarRecuperacion(datos: SolicitudRecuperacion): Observable<RespuestaRecuperacion> {
     const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
@@ -376,8 +395,6 @@ export class AutenticacionService {
     sessionStorage.removeItem('tokenRecuperacion');
   }
 
-
-
   obtenerUsuario(): Observable<Usuario> {
     return this.http.get<Usuario>(`${environment.apiUrl}/usuarios/perfil`);
   }
@@ -394,8 +411,6 @@ export class AutenticacionService {
     );
   }
 
-
-
   calcularEdad(fechaNacimiento: Date | string): number | null {
     return ValidacionUtils.calcularEdad(fechaNacimiento);
   }
@@ -403,7 +418,6 @@ export class AutenticacionService {
   validarEdadPorTipo(fechaNacimiento: Date | string, tipoUsuario: TipoUsuario): boolean {
     return ValidacionUtils.validarEdadPorTipo(fechaNacimiento, tipoUsuario);
   }
-
 
   normalizarEmail(email: string): string {
     return ValidacionUtils.normalizarEmail(email);

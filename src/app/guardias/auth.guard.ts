@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { AutenticacionService } from '../servicios/autenticacion.service';
 
 @Injectable({
@@ -15,12 +17,22 @@ export class AuthGuard implements CanActivate {
   canActivate(
     route: ActivatedRouteSnapshot,
     state: RouterStateSnapshot
-  ): boolean {
-    if (this.autenticacionService.estaAutenticado()) {
-      return true;
+  ): Observable<boolean> {
+    if (!this.autenticacionService.estaAutenticado()) {
+      this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+      return of(false);
     }
 
-    this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-    return false;
+    return this.autenticacionService.cargarUsuarioSiEsNecesario().pipe(
+      map(usuario => {
+        if (usuario) return true;
+        this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+        return false;
+      }),
+      catchError(() => {
+        this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+        return of(false);
+      })
+    );
   }
 }

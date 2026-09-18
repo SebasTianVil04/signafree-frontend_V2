@@ -79,24 +79,44 @@ const routes: Routes = [
   {
     path: 'perfil',
     component: PerfilComponent,
-    canActivate: [AuthGuard],
-    data: { title: 'Mi Perfil' }
+    canActivate: [AuthGuard, PermisoGuard],
+    data: { title: 'Mi Perfil', permiso: 'usuarios.ver_perfil' }
   },
   {
     path: 'progreso',
     component: ProgresoComponent,
-    canActivate: [AuthGuard],
-    data: { title: 'Mi Progreso' }
+    canActivate: [AuthGuard, PermisoGuard],
+    data: { title: 'Mi Progreso', permiso: 'usuarios.ver_progreso' }
   },
 
   {
     path: 'lecciones',
     canActivate: [AuthGuard],
     children: [
-      { path: '', component: ListaLeccionesComponent },
-      { path: ':id', component: DetalleLeccionComponent },
-      { path: ':id/practica', component: PracticaLeccionComponent },
-      { path: ':leccionId/clase/:claseId', component: ClaseVistaComponent }
+      {
+        path: '',
+        component: ListaLeccionesComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'lecciones.ver' }
+      },
+      {
+        path: ':id',
+        component: DetalleLeccionComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'lecciones.ver' }
+      },
+      {
+        path: ':id/practica',
+        component: PracticaLeccionComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'practicas.registrar' }
+      },
+      {
+        path: ':leccionId/clase/:claseId',
+        component: ClaseVistaComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'lecciones.ver' }
+      }
     ]
   },
 
@@ -104,9 +124,24 @@ const routes: Routes = [
     path: 'examenes',
     canActivate: [AuthGuard],
     children: [
-      { path: '', component: ListaExamenesComponent, data: { title: 'Exámenes' } },
-      { path: ':id/tomar', component: TomarExamenComponent, data: { title: 'Tomar Examen' } },
-      { path: ':id/resultados', component: ResultadosExamenComponent, data: { title: 'Resultados del Examen' } }
+      {
+        path: '',
+        component: ListaExamenesComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Exámenes', permiso: 'examenes.ver' }
+      },
+      {
+        path: ':id/tomar',
+        component: TomarExamenComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Tomar Examen', permiso: 'examenes.ver' }
+      },
+      {
+        path: ':id/resultados',
+        component: ResultadosExamenComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Resultados del Examen', permiso: 'examenes.ver' }
+      }
     ]
   },
 
@@ -144,13 +179,13 @@ const routes: Routes = [
         path: 'lecciones',
         component: GestionLeccionesComponent,
         canActivate: [PermisoGuard],
-        data: { title: 'Gestión de Lecciones', permiso: 'lecciones.ver' }
+        data: { title: 'Gestión de Lecciones', permiso: 'admin.lecciones.gestionar' }
       },
       {
         path: 'lecciones/:leccionId/clases',
         component: GestionClasesComponent,
         canActivate: [PermisoGuard],
-        data: { permiso: 'clases.ver' }
+        data: { permiso: 'admin.lecciones.gestionar' }
       },
       {
         path: 'imagenes',
@@ -186,7 +221,7 @@ const routes: Routes = [
         path: 'categorias',
         component: GestionCategoriasComponent,
         canActivate: [PermisoGuard],
-        data: { permiso: 'categorias.ver' }
+        data: { permiso: 'admin.categorias.gestionar' }
       },
       {
         path: 'examenes',

@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { AutenticacionService } from '../servicios/autenticacion.service';
 
 @Injectable({
@@ -15,32 +17,24 @@ export class AdminGuard implements CanActivate {
   canActivate(
     route: ActivatedRouteSnapshot,
     state: RouterStateSnapshot
-  ): boolean {
+  ): Observable<boolean> {
     if (!this.authService.estaAutenticado()) {
       this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-      return false;
+      return of(false);
     }
 
-    if (this.authService.esAdmin()) {
-      return true;
-    }
-
-    const permisos = this.authService.usuarioActualValor?.permisos || [];
-    const tienePermisoAdmin = permisos.some(p => p.startsWith('admin.'));
-    const tienePermisoGestion = permisos.some(p =>
-      p.startsWith('modelos.') ||
-      p.startsWith('dataset.') ||
-      p.startsWith('captura.') ||
-      p.startsWith('categorias.') ||
-      p.startsWith('lecciones.') ||
-      p.startsWith('clases.')
+    return this.authService.cargarUsuarioSiEsNecesario().pipe(
+      map(usuario => {
+        if (usuario && this.authService.esAdmin()) {
+          return true;
+        }
+        this.router.navigate(['/inicio']);
+        return false;
+      }),
+      catchError(() => {
+        this.router.navigate(['/login']);
+        return of(false);
+      })
     );
-
-    if (tienePermisoAdmin || tienePermisoGestion) {
-      return true;
-    }
-
-    this.router.navigate(['/inicio']);
-    return false;
   }
 }

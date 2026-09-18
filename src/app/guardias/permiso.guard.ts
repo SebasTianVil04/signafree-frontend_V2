@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
+import { Observable, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { AutenticacionService } from '../servicios/autenticacion.service';
 
 @Injectable({
@@ -15,23 +17,41 @@ export class PermisoGuard implements CanActivate {
   canActivate(
     route: ActivatedRouteSnapshot,
     state: RouterStateSnapshot
-  ): boolean {
+  ): Observable<boolean> {
     if (!this.authService.estaAutenticado()) {
       this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-      return false;
+      return of(false);
     }
 
-    if (this.authService.esAdmin()) {
-      return true;
-    }
+    return this.authService.cargarUsuarioSiEsNecesario().pipe(
+      switchMap(usuario => {
+        if (!usuario) {
+          this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+          return of(false);
+        }
 
-    const permisoRequerido = route.data['permiso'] as string;
+        if (this.authService.esAdmin()) {
+          return of(true);
+        }
 
-    if (!permisoRequerido || this.authService.tienePermiso(permisoRequerido)) {
-      return true;
-    }
+        const permisoRequerido = route.data['permiso'] as string | undefined;
 
-    this.router.navigate(['/inicio']);
-    return false;
+        if (!permisoRequerido) {
+          this.router.navigate(['/inicio']);
+          return of(false);
+        }
+
+        if (this.authService.tienePermiso(permisoRequerido)) {
+          return of(true);
+        }
+
+        this.router.navigate(['/inicio']);
+        return of(false);
+      }),
+      catchError(() => {
+        this.router.navigate(['/login']);
+        return of(false);
+      })
+    );
   }
 }
