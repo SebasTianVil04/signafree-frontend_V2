@@ -1,6 +1,5 @@
 <div class="gestion-usuarios container-fluid py-4">
-  
-  <!-- Encabezado y botones de exportación -->
+
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">
       <i class="bi bi-people-fill me-2"></i>
@@ -18,7 +17,6 @@
     </div>
   </div>
 
-  <!-- Filtros de usuarios -->
   <div class="card mb-4">
     <div class="card-body">
       <div class="row g-3">
@@ -27,11 +25,7 @@
             <span class="input-group-text">
               <i class="bi bi-search"></i>
             </span>
-            <input 
-              type="text" 
-              class="form-control" 
-              placeholder="Buscar por nombre o email"
-              [(ngModel)]="filtroTexto"
+            <input type="text" class="form-control" placeholder="Buscar por nombre o email" [(ngModel)]="filtroTexto"
               (ngModelChange)="aplicarFiltros()">
           </div>
         </div>
@@ -63,7 +57,6 @@
     </div>
   </div>
 
-  <!-- Tabla de usuarios -->
   <div *ngIf="!cargando && !error" class="card">
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -104,8 +97,8 @@
                 </span>
               </td>
               <td>
-                <span class="badge" [class.bg-warning]="usuario.es_admin" [class.bg-secondary]="!usuario.es_admin">
-                  {{ usuario.es_admin ? 'Admin' : 'Usuario' }}
+                <span class="badge bg-secondary">
+                  {{ usuario.rol?.nombre || 'Usuario' }}
                 </span>
               </td>
               <td>
@@ -116,35 +109,26 @@
               <td>{{ usuario.fecha_creacion | date:'dd/MM/yyyy' }}</td>
               <td class="text-center">
                 <div class="btn-group" role="group">
-                  <button 
-                    class="btn btn-sm btn-outline-primary" 
-                    (click)="verEstadisticas(usuario)"
+                  <button class="btn btn-sm btn-outline-primary" (click)="verEstadisticas(usuario)"
                     title="Ver estadísticas">
                     <i class="bi bi-bar-chart"></i>
                   </button>
-                  <button 
-                    class="btn btn-sm btn-outline-info" 
-                    (click)="abrirModalEdicion(usuario)"
-                    title="Editar usuario">
+                  <button *appTienePermiso="'admin.usuarios.editar'" class="btn btn-sm btn-outline-info"
+                    (click)="abrirModalEdicion(usuario)" title="Editar usuario">
                     <i class="bi bi-pencil"></i>
                   </button>
-                  <button 
-                    class="btn btn-sm btn-outline-warning" 
-                    (click)="abrirModalRol(usuario)"
-                    title="Asignar rol">
+                  <button *appTienePermiso="'admin.usuarios.asignar_rol'" class="btn btn-sm btn-outline-warning"
+                    (click)="abrirModalRol(usuario)" title="Asignar rol">
                     <i class="bi bi-shield-check"></i>
                   </button>
-                  <button 
-                    class="btn btn-sm"
-                    [class.btn-outline-danger]="usuario.activo"
-                    [class.btn-outline-success]="!usuario.activo"
-                    (click)="cambiarEstadoUsuario(usuario)"
+                  <button *appTienePermiso="'admin.usuarios.cambiar_estado'" class="btn btn-sm"
+                    [class.btn-outline-danger]="usuario.activo" [class.btn-outline-success]="!usuario.activo"
+                    (click)="cambiarEstadoUsuario(usuario)" [disabled]="usuarioIdEnAccion() === usuario.id"
                     [title]="usuario.activo ? 'Desactivar' : 'Activar'">
                     <i class="bi" [class.bi-x-circle]="usuario.activo" [class.bi-check-circle]="!usuario.activo"></i>
                   </button>
-                  <button 
-                    class="btn btn-sm btn-outline-danger" 
-                    (click)="eliminarUsuario(usuario)"
+                  <button *appTienePermiso="'admin.usuarios.eliminar'" class="btn btn-sm btn-outline-danger"
+                    (click)="eliminarUsuario(usuario)" [disabled]="usuarioIdEnAccion() === usuario.id"
                     title="Eliminar usuario">
                     <i class="bi bi-trash"></i>
                   </button>
@@ -157,11 +141,8 @@
     </div>
   </div>
 
-  <!-- Modal de Edición de Usuario -->
-  <div class="modal fade" 
-       [class.show]="mostrarModalEdicion" 
-       [style.display]="mostrarModalEdicion ? 'block' : 'none'"
-       tabindex="-1">
+  <div class="modal fade" [class.show]="mostrarModalEdicion" [style.display]="mostrarModalEdicion ? 'block' : 'none'"
+    tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header bg-info text-white">
@@ -169,51 +150,59 @@
             <i class="bi bi-pencil-square me-2"></i>
             Editar Usuario
           </h5>
-          <button type="button" class="btn-close btn-close-white" (click)="cerrarModalEdicion()"></button>
+          <button type="button" class="btn-close btn-close-white" (click)="cerrarModalEdicion()"
+            [disabled]="guardandoEdicion()"></button>
         </div>
         <div class="modal-body">
           <form *ngIf="usuarioEditando">
             <div class="row mb-3">
               <div class="col-md-12">
                 <label class="form-label fw-bold">Nombres</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.nombres" name="nombres">
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.nombres" name="nombres"
+                  [disabled]="guardandoEdicion()">
               </div>
             </div>
-            
+
             <div class="row mb-3">
               <div class="col-md-6">
                 <label class="form-label fw-bold">Apellido Paterno</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_paterno" name="apellido_paterno">
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_paterno"
+                  name="apellido_paterno" [disabled]="guardandoEdicion()">
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold">Apellido Materno</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_materno" name="apellido_materno">
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_materno"
+                  name="apellido_materno" [disabled]="guardandoEdicion()">
               </div>
             </div>
 
             <div class="row mb-3">
               <div class="col-md-12">
                 <label class="form-label fw-bold">Email</label>
-                <input type="email" class="form-control" [(ngModel)]="formEdicion.email" name="email">
+                <input type="email" class="form-control" [(ngModel)]="formEdicion.email" name="email"
+                  [disabled]="guardandoEdicion()">
               </div>
             </div>
 
             <div class="row mb-3">
               <div class="col-md-6">
                 <label class="form-label fw-bold">Teléfono</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.telefono" name="telefono" placeholder="+51987654321">
+                <input type="text" class="form-control" [(ngModel)]="formEdicion.telefono" name="telefono"
+                  placeholder="+51987654321" [disabled]="guardandoEdicion()">
                 <small class="text-muted">Incluye código de país (ej: +51)</small>
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold">Fecha de Nacimiento</label>
-                <input type="date" class="form-control" [(ngModel)]="formEdicion.fecha_nacimiento" name="fecha_nacimiento">
+                <input type="date" class="form-control" [(ngModel)]="formEdicion.fecha_nacimiento"
+                  name="fecha_nacimiento" [disabled]="guardandoEdicion()">
               </div>
             </div>
 
             <div class="row mb-3">
               <div class="col-md-12">
                 <label class="form-label fw-bold">Dirección</label>
-                <textarea class="form-control" rows="2" [(ngModel)]="formEdicion.direccion" name="direccion"></textarea>
+                <textarea class="form-control" rows="2" [(ngModel)]="formEdicion.direccion" name="direccion"
+                  [disabled]="guardandoEdicion()"></textarea>
               </div>
             </div>
 
@@ -224,27 +213,23 @@
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="cerrarModalEdicion()">Cancelar</button>
-          <button type="button" class="btn btn-primary" (click)="guardarEdicion()">
-            <i class="bi bi-check-lg me-2"></i>
-            Guardar Cambios
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalEdicion()"
+            [disabled]="guardandoEdicion()">Cancelar</button>
+          <button type="button" class="btn btn-primary" (click)="guardarEdicion()" [disabled]="guardandoEdicion()">
+            <span *ngIf="guardandoEdicion()" class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <i *ngIf="!guardandoEdicion()" class="bi bi-check-lg me-2"></i>
+            {{ guardandoEdicion() ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Backdrop para modal de edición -->
-  <div class="modal-backdrop fade" 
-       [class.show]="mostrarModalEdicion" 
-       *ngIf="mostrarModalEdicion"
-       (click)="cerrarModalEdicion()"></div>
+  <div class="modal-backdrop fade" [class.show]="mostrarModalEdicion" *ngIf="mostrarModalEdicion"
+    (click)="cerrarModalEdicion()"></div>
 
-  <!-- Modal de Asignar Rol -->
-  <div class="modal fade" 
-       [class.show]="mostrarModalRol" 
-       [style.display]="mostrarModalRol ? 'block' : 'none'"
-       tabindex="-1">
+  <div class="modal fade" [class.show]="mostrarModalRol" [style.display]="mostrarModalRol ? 'block' : 'none'"
+    tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-warning">
@@ -252,7 +237,7 @@
             <i class="bi bi-shield-check me-2"></i>
             Asignar Rol
           </h5>
-          <button type="button" class="btn-close" (click)="cerrarModalRol()"></button>
+          <button type="button" class="btn-close" (click)="cerrarModalRol()" [disabled]="guardandoRol()"></button>
         </div>
         <div class="modal-body" *ngIf="usuarioCambiandoRol">
           <div class="mb-3">
@@ -263,41 +248,102 @@
 
           <div class="mb-3">
             <label class="form-label fw-bold">Seleccionar Rol:</label>
-            <select class="form-select" [(ngModel)]="nuevoRol">
-              <option value="usuario">Usuario</option>
-              <option value="admin">Administrador</option>
+            <select class="form-select" [(ngModel)]="rolIdSeleccionado" [disabled]="guardandoRol()">
+              <option [ngValue]="null" disabled>Selecciona un rol</option>
+              <option *ngFor="let rol of roles" [ngValue]="rol.id">{{ rol.nombre }}</option>
             </select>
+          </div>
+
+          <div class="d-flex justify-content-end mb-3">
+            <button type="button" class="btn btn-outline-primary btn-sm"
+              [disabled]="rolIdSeleccionado === null || guardandoRol()" (click)="abrirModalPermisosRol()">
+              <i class="bi bi-key me-2"></i>
+              Gestionar Permisos del Rol
+            </button>
           </div>
 
           <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            <strong>Advertencia:</strong> Los administradores tienen acceso completo al sistema.
+            <strong>Advertencia:</strong> Cambiar el rol modifica de inmediato los permisos del usuario.
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="cerrarModalRol()">Cancelar</button>
-          <button type="button" class="btn btn-warning" (click)="guardarRol()">
-            <i class="bi bi-check-lg me-2"></i>
-            Asignar Rol
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalRol()"
+            [disabled]="guardandoRol()">Cancelar</button>
+          <button type="button" class="btn btn-warning" (click)="guardarRol()"
+            [disabled]="rolIdSeleccionado === null || guardandoRol()">
+            <span *ngIf="guardandoRol()" class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <i *ngIf="!guardandoRol()" class="bi bi-check-lg me-2"></i>
+            {{ guardandoRol() ? 'Guardando...' : 'Asignar Rol' }}
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Backdrop para modal de rol -->
-  <div class="modal-backdrop fade" 
-       [class.show]="mostrarModalRol" 
-       *ngIf="mostrarModalRol"
-       (click)="cerrarModalRol()"></div>
+  <div class="modal-backdrop fade" [class.show]="mostrarModalRol" *ngIf="mostrarModalRol" (click)="cerrarModalRol()">
+  </div>
 
-  <!-- Modal de Estadísticas (MANTENIDO) -->
-  <div class="offcanvas offcanvas-end" 
-       [class.show]="usuarioSeleccionado" 
-       tabindex="-1" 
-       style="visibility: visible; width: 500px;"
-       *ngIf="usuarioSeleccionado">
-    
+  <div class="modal fade" [class.show]="mostrarModalPermisosRol"
+    [style.display]="mostrarModalPermisosRol ? 'block' : 'none'" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="bi bi-key-fill me-2"></i>
+            Permisos del Rol: {{ rolPermisosEditando?.nombre }}
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="cerrarModalPermisosRol()"
+            [disabled]="guardandoPermisos()"></button>
+        </div>
+        <div class="modal-body">
+          <div *ngIf="cargandoPermisosCatalogo()" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2 text-muted">Cargando permisos...</p>
+          </div>
+
+          <div *ngIf="!cargandoPermisosCatalogo()">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Estos cambios afectan a <strong>todos</strong> los usuarios que tengan asignado el rol
+              <strong>{{ rolPermisosEditando?.nombre }}</strong>.
+            </div>
+
+            <div *ngFor="let grupo of permisosPorModulo()" class="mb-3">
+              <p class="fw-bold text-uppercase small text-muted mb-1">{{ grupo.modulo }}</p>
+              <div class="form-check" *ngFor="let permiso of grupo.permisos">
+                <input type="checkbox" class="form-check-input" [id]="'permiso-usr-' + permiso.id"
+                  [checked]="tienePermisoSeleccionadoRol(permiso.id)" (change)="togglePermisoRol(permiso.id)"
+                  [disabled]="guardandoPermisos()">
+                <label class="form-check-label" [for]="'permiso-usr-' + permiso.id">
+                  {{ permiso.descripcion }} <code class="text-muted">({{ permiso.codigo }})</code>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalPermisosRol()"
+            [disabled]="guardandoPermisos()">Cancelar</button>
+          <button type="button" class="btn btn-primary" (click)="guardarPermisosRol()"
+            [disabled]="guardandoPermisos()">
+            <span *ngIf="guardandoPermisos()" class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <i *ngIf="!guardandoPermisos()" class="bi bi-check-lg me-2"></i>
+            {{ guardandoPermisos() ? 'Guardando...' : 'Guardar Permisos' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop fade" [class.show]="mostrarModalPermisosRol" *ngIf="mostrarModalPermisosRol"
+    (click)="cerrarModalPermisosRol()"></div>
+
+  <div class="offcanvas offcanvas-end" [class.show]="usuarioSeleccionado" tabindex="-1"
+    style="visibility: visible; width: 500px;" *ngIf="usuarioSeleccionado">
+
     <div class="offcanvas-header bg-primary text-white">
       <h5 class="offcanvas-title">
         <i class="bi bi-graph-up me-2"></i>
@@ -305,9 +351,8 @@
       </h5>
       <button type="button" class="btn-close btn-close-white" (click)="cerrarEstadisticas()"></button>
     </div>
-    
+
     <div class="offcanvas-body">
-      <!-- Información del usuario -->
       <div class="card mb-3">
         <div class="card-body">
           <div class="d-flex align-items-center">
@@ -320,7 +365,6 @@
         </div>
       </div>
 
-      <!-- Filtros de fecha -->
       <div class="card mb-3">
         <div class="card-body">
           <h6 class="card-title">Filtros de Fecha</h6>
@@ -345,7 +389,6 @@
         </div>
       </div>
 
-      <!-- Cargando estadísticas -->
       <div *ngIf="cargandoEstadisticas" class="text-center py-4">
         <div class="spinner-border text-primary" role="status">
           <span class="visually-hidden">Cargando...</span>
@@ -353,7 +396,6 @@
         <p class="mt-2 text-muted">Cargando estadísticas...</p>
       </div>
 
-      <!-- Estadísticas Generales -->
       <div *ngIf="!cargandoEstadisticas && estadisticasGenerales" class="mb-4">
         <h6 class="mb-3">Estadísticas Generales</h6>
         <div class="row g-2">
@@ -364,7 +406,8 @@
                 <small class="text-muted">TOTAL SESIONES</small>
                 <div class="mt-1">
                   <span class="badge bg-success small">
-                    {{ estadisticasGenerales.sesiones_completadas }} ({{ estadisticasGenerales.porcentaje_completadas }}%)
+                    {{ estadisticasGenerales.sesiones_completadas }} ({{ estadisticasGenerales.porcentaje_completadas
+                    }}%)
                   </span>
                 </div>
               </div>
@@ -389,7 +432,6 @@
         </div>
       </div>
 
-      <!-- Lecciones Populares -->
       <div *ngIf="!cargandoEstadisticas && leccionesPopulares.length > 0">
         <h6 class="mb-3">Lecciones Más Populares</h6>
         <div class="table-responsive">
@@ -416,19 +458,15 @@
         </div>
       </div>
 
-      <!-- Sin datos -->
-      <div *ngIf="!cargandoEstadisticas && (!estadisticasGenerales || leccionesPopulares.length === 0)" 
-           class="text-center py-4">
+      <div *ngIf="!cargandoEstadisticas && (!estadisticasGenerales || leccionesPopulares.length === 0)"
+        class="text-center py-4">
         <i class="bi bi-inbox fs-1 text-muted"></i>
         <p class="text-muted mt-2">No hay datos de estadísticas disponibles</p>
       </div>
     </div>
   </div>
 
-  <!-- Backdrop para offcanvas -->
-  <div class="offcanvas-backdrop fade" 
-       [class.show]="usuarioSeleccionado" 
-       (click)="cerrarEstadisticas()"
-       *ngIf="usuarioSeleccionado"></div>
+  <div class="offcanvas-backdrop fade" [class.show]="usuarioSeleccionado" (click)="cerrarEstadisticas()"
+    *ngIf="usuarioSeleccionado"></div>
 
 </div>

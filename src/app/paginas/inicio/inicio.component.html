@@ -9,17 +9,18 @@
 
     <div class="user-info" *ngIf="usuario">
       <div class="avatar">
-        {{ usuario.nombres?.charAt(0) }}{{ usuario.apellidos?.charAt(0) }}
+        {{ iniciales }}
       </div>
       <div class="user-details">
-        <h2 class="user-name">{{ usuario.nombres }} {{ usuario.apellidos }}</h2>
+        <h2 class="user-name">{{ nombreCompleto }}</h2>
         <p class="user-email">{{ usuario.email }}</p>
-        <span class="user-badge" [class.admin-badge]="usuario.rol === 'admin'">
-          {{ usuario.rol === 'admin' ? 'Administrador' : 'Usuario' }}
+        <span class="user-badge"
+              [class.admin-badge]="esAdmin"
+              [class.user-badge]="esUsuarioBasico">
+          {{ nombreRol }}
         </span>
       </div>
     </div>
-
 
     <div class="welcome-message">
       <h3>🎉 ¡Tu cuenta ha sido creada exitosamente!</h3>

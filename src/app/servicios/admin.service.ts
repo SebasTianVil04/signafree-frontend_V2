@@ -165,8 +165,8 @@ export class AdminService {
     );
   }
 
-  asignarRol(usuarioId: number, esAdmin: boolean): Observable<RespuestaAPI> {
-    const params = new HttpParams().set('es_admin', esAdmin.toString());
+  asignarRol(usuarioId: number, rolId: number): Observable<RespuestaAPI> {
+    const params = new HttpParams().set('rol_id', rolId.toString());
 
     return this.http.put<RespuestaAPI>(
       `${this.apiUrl}/usuarios/${usuarioId}/rol`,
@@ -177,7 +177,6 @@ export class AdminService {
       catchError((error) => this.handleError(error, 'asignar rol'))
     );
   }
-
 
   actualizarUsuario(usuarioId: number, datos: DatosActualizarUsuario): Observable<RespuestaAPI> {
     let params = new HttpParams();

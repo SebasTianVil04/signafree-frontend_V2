@@ -1,0 +1,201 @@
+<div class="gestion-menu container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="gm-header-icon">🧩</span>
+            <div>
+                <h1 class="h4 mb-0">Gestión de Menú</h1>
+                <p class="text-muted small mb-0">
+                    Define las vistas visibles en la barra de navegación y qué permiso requiere cada una
+                </p>
+            </div>
+        </div>
+        <button class="btn btn-gm-primary" (click)="abrirModalNuevoRaiz()">
+            <i class="bi bi-plus-circle me-2"></i>
+            Ítem raíz
+        </button>
+    </div>
+
+    <div class="card gm-filters mb-3">
+        <div class="card-body d-flex flex-wrap gap-2">
+            <div class="gm-search flex-grow-1">
+                <i class="bi bi-search"></i>
+                <input type="text" class="form-control" placeholder="Buscar por nombre o ruta"
+                    [(ngModel)]="filtroTexto" name="filtroTexto">
+            </div>
+            <select class="form-select gm-select" [(ngModel)]="filtroVisibilidad" name="filtroVisibilidad">
+                <option value="todos">Todas las visibilidades</option>
+                <option value="publico">Público</option>
+                <option value="permiso">Con permiso</option>
+            </select>
+            <select class="form-select gm-select" [(ngModel)]="filtroEstado" name="filtroEstado">
+                <option value="todos">Todos los estados</option>
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+            </select>
+            <button class="btn btn-outline-secondary" [disabled]="!hayFiltrosActivos" (click)="limpiarFiltros()">
+                <i class="bi bi-x-circle me-1"></i>
+                Limpiar
+            </button>
+        </div>
+    </div>
+
+    <div *ngIf="cargando" class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        Cargando menú...
+    </div>
+
+    <div *ngIf="!cargando" class="card gm-card">
+        <div class="table-responsive">
+            <table class="table gm-table mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Ítem</th>
+                        <th>Visibilidad</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <ng-container *ngTemplateOutlet="nodoTpl; context: { items: itemsFiltrados, nivel: 0 }"></ng-container>
+                </tbody>
+            </table>
+        </div>
+
+        <div *ngIf="items.length === 0" class="text-center py-5 text-muted">
+            <i class="bi bi-inbox display-4 d-block mb-2"></i>
+            No hay ítems en el menú. Crea el primero.
+        </div>
+
+        <div *ngIf="items.length > 0 && itemsFiltrados.length === 0" class="text-center py-5 text-muted">
+            <i class="bi bi-search display-4 d-block mb-2"></i>
+            Ningún ítem coincide con los filtros aplicados.
+        </div>
+    </div>
+
+    <ng-template #nodoTpl let-items="items" let-nivel="nivel">
+        <ng-container *ngFor="let item of items; trackBy: trackByItem">
+            <tr class="gm-row">
+                <td class="text-muted">#{{ item.orden }}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2" [style.paddingLeft.px]="nivel * 28">
+                        <span class="icon-badge">{{ item.icon || '•' }}</span>
+                        <div>
+                            <div class="item-label">{{ item.label }}</div>
+                            <code *ngIf="item.ruta" class="item-ruta">{{ item.ruta }}</code>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span *ngIf="item.permiso_codigo" class="badge badge-permiso">
+                        🔐 {{ item.permiso_codigo }}
+                    </span>
+                    <span *ngIf="!item.permiso_codigo" class="badge badge-publico">
+                        🌐 Público
+                    </span>
+                </td>
+                <td>
+                    <span class="badge badge-estado" [class.activo]="item.activo" [class.inactivo]="!item.activo">
+                        {{ item.activo ? 'Activo' : 'Inactivo' }}
+                    </span>
+                </td>
+                <td class="text-end">
+                    <div class="gm-actions d-inline-flex gap-1">
+                        <button class="btn btn-icon btn-icon-add" (click)="abrirModalNuevoHijo(item)" title="Agregar hijo">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                        <button class="btn btn-icon btn-icon-edit" (click)="abrirModalEditar(item)" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-icon btn-icon-delete" [disabled]="eliminandoId === item.id"
+                            (click)="eliminar(item)" title="Eliminar">
+                            <span *ngIf="eliminandoId === item.id" class="spinner-border spinner-border-sm"></span>
+                            <i *ngIf="eliminandoId !== item.id" class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <ng-container *ngIf="item.hijos && item.hijos.length">
+                <ng-container *ngTemplateOutlet="nodoTpl; context: { items: item.hijos, nivel: nivel + 1 }"></ng-container>
+            </ng-container>
+        </ng-container>
+    </ng-template>
+
+    <div class="modal fade" [class.show]="mostrarModal" [style.display]="mostrarModal ? 'block' : 'none'" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content gm-modal">
+                <div class="modal-header gm-modal-header">
+                    <h5 class="modal-title">
+                        {{ modoEdicion ? 'Editar Ítem' : 'Nuevo Ítem' }}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" (click)="cerrarModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Label *</label>
+                            <input type="text" class="form-control" [(ngModel)]="itemActual.label" name="label"
+                                placeholder="Ej: Estadísticas">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label fw-bold">Ruta</label>
+                                <input type="text" class="form-control" [(ngModel)]="itemActual.ruta" name="ruta"
+                                    placeholder="/admin/estadisticas">
+                                <small class="text-muted">Déjalo vacío para ítems que solo son contenedores (con
+                                    hijos)</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Icono</label>
+                                <input type="text" class="form-control" [(ngModel)]="itemActual.icon" name="icon"
+                                    placeholder="📈" maxlength="4">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Orden</label>
+                                <input type="number" class="form-control" [(ngModel)]="itemActual.orden" name="orden">
+                            </div>
+                            <div class="col-md-6 mb-3 d-flex align-items-end">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="activo"
+                                        [(ngModel)]="itemActual.activo" name="activo">
+                                    <label class="form-check-label" for="activo">Activo</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Permiso requerido</label>
+                            <select class="form-select" [(ngModel)]="itemActual.permiso_codigo" name="permiso">
+                                <option [ngValue]="null">— Sin permiso (visible para todos los autenticados) —</option>
+                                <option *ngFor="let p of permisos; trackBy: trackByPermiso" [ngValue]="p.codigo">
+                                    {{ p.codigo }} — {{ p.descripcion }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div *ngIf="itemActual.padre_id" class="alert alert-info small mb-0 py-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Este ítem será hijo de otro ítem del menú.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" [disabled]="guardando" (click)="cerrarModal()">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-gm-primary" [disabled]="guardando" (click)="guardar()">
+                        <span *ngIf="guardando" class="spinner-border spinner-border-sm me-2"></span>
+                        <i *ngIf="!guardando" class="bi bi-check-lg me-2"></i>
+                        {{ modoEdicion ? 'Guardar Cambios' : 'Crear Ítem' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop fade" [class.show]="mostrarModal" *ngIf="mostrarModal" (click)="cerrarModal()"></div>
+</div>

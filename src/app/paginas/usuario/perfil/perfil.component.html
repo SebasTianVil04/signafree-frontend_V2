@@ -1,15 +1,14 @@
 <div class="perfil-container">
   <div class="perfil-card">
-    <!-- Header del Perfil -->
     <div class="perfil-header">
       <div class="avatar-section">
         <div class="avatar-large">{{ iniciales }}</div>
         <div class="usuario-info">
-          <h2 class="usuario-nombre">{{ usuario?.nombres }} {{ usuario?.apellido_paterno }} {{ usuario?.apellido_materno
-            }}</h2>
-          <p class="usuario-email">{{ usuario?.email }}</p>
-          <span class="usuario-badge" [class.admin-badge]="usuario?.rol === 'admin'">
-            {{ usuario?.rol === 'admin' ? 'Administrador' : 'Usuario' }}
+          <h2 class="usuario-nombre">{{ usuario()?.nombres }} {{ usuario()?.apellido_paterno }} {{ usuario()?.apellido_materno }}</h2>
+          <p class="usuario-email">{{ usuario()?.email }}</p>
+          <span class="usuario-badge" [class.admin-badge]="usuario()?.es_admin"
+            [class.trainer-badge]="usuario()?.rol?.codigo === 'entrenador'">
+            {{ usuario()?.es_admin ? 'Administrador' : (usuario()?.rol?.nombre || 'Usuario') }}
           </span>
         </div>
       </div>
@@ -20,7 +19,6 @@
 
     <div class="perfil-divider"></div>
 
-    <!-- Formulario de Información Personal -->
     <div class="perfil-section">
       <h3 class="section-title">Información Personal</h3>
 
@@ -62,13 +60,10 @@
           <div class="form-group">
             <label class="form-label">Teléfono</label>
 
-            <!-- Modo no edición: mostrar teléfono formateado -->
             <div *ngIf="!editando" class="telefono-display">
               <input type="text" [value]="telefonoFormateado" class="form-input" readonly />
             </div>
 
-            <!-- Modo edición: mostrar selector + input -->
-            <!-- Reemplazar el input de teléfono en modo edición -->
             <div *ngIf="editando" class="telefono-wrapper">
               <select formControlName="codigo_pais" class="form-select codigo-pais" (change)="onCodigoPaisChange()">
                 <option *ngFor="let pais of codigosPais" [value]="pais.codigo">
@@ -92,12 +87,12 @@
         </div>
 
         <div class="form-actions" *ngIf="editando">
-          <button type="button" class="btn-cancelar" (click)="toggleEditar()" [disabled]="cargando">
+          <button type="button" class="btn-cancelar" (click)="toggleEditar()" [disabled]="guardandoPerfil()">
             Cancelar
           </button>
-          <button type="button" class="btn-guardar" (click)="guardarCambios()" [disabled]="cargando">
-            <span *ngIf="!cargando">💾 Guardar Cambios</span>
-            <span *ngIf="cargando">Guardando...</span>
+          <button type="button" class="btn-guardar" (click)="guardarCambios()" [disabled]="guardandoPerfil()">
+            <span *ngIf="!guardandoPerfil()">💾 Guardar Cambios</span>
+            <span *ngIf="guardandoPerfil()">Guardando...</span>
           </button>
         </div>
       </form>
@@ -105,7 +100,6 @@
 
     <div class="perfil-divider"></div>
 
-    <!-- Sección de Cambio de Contraseña -->
     <div class="perfil-section">
       <div class="section-header">
         <h3 class="section-title">Seguridad</h3>
@@ -173,9 +167,9 @@
           </div>
 
           <button type="button" class="btn-guardar btn-block" (click)="cambiarPassword()"
-            [disabled]="cargando || passwordForm.invalid">
-            <span *ngIf="!cargando">🔒 Cambiar Contraseña</span>
-            <span *ngIf="cargando">Cambiando...</span>
+            [disabled]="cambiandoPasswordEnCurso() || passwordForm.invalid">
+            <span *ngIf="!cambiandoPasswordEnCurso()">🔒 Cambiar Contraseña</span>
+            <span *ngIf="cambiandoPasswordEnCurso()">Cambiando...</span>
           </button>
         </form>
       </div>

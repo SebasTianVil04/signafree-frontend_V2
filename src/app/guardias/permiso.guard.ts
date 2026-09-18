@@ -5,7 +5,7 @@ import { AutenticacionService } from '../servicios/autenticacion.service';
 @Injectable({
   providedIn: 'root'
 })
-export class AdminGuard implements CanActivate {
+export class PermisoGuard implements CanActivate {
 
   constructor(
     private authService: AutenticacionService,
@@ -25,18 +25,9 @@ export class AdminGuard implements CanActivate {
       return true;
     }
 
-    const permisos = this.authService.usuarioActualValor?.permisos || [];
-    const tienePermisoAdmin = permisos.some(p => p.startsWith('admin.'));
-    const tienePermisoGestion = permisos.some(p =>
-      p.startsWith('modelos.') ||
-      p.startsWith('dataset.') ||
-      p.startsWith('captura.') ||
-      p.startsWith('categorias.') ||
-      p.startsWith('lecciones.') ||
-      p.startsWith('clases.')
-    );
+    const permisoRequerido = route.data['permiso'] as string;
 
-    if (tienePermisoAdmin || tienePermisoGestion) {
+    if (!permisoRequerido || this.authService.tienePermiso(permisoRequerido)) {
       return true;
     }
 

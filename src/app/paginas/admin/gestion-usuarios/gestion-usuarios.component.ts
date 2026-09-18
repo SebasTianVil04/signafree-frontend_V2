@@ -1,9 +1,11 @@
-import { Component, OnInit, effect, signal } from '@angular/core';
-import { injectQuery, injectQueryClient } from '@tanstack/angular-query-experimental';
+import { Component, OnInit, computed, effect, signal } from '@angular/core';
+import { injectMutation, injectQuery, injectQueryClient } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 import { AdminService } from '../../../servicios/admin.service';
-import { EstadisticasService, EstadisticasResponse, EstadisticasGenerales, LeccionPopular } from '../../../servicios/estadisticas.service';
+import { RolesService } from '../../../servicios/roles.service';
+import { EstadisticasService, EstadisticasGenerales, LeccionPopular } from '../../../servicios/estadisticas.service';
 import { Usuario } from '../../../modelos/usuario.model';
+import { Rol, Permiso, PermisosPorModulo } from '../../../modelos/rol.model';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -15,7 +17,11 @@ declare module 'jspdf' {
 }
 
 const QK_USUARIOS = ['usuariosAdmin'] as const;
+const QK_ROLES = ['rolesAdmin'] as const;
+const QK_PERMISOS_CATALOGO = ['permisosCatalogo'] as const;
 const STALE_USUARIOS = 30 * 1000;
+const STALE_ROLES = 60 * 1000;
+const STALE_PERMISOS_CATALOGO = 5 * 60 * 1000;
 const STALE_ESTADISTICAS_MODAL = 60 * 1000;
 
 @Component({
@@ -27,6 +33,7 @@ const STALE_ESTADISTICAS_MODAL = 60 * 1000;
 export class GestionUsuariosComponent implements OnInit {
   usuarios: Usuario[] = [];
   usuariosFiltrados: Usuario[] = [];
+  roles: Rol[] = [];
   error: string | null = null;
   filtroTexto: string = '';
   filtroTipo: string = 'todos';
@@ -54,7 +61,13 @@ export class GestionUsuariosComponent implements OnInit {
 
   mostrarModalRol: boolean = false;
   usuarioCambiandoRol: Usuario | null = null;
-  nuevoRol: string = '';
+  rolIdSeleccionado: number | null = null;
+
+  mostrarModalPermisosRol: boolean = false;
+  rolPermisosEditando: Rol | null = null;
+  permisosSeleccionados: number[] = [];
+
+  usuarioIdEnAccion = signal<number | null>(null);
 
   Math = Math;
 
@@ -64,6 +77,18 @@ export class GestionUsuariosComponent implements OnInit {
     queryKey: QK_USUARIOS,
     queryFn: () => firstValueFrom(this.adminService.listarUsuarios()),
     staleTime: STALE_USUARIOS
+  }));
+
+  private rolesQuery = injectQuery(() => ({
+    queryKey: QK_ROLES,
+    queryFn: () => firstValueFrom(this.rolesService.listarRoles()),
+    staleTime: STALE_ROLES
+  }));
+
+  private permisosQuery = injectQuery(() => ({
+    queryKey: QK_PERMISOS_CATALOGO,
+    queryFn: () => firstValueFrom(this.rolesService.listarPermisos()),
+    staleTime: STALE_PERMISOS_CATALOGO
   }));
 
   private filtroEstadisticasModal = signal<{ usuarioId: number; inicio: string; fin: string } | null>(null);
@@ -80,14 +105,101 @@ export class GestionUsuariosComponent implements OnInit {
     };
   });
 
+  permisosPorModulo = computed<PermisosPorModulo[]>(() =>
+    this.rolesService.agruparPermisosPorModulo(this.permisosQuery.data() ?? [])
+  );
+
+  cargandoPermisosCatalogo = computed(() => this.permisosQuery.isPending());
+
+  private guardarEdicionMutation = injectMutation(() => ({
+    mutationFn: (payload: { id: number; datos: any }) =>
+      firstValueFrom(this.adminService.actualizarUsuario(payload.id, payload.datos)),
+    onSuccess: () => {
+      alert('Usuario actualizado exitosamente');
+      this.cerrarModalEdicion();
+      this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
+    },
+    onError: (err: any) => {
+      console.error('Error al actualizar usuario:', err);
+      alert(err.error?.detail || 'Error al actualizar usuario');
+    }
+  }));
+
+  private guardarRolMutation = injectMutation(() => ({
+    mutationFn: (payload: { usuarioId: number; rolId: number }) =>
+      firstValueFrom(this.adminService.asignarRol(payload.usuarioId, payload.rolId)),
+    onSuccess: () => {
+      alert('Rol actualizado exitosamente');
+      this.cerrarModalRol();
+      this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
+    },
+    onError: (err: any) => {
+      console.error('Error al asignar rol:', err);
+      alert(err.error?.detail || 'Error al asignar rol');
+    }
+  }));
+
+  private guardarPermisosRolMutation = injectMutation(() => ({
+    mutationFn: (payload: { rolId: number; permisos_ids: number[] }) =>
+      firstValueFrom(this.rolesService.asignarPermisos(payload.rolId, { permisos_ids: payload.permisos_ids })),
+    onSuccess: () => {
+      alert('Permisos del rol actualizados exitosamente');
+      this.cerrarModalPermisosRol();
+      this.queryClient.invalidateQueries({ queryKey: QK_ROLES });
+      this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
+    },
+    onError: (err: any) => {
+      console.error('Error al asignar permisos:', err);
+      alert(err.error?.detail || 'Error al actualizar permisos');
+    }
+  }));
+
+  private cambiarEstadoMutation = injectMutation(() => ({
+    mutationFn: (payload: { id: number; activo: boolean }) =>
+      firstValueFrom(this.adminService.cambiarEstadoUsuario(payload.id, payload.activo)),
+    onSuccess: (response: any, payload) => {
+      const accion = payload.activo ? 'activado' : 'desactivado';
+      alert(response?.mensaje || `Usuario ${accion} correctamente`);
+      this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
+    },
+    onError: (err: any) => {
+      console.error('Error al cambiar estado:', err);
+      alert('Error al cambiar el estado del usuario');
+    },
+    onSettled: () => {
+      this.usuarioIdEnAccion.set(null);
+    }
+  }));
+
+  private eliminarUsuarioMutation = injectMutation(() => ({
+    mutationFn: (id: number) => firstValueFrom(this.adminService.eliminarUsuario(id)),
+    onSuccess: () => {
+      alert('Usuario eliminado exitosamente');
+      this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
+    },
+    onError: (err: any) => {
+      console.error('Error al eliminar usuario:', err);
+      alert(err.error?.detail || 'Error al eliminar usuario');
+    },
+    onSettled: () => {
+      this.usuarioIdEnAccion.set(null);
+    }
+  }));
+
+  guardandoEdicion = computed(() => this.guardarEdicionMutation.isPending());
+  guardandoRol = computed(() => this.guardarRolMutation.isPending());
+  guardandoPermisos = computed(() => this.guardarPermisosRolMutation.isPending());
+
   constructor(
     private adminService: AdminService,
+    private rolesService: RolesService,
     private estadisticasService: EstadisticasService
   ) {
     effect(() => {
       const response = this.usuariosQuery.data() as any;
       if (response) {
-        this.usuarios = response.datos || response || [];
+        const listaCompleta: Usuario[] = response.datos || response || [];
+        this.usuarios = listaCompleta.filter(u => !u.es_admin);
         this.aplicarFiltros();
       }
     });
@@ -96,6 +208,13 @@ export class GestionUsuariosComponent implements OnInit {
       if (this.usuariosQuery.isError()) {
         console.error('Error:', this.usuariosQuery.error());
         this.error = 'Error al cargar usuarios';
+      }
+    });
+
+    effect(() => {
+      const roles = this.rolesQuery.data();
+      if (roles) {
+        this.roles = roles.filter(r => r.activo);
       }
     });
 
@@ -188,62 +307,93 @@ export class GestionUsuariosComponent implements OnInit {
   }
 
   cerrarModalEdicion(): void {
+    if (this.guardandoEdicion()) {
+      return;
+    }
     this.mostrarModalEdicion = false;
     this.usuarioEditando = null;
   }
 
   guardarEdicion(): void {
-    if (!this.usuarioEditando) return;
+    if (!this.usuarioEditando || this.guardandoEdicion()) return;
 
     const datosActualizados = {
       ...this.formEdicion,
       fecha_nacimiento: this.formEdicion.fecha_nacimiento || undefined
     };
 
-    this.adminService.actualizarUsuario(this.usuarioEditando.id, datosActualizados).subscribe({
-      next: () => {
-        alert('Usuario actualizado exitosamente');
-        this.cerrarModalEdicion();
-        this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
-      },
-      error: (err: any) => {
-        console.error('Error al actualizar usuario:', err);
-        alert(err.error?.detail || 'Error al actualizar usuario');
-      }
-    });
+    this.guardarEdicionMutation.mutate({ id: this.usuarioEditando.id, datos: datosActualizados });
   }
 
   abrirModalRol(usuario: Usuario): void {
     this.usuarioCambiandoRol = usuario;
-    this.nuevoRol = usuario.es_admin ? 'admin' : 'usuario';
+    this.rolIdSeleccionado = usuario.rol?.id ?? null;
     this.mostrarModalRol = true;
   }
 
   cerrarModalRol(): void {
+    if (this.guardandoRol()) {
+      return;
+    }
     this.mostrarModalRol = false;
     this.usuarioCambiandoRol = null;
-    this.nuevoRol = '';
+    this.rolIdSeleccionado = null;
   }
 
   guardarRol(): void {
-    if (!this.usuarioCambiandoRol) return;
+    if (!this.usuarioCambiandoRol || this.rolIdSeleccionado === null || this.guardandoRol()) return;
 
-    const esAdmin = this.nuevoRol === 'admin';
+    this.guardarRolMutation.mutate({
+      usuarioId: this.usuarioCambiandoRol.id,
+      rolId: this.rolIdSeleccionado
+    });
+  }
 
-    this.adminService.asignarRol(this.usuarioCambiandoRol.id, esAdmin).subscribe({
-      next: () => {
-        alert(`Rol actualizado a ${this.nuevoRol} exitosamente`);
-        this.cerrarModalRol();
-        this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
-      },
-      error: (err: any) => {
-        console.error('Error al asignar rol:', err);
-        alert('Error al asignar rol');
-      }
+  abrirModalPermisosRol(): void {
+    if (this.rolIdSeleccionado === null) return;
+
+    const rol = this.roles.find(r => r.id === this.rolIdSeleccionado);
+    if (!rol) return;
+
+    this.rolPermisosEditando = rol;
+    this.permisosSeleccionados = rol.permisos.map(p => p.id);
+    this.mostrarModalPermisosRol = true;
+  }
+
+  cerrarModalPermisosRol(): void {
+    if (this.guardandoPermisos()) {
+      return;
+    }
+    this.mostrarModalPermisosRol = false;
+    this.rolPermisosEditando = null;
+    this.permisosSeleccionados = [];
+  }
+
+  togglePermisoRol(permisoId: number): void {
+    const indice = this.permisosSeleccionados.indexOf(permisoId);
+    if (indice >= 0) {
+      this.permisosSeleccionados.splice(indice, 1);
+    } else {
+      this.permisosSeleccionados.push(permisoId);
+    }
+  }
+
+  tienePermisoSeleccionadoRol(permisoId: number): boolean {
+    return this.permisosSeleccionados.includes(permisoId);
+  }
+
+  guardarPermisosRol(): void {
+    if (!this.rolPermisosEditando || this.guardandoPermisos()) return;
+
+    this.guardarPermisosRolMutation.mutate({
+      rolId: this.rolPermisosEditando.id,
+      permisos_ids: this.permisosSeleccionados
     });
   }
 
   eliminarUsuario(usuario: Usuario): void {
+    if (this.usuarioIdEnAccion() !== null) return;
+
     const confirmacion = confirm(
       `¿Estás seguro de eliminar al usuario "${usuario.nombre_completo}"?\n\n` +
       `Esta acción es IRREVERSIBLE y eliminará:\n` +
@@ -264,16 +414,36 @@ export class GestionUsuariosComponent implements OnInit {
 
     if (!confirmacionFinal) return;
 
-    this.adminService.eliminarUsuario(usuario.id).subscribe({
-      next: () => {
-        alert('Usuario eliminado exitosamente');
-        this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
-      },
-      error: (err: any) => {
-        console.error('Error al eliminar usuario:', err);
-        alert(err.error?.detail || 'Error al eliminar usuario');
-      }
-    });
+    this.usuarioIdEnAccion.set(usuario.id);
+    this.eliminarUsuarioMutation.mutate(usuario.id);
+  }
+
+  cambiarEstadoUsuario(usuario: Usuario): void {
+    if (this.usuarioIdEnAccion() !== null) return;
+
+    const nuevoEstado = !usuario.activo;
+    const accion = nuevoEstado ? 'activar' : 'desactivar';
+
+    if (confirm(`¿Estás seguro de ${accion} al usuario ${usuario.nombre_completo}?`)) {
+      this.usuarioIdEnAccion.set(usuario.id);
+      this.cambiarEstadoMutation.mutate({ id: usuario.id, activo: nuevoEstado });
+    }
+  }
+
+  obtenerEtiquetaTipoUsuario(tipo: string): string {
+    const etiquetas: { [key: string]: string } = {
+      'peruano_mayor': 'Peruano Mayor',
+      'peruano_menor': 'Peruano Menor',
+      'extranjero': 'Extranjero'
+    };
+    return etiquetas[tipo] || tipo;
+  }
+
+  limpiarFiltros(): void {
+    this.filtroTexto = '';
+    this.filtroTipo = 'todos';
+    this.filtroEstado = 'todos';
+    this.aplicarFiltros();
   }
 
   aplicarFiltros(): void {
@@ -317,43 +487,6 @@ export class GestionUsuariosComponent implements OnInit {
     }
   }
 
-  cambiarEstadoUsuario(usuario: Usuario): void {
-    const nuevoEstado = !usuario.activo;
-    const accion = nuevoEstado ? 'activar' : 'desactivar';
-
-    if (confirm(`¿Estás seguro de ${accion} al usuario ${usuario.nombre_completo}?`)) {
-      this.adminService.cambiarEstadoUsuario(usuario.id, nuevoEstado).subscribe({
-        next: (response: any) => {
-          usuario.activo = nuevoEstado;
-          const mensaje = response.mensaje || `Usuario ${accion}do correctamente`;
-          alert(mensaje);
-          this.aplicarFiltros();
-          this.queryClient.invalidateQueries({ queryKey: QK_USUARIOS });
-        },
-        error: (err: any) => {
-          console.error('Error:', err);
-          alert(`Error al ${accion} usuario`);
-        }
-      });
-    }
-  }
-
-  obtenerEtiquetaTipoUsuario(tipo: string): string {
-    const etiquetas: { [key: string]: string } = {
-      'peruano_mayor': 'Peruano Mayor',
-      'peruano_menor': 'Peruano Menor',
-      'extranjero': 'Extranjero'
-    };
-    return etiquetas[tipo] || tipo;
-  }
-
-  limpiarFiltros(): void {
-    this.filtroTexto = '';
-    this.filtroTipo = 'todos';
-    this.filtroEstado = 'todos';
-    this.aplicarFiltros();
-  }
-
   obtenerColorPopularidad(popularidad: string): string {
     return this.estadisticasService.obtenerColorPopularidad(popularidad);
   }
@@ -372,7 +505,7 @@ export class GestionUsuariosComponent implements OnInit {
         'DNI': usuario.dni || '-',
         'Pasaporte': usuario.pasaporte || '-',
         'Tipo Usuario': this.obtenerEtiquetaTipoUsuario(usuario.tipo_usuario),
-        'Rol': usuario.es_admin ? 'Admin' : 'Usuario',
+        'Rol': usuario.rol?.nombre || 'Usuario',
         'Estado': usuario.activo ? 'Activo' : 'Inactivo',
         'Fecha Registro': this.formatearFecha(usuario.fecha_creacion)
       }));
@@ -429,7 +562,7 @@ export class GestionUsuariosComponent implements OnInit {
         usuario.email,
         usuario.dni || usuario.pasaporte || '-',
         this.obtenerEtiquetaTipoUsuario(usuario.tipo_usuario),
-        usuario.es_admin ? 'Admin' : 'Usuario',
+        usuario.rol?.nombre || 'Usuario',
         usuario.activo ? 'Activo' : 'Inactivo',
         this.formatearFecha(usuario.fecha_creacion)
       ]);
@@ -468,11 +601,9 @@ export class GestionUsuariosComponent implements OnInit {
 
       const activos = this.usuariosFiltrados.filter(u => u.activo).length;
       const inactivos = this.usuariosFiltrados.filter(u => !u.activo).length;
-      const admins = this.usuariosFiltrados.filter(u => u.es_admin).length;
 
       doc.text(`Usuarios activos: ${activos}`, 14, finalY + 10);
       doc.text(`Usuarios inactivos: ${inactivos}`, 14, finalY + 16);
-      doc.text(`Administradores: ${admins}`, 14, finalY + 22);
 
       const fechaActual = this.obtenerFechaActual();
       const nombreArchivo = `usuarios_${fechaActual}.pdf`;

@@ -55,10 +55,12 @@ import { GestionPreguntasComponent } from './paginas/admin/gestion-preguntas/ges
 import { DetalleExamenComponent } from './paginas/admin/detalle-examen/detalle-examen.component';
 import { GestionCategoriasComponent } from './paginas/admin/gestion-categorias/gestion-categorias.component';
 import { CapturaUnificadaComponent } from './paginas/admin/captura-unificada/captura-unificada.component';
+import { GestionRolesComponent } from './paginas/admin/gestion-roles/gestion-roles.component';
 
 import { TraductorComponent } from './paginas/traductor/traductor.component';
 
 import { SafePipe } from './pipes/safe.pipe';
+import { TienePermisoDirective } from './directivas/tiene-permiso.directive';
 
 import { AuthInterceptor } from './interceptores/auth.interceptor';
 import { ErrorInterceptor } from './interceptores/error.interceptor';
@@ -75,6 +77,7 @@ import { LeccionesService } from './servicios/lecciones.service';
 import { NotificacionesService } from './servicios/notificaciones.service';
 import { BrowserModule } from '@angular/platform-browser';
 import { IconPickerComponent } from './componentes/icon-picker/icon-picker.component';
+import { GestionMenuComponent } from './paginas/admin/gestion-menu/gestion-menu.component';
 
 @NgModule({
   declarations: [
@@ -121,7 +124,10 @@ import { IconPickerComponent } from './componentes/icon-picker/icon-picker.compo
     GestionCategoriasComponent,
     CapturaUnificadaComponent,
     CamaraReconocimientoExamenComponent,
-    IconPickerComponent
+    IconPickerComponent,
+    GestionRolesComponent,
+    GestionMenuComponent,
+    TienePermisoDirective
   ],
   imports: [
     BrowserModule,

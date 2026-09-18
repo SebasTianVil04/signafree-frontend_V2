@@ -1,5 +1,11 @@
 export type TipoUsuario = 'peruano_mayor' | 'peruano_menor' | 'extranjero';
 
+export interface RolUsuario {
+  id: number;
+  codigo: string;
+  nombre: string;
+}
+
 export interface Usuario {
   id: number;
   tipo_usuario: TipoUsuario;
@@ -9,16 +15,21 @@ export interface Usuario {
   apellido_materno: string;
   apellidos?: string;
   dni?: string | null;
-  pasaporte?: string | null; 
-  telefono?: string | null; 
+  pasaporte?: string | null;
+  telefono?: string | null;
   direccion?: string | null;
   fecha_nacimiento?: Date | string | null;
   activo: boolean;
-  es_admin: boolean;
+  es_admin?: boolean;
   verificado: boolean;
-  rol?: string;
+  rol?: RolUsuario;
+  permisos?: string[];
   nombre_completo?: string;
-  fecha_creacion?: Date | string; 
+  fecha_creacion?: Date | string;
+}
+
+export function esUsuarioAdmin(usuario: Usuario | null | undefined): boolean {
+  return !!usuario?.rol && usuario.rol.codigo === 'admin';
 }
 
 export interface AuthResponse {

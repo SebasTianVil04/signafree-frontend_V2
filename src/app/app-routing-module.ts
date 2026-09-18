@@ -32,10 +32,12 @@ import { GestionPreguntasComponent } from './paginas/admin/gestion-preguntas/ges
 import { DetalleExamenComponent } from './paginas/admin/detalle-examen/detalle-examen.component';
 import { GestionCategoriasComponent } from './paginas/admin/gestion-categorias/gestion-categorias.component';
 import { CapturaUnificadaComponent } from './paginas/admin/captura-unificada/captura-unificada.component';
+import { GestionRolesComponent } from './paginas/admin/gestion-roles/gestion-roles.component';
+import { GestionMenuComponent } from './paginas/admin/gestion-menu/gestion-menu.component';
 
 import { AuthGuard } from './guardias/auth.guard';
 import { NoAuthGuard } from './guardias/no-auth.guard';
-import { AdminGuard } from './guardias/admin.guard';
+import { PermisoGuard } from './guardias/permiso.guard';
 
 const routes: Routes = [
   {
@@ -89,6 +91,7 @@ const routes: Routes = [
 
   {
     path: 'lecciones',
+    canActivate: [AuthGuard],
     children: [
       { path: '', component: ListaLeccionesComponent },
       { path: ':id', component: DetalleLeccionComponent },
@@ -109,24 +112,112 @@ const routes: Routes = [
 
   {
     path: 'admin',
-    canActivate: [AuthGuard, AdminGuard],
+    canActivate: [AuthGuard],
     children: [
       { path: '', redirectTo: 'panel', pathMatch: 'full' },
-      { path: 'panel', component: PanelAdminComponent, data: { titulo: 'Panel de Administración' } },
-      { path: 'usuarios', component: GestionUsuariosComponent, data: { titulo: 'Gestión de Usuarios' } },
-      { path: 'lecciones', component: GestionLeccionesComponent, data: { title: 'Gestión de Lecciones' } },
-      { path: 'lecciones/:leccionId/clases', component: GestionClasesComponent },
-      { path: 'imagenes', component: GestionImagenesDatasetComponent, data: { title: 'Gestión de Imágenes' } },
-      { path: 'entrenamiento', component: EntrenamientoModeloComponent, data: { title: 'Entrenamiento del Modelo' } },
-      { path: 'estadisticas', component: EstadisticasAdminComponent, data: { title: 'Estadísticas' } },
-      { path: 'traductor', component: TraductorComponent, data: { title: 'Traductor' } },
-      { path: 'captura-unificada', component: CapturaUnificadaComponent },
-      { path: 'categorias', component: GestionCategoriasComponent },
-      { path: 'examenes', component: GestionExamenesComponent },
-      { path: 'examenes/crear', component: GestionExamenesComponent },
-      { path: 'examenes/:id', component: DetalleExamenComponent },
-      { path: 'examenes/:id/editar', component: GestionExamenesComponent },
-      { path: 'examenes/:id/preguntas', component: GestionPreguntasComponent }
+
+      {
+        path: 'panel',
+        component: PanelAdminComponent,
+        canActivate: [PermisoGuard],
+        data: { titulo: 'Panel de Administración', permiso: 'admin.dashboard.ver' }
+      },
+      {
+        path: 'usuarios',
+        component: GestionUsuariosComponent,
+        canActivate: [PermisoGuard],
+        data: { titulo: 'Gestión de Usuarios', permiso: 'admin.usuarios.listar' }
+      },
+      {
+        path: 'roles',
+        component: GestionRolesComponent,
+        canActivate: [PermisoGuard],
+        data: { titulo: 'Gestión de Roles', permiso: 'admin.roles.gestionar' }
+      },
+      {
+        path: 'menu',
+        component: GestionMenuComponent,
+        canActivate: [PermisoGuard],
+        data: { titulo: 'Gestión de Menú', permiso: 'admin.menu.gestionar' }
+      },
+      {
+        path: 'lecciones',
+        component: GestionLeccionesComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Gestión de Lecciones', permiso: 'lecciones.ver' }
+      },
+      {
+        path: 'lecciones/:leccionId/clases',
+        component: GestionClasesComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'clases.ver' }
+      },
+      {
+        path: 'imagenes',
+        component: GestionImagenesDatasetComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Gestión de Imágenes', permiso: 'dataset.gestionar' }
+      },
+      {
+        path: 'entrenamiento',
+        component: EntrenamientoModeloComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Entrenamiento del Modelo', permiso: 'modelos.gestionar' }
+      },
+      {
+        path: 'estadisticas',
+        component: EstadisticasAdminComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Estadísticas', permiso: 'admin.reportes.ver' }
+      },
+      {
+        path: 'traductor',
+        component: TraductorComponent,
+        canActivate: [PermisoGuard],
+        data: { title: 'Traductor', permiso: 'traductor.usar' }
+      },
+      {
+        path: 'captura-unificada',
+        component: CapturaUnificadaComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'captura.gestionar' }
+      },
+      {
+        path: 'categorias',
+        component: GestionCategoriasComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'categorias.ver' }
+      },
+      {
+        path: 'examenes',
+        component: GestionExamenesComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'admin.examenes.gestionar' }
+      },
+      {
+        path: 'examenes/crear',
+        component: GestionExamenesComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'admin.examenes.gestionar' }
+      },
+      {
+        path: 'examenes/:id',
+        component: DetalleExamenComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'admin.examenes.gestionar' }
+      },
+      {
+        path: 'examenes/:id/editar',
+        component: GestionExamenesComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'admin.examenes.gestionar' }
+      },
+      {
+        path: 'examenes/:id/preguntas',
+        component: GestionPreguntasComponent,
+        canActivate: [PermisoGuard],
+        data: { permiso: 'admin.examenes.gestionar' }
+      }
     ]
   },
 

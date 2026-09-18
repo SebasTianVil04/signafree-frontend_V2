@@ -1,22 +1,28 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, computed, effect, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { injectMutation, injectQuery, injectQueryClient } from '@tanstack/angular-query-experimental';
+import { lastValueFrom } from 'rxjs';
 import { AutenticacionService } from '../../../servicios/autenticacion.service';
 import { UsuariosService } from '../../../servicios/usuarios.service';
 import { NotificacionesService } from '../../../servicios/notificaciones.service';
-import { Usuario, TipoUsuario, CODIGOS_PAIS, CodigoPais, ValidacionUtils } from '../../../modelos/usuario.model';
+import { Usuario, TipoUsuario, CODIGOS_PAIS, CodigoPais } from '../../../modelos/usuario.model';
 import { ValidadoresPersonalizados } from '../../../utilidades/validadores';
 
 @Component({
   selector: 'app-perfil',
   templateUrl: './perfil.component.html',
   styleUrls: ['./perfil.component.scss'],
-  standalone : false
+  standalone: false
 })
 export class PerfilComponent implements OnInit {
+  private fb = inject(FormBuilder);
+  private autenticacionService = inject(AutenticacionService);
+  private usuariosService = inject(UsuariosService);
+  private notificaciones = inject(NotificacionesService);
+  private queryClient = injectQueryClient();
+
   perfilForm!: FormGroup;
   passwordForm!: FormGroup;
-  usuario: Usuario | null = null;
-  cargando = false;
   editando = false;
   cambiandoPassword = false;
   mostrarPasswordActual = false;
@@ -24,34 +30,71 @@ export class PerfilComponent implements OnInit {
   mostrarPasswordConfirmar = false;
   maxLongitudTelefono: number = 15;
 
-  // Códigos de país para teléfonos
   codigosPais: CodigoPais[] = CODIGOS_PAIS;
 
-  constructor(
-    private fb: FormBuilder,
-    private autenticacionService: AutenticacionService,
-    private usuariosService: UsuariosService,
-    private notificaciones: NotificacionesService
-  ) { }
+  private longitudesPorPais: { [key: string]: number } = {
+    '+51': 9,
+    '+1': 10,
+    '+34': 9,
+    '+52': 10,
+    '+54': 11,
+    '+55': 11,
+    '+56': 9,
+    '+57': 10,
+    '+593': 9,
+    '+58': 10
+  };
+
+  private perfilQuery = injectQuery(() => ({
+    queryKey: ['perfil'],
+    queryFn: () => lastValueFrom(this.usuariosService.obtenerPerfil())
+  }));
+
+  usuario = computed<Usuario | null>(() => this.perfilQuery.data() ?? null);
+  cargandoPerfil = computed(() => this.perfilQuery.isPending());
+
+  private actualizarPerfilMutation = injectMutation(() => ({
+    mutationFn: (datos: any) => lastValueFrom(this.usuariosService.actualizarPerfil(datos)),
+    onSuccess: (respuesta: any) => {
+      this.notificaciones.mostrarExito(respuesta.mensaje || 'Perfil actualizado correctamente');
+      if (respuesta.datos) {
+        this.autenticacionService.actualizarUsuarioLocal(respuesta.datos);
+      }
+      this.queryClient.invalidateQueries({ queryKey: ['perfil'] });
+      this.editando = false;
+      this.deshabilitarCamposEditables();
+    },
+    onError: (error: any) => {
+      this.notificaciones.mostrarError(error.error?.detail || 'Error al actualizar el perfil');
+    }
+  }));
+
+  private cambiarPasswordMutation = injectMutation(() => ({
+    mutationFn: (datos: { password_actual: string; password_nueva: string }) =>
+      lastValueFrom(this.usuariosService.cambiarPassword(datos)),
+    onSuccess: () => {
+      this.notificaciones.mostrarExito('Contraseña actualizada correctamente');
+      this.cambiandoPassword = false;
+      this.passwordForm.reset();
+    }
+  }));
+
+  guardandoPerfil = computed(() => this.actualizarPerfilMutation.isPending());
+  cambiandoPasswordEnCurso = computed(() => this.cambiarPasswordMutation.isPending());
+
+  constructor() {
+    effect(() => {
+      const usuario = this.usuario();
+      if (usuario) {
+        this.cargarDatosEnFormulario(usuario);
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.inicializarFormularios();
-    this.cargarPerfilDesdeServidor();
     this.actualizarMaxLongitudTelefono();
   }
-
-  private longitudesPorPais: { [key: string]: number } = {
-    '+51': 9,   // Perú
-    '+1': 10,   // USA/Canadá
-    '+34': 9,   // España
-    '+52': 10,  // México
-    '+54': 11,  // Argentina
-    '+55': 11,  // Brasil
-    '+56': 9,   // Chile
-    '+57': 10,  // Colombia
-    '+593': 9,  // Ecuador
-    '+58': 10   // Venezuela
-  };
 
   actualizarMaxLongitudTelefono(): void {
     const codigoPais = this.perfilForm.get('codigo_pais')?.value || '+51';
@@ -60,7 +103,6 @@ export class PerfilComponent implements OnInit {
 
   onCodigoPaisChange(): void {
     this.actualizarMaxLongitudTelefono();
-    // Limpiar el número si excede la nueva longitud
     const numeroActual = this.perfilForm.get('telefono')?.value || '';
     if (numeroActual.length > this.maxLongitudTelefono) {
       this.perfilForm.get('telefono')?.setValue(
@@ -72,7 +114,6 @@ export class PerfilComponent implements OnInit {
   validarSoloNumeros(event: any): void {
     const input = event.target;
     const valor = input.value;
-    // Remover cualquier carácter que no sea número
     const soloNumeros = valor.replace(/\D/g, '');
     if (valor !== soloNumeros) {
       input.value = soloNumeros;
@@ -106,89 +147,56 @@ export class PerfilComponent implements OnInit {
     });
   }
 
-  cargarPerfilDesdeServidor(): void {
-    this.cargando = true;
-
-    this.usuariosService.obtenerPerfil().subscribe({
-      next: (usuario) => {
-        console.log('Perfil cargado:', usuario);
-        this.usuario = usuario;
-        this.cargarDatosEnFormulario();
-        this.cargando = false;
-      },
-      error: (error) => {
-        console.error('Error al cargar perfil:', error);
-        this.notificaciones.mostrarError('Error al cargar el perfil');
-        this.cargando = false;
-      }
-    });
+  get nombreRol(): string {
+    const usuario = this.usuario();
+    if (!usuario) return '';
+    if (usuario.es_admin) return 'Administrador';
+    return usuario.rol?.nombre || 'Usuario';
   }
 
-  cargarDatosEnFormulario(): void {
-    if (!this.usuario) {
-      console.error('No hay usuario para cargar');
-      return;
-    }
-
-    console.log('Usuario a cargar:', this.usuario);
-    console.log('Teléfono del usuario:', this.usuario.telefono);
-
-    // Determinar el documento según tipo de usuario
+  private cargarDatosEnFormulario(usuario: Usuario): void {
     let documento = '';
-    if (this.usuario.tipo_usuario === 'extranjero') {
-      documento = this.usuario.pasaporte || 'Sin pasaporte'; // Cambiado
+    if (usuario.tipo_usuario === 'extranjero') {
+      documento = usuario.pasaporte || 'Sin pasaporte';
     } else {
-      documento = this.usuario.dni || 'Sin DNI';
+      documento = usuario.dni || 'Sin DNI';
     }
 
-    // Combinar apellidos
     let apellidosCompletos = '';
-    if (this.usuario.apellidos) {
-      apellidosCompletos = this.usuario.apellidos;
-    } else if (this.usuario.apellido_paterno || this.usuario.apellido_materno) {
-      apellidosCompletos = `${this.usuario.apellido_paterno || ''} ${this.usuario.apellido_materno || ''}`.trim();
+    if (usuario.apellidos) {
+      apellidosCompletos = usuario.apellidos;
+    } else if (usuario.apellido_paterno || usuario.apellido_materno) {
+      apellidosCompletos = `${usuario.apellido_paterno || ''} ${usuario.apellido_materno || ''}`.trim();
     }
 
-    // Extraer código de país y número del teléfono
     let codigoPais = '+51';
     let numeroTelefono = '';
 
-    if (this.usuario.telefono) {
-      codigoPais = this.autenticacionService.extraerCodigoPais(this.usuario.telefono);
-      numeroTelefono = this.autenticacionService.extraerNumeroTelefono(this.usuario.telefono);
-
-      console.log('Teléfono completo:', this.usuario.telefono);
-      console.log('Código de país extraído:', codigoPais);
-      console.log('Número extraído:', numeroTelefono);
+    if (usuario.telefono) {
+      codigoPais = this.autenticacionService.extraerCodigoPais(usuario.telefono);
+      numeroTelefono = this.autenticacionService.extraerNumeroTelefono(usuario.telefono);
     }
 
-    // Formatear fecha de nacimiento
     let fechaNacimiento = '';
-    if (this.usuario.fecha_nacimiento) {
-      fechaNacimiento = this.formatearFechaParaInput(this.usuario.fecha_nacimiento);
+    if (usuario.fecha_nacimiento) {
+      fechaNacimiento = this.formatearFechaParaInput(usuario.fecha_nacimiento);
     }
 
-    // Obtener texto del tipo de usuario
-    const tipoUsuarioTexto = this.obtenerTextoTipoUsuario(this.usuario.tipo_usuario);
+    const tipoUsuarioTexto = this.obtenerTextoTipoUsuario(usuario.tipo_usuario);
 
-    // Cargar valores en el formulario
     this.perfilForm.patchValue({
       tipo_usuario: tipoUsuarioTexto || 'No especificado',
       documento: documento,
-      nombres: this.usuario.nombres || '',
+      nombres: usuario.nombres || '',
       apellidos: apellidosCompletos || '',
-      email: this.usuario.email || '',
+      email: usuario.email || '',
       codigo_pais: codigoPais,
       telefono: numeroTelefono,
       fecha_nacimiento: fechaNacimiento,
-      direccion: this.usuario.direccion || ''
+      direccion: usuario.direccion || ''
     });
 
-    console.log('Valores cargados en formulario:', {
-      codigo_pais: codigoPais,
-      telefono: numeroTelefono,
-      telefonoCompleto: this.usuario.telefono
-    });
+    this.actualizarMaxLongitudTelefono();
   }
 
   obtenerTextoTipoUsuario(tipo: TipoUsuario | undefined): string {
@@ -230,49 +238,55 @@ export class PerfilComponent implements OnInit {
       const day = String(fechaObj.getDate()).padStart(2, '0');
 
       return `${year}-${month}-${day}`;
-    } catch (error) {
-      console.error('Error al formatear fecha:', error);
+    } catch {
       return '';
     }
+  }
+
+  private deshabilitarCamposEditables(): void {
+    this.perfilForm.get('codigo_pais')?.disable();
+    this.perfilForm.get('telefono')?.disable();
+    this.perfilForm.get('fecha_nacimiento')?.disable();
+    this.perfilForm.get('direccion')?.disable();
   }
 
   toggleEditar(): void {
     this.editando = !this.editando;
 
     if (this.editando) {
-      // Habilitar solo campos editables
       this.perfilForm.get('codigo_pais')?.enable();
       this.perfilForm.get('telefono')?.enable();
       this.perfilForm.get('fecha_nacimiento')?.enable();
       this.perfilForm.get('direccion')?.enable();
     } else {
-      // Deshabilitar campos y recargar datos originales
-      this.perfilForm.get('codigo_pais')?.disable();
-      this.perfilForm.get('telefono')?.disable();
-      this.perfilForm.get('fecha_nacimiento')?.disable();
-      this.perfilForm.get('direccion')?.disable();
-      this.cargarDatosEnFormulario();
+      this.deshabilitarCamposEditables();
+      const usuario = this.usuario();
+      if (usuario) {
+        this.cargarDatosEnFormulario(usuario);
+      }
     }
   }
 
   guardarCambios(): void {
-    // Marcar campos como tocados
+    if (this.guardandoPerfil()) {
+      return;
+    }
+
     const codigoPaisControl = this.perfilForm.get('codigo_pais');
     const telefonoControl = this.perfilForm.get('telefono');
     const fechaNacimientoControl = this.perfilForm.get('fecha_nacimiento');
     const direccionControl = this.perfilForm.get('direccion');
 
-    if (codigoPaisControl) codigoPaisControl.markAsTouched();
-    if (telefonoControl) telefonoControl.markAsTouched();
-    if (fechaNacimientoControl) fechaNacimientoControl.markAsTouched();
-    if (direccionControl) direccionControl.markAsTouched();
+    codigoPaisControl?.markAsTouched();
+    telefonoControl?.markAsTouched();
+    fechaNacimientoControl?.markAsTouched();
+    direccionControl?.markAsTouched();
 
-    const codigoPais = this.perfilForm.get('codigo_pais')?.value || '+51';
-    const numeroTelefono = this.perfilForm.get('telefono')?.value || '';
+    const codigoPais = codigoPaisControl?.value || '+51';
+    const numeroTelefono = telefonoControl?.value || '';
 
     const telefonoCompleto = this.autenticacionService.obtenerTelefonoCompleto(codigoPais, numeroTelefono);
 
-    // Validar longitud específica del país
     if (telefonoCompleto) {
       const soloNumeros = numeroTelefono.replace(/\D/g, '');
       const longitudEsperada = this.longitudesPorPais[codigoPais];
@@ -290,50 +304,18 @@ export class PerfilComponent implements OnInit {
       }
     }
 
-    this.cargando = true;
-
-    const datosActualizar: any = {
+    this.actualizarPerfilMutation.mutate({
       telefono: telefonoCompleto,
-      fecha_nacimiento: this.perfilForm.get('fecha_nacimiento')?.value || null,
-      direccion: this.perfilForm.get('direccion')?.value || null,
-    };
-
-    console.log('Enviando actualización:', datosActualizar);
-
-    this.usuariosService.actualizarPerfil(datosActualizar).subscribe({
-      next: (respuesta) => {
-        console.log('Respuesta del servidor:', respuesta);
-        this.notificaciones.mostrarExito(respuesta.mensaje || 'Perfil actualizado correctamente');
-
-        // Actualizar usuario local con los datos del servidor
-        if (respuesta.datos) {
-          this.usuario = respuesta.datos;
-          this.autenticacionService.actualizarUsuarioLocal(this.usuario);
-          console.log('Usuario actualizado localmente:', this.usuario);
-        }
-
-        this.editando = false;
-        this.perfilForm.get('codigo_pais')?.disable();
-        this.perfilForm.get('telefono')?.disable();
-        this.perfilForm.get('fecha_nacimiento')?.disable();
-        this.perfilForm.get('direccion')?.disable();
-
-        // Recargar perfil desde el servidor para asegurar sincronización
-        this.cargarPerfilDesdeServidor();
-
-        this.cargando = false;
-      },
-      error: (error) => {
-        console.error('Error al actualizar:', error);
-        this.notificaciones.mostrarError(
-          error.error?.detail || 'Error al actualizar el perfil'
-        );
-        this.cargando = false;
-      }
+      fecha_nacimiento: fechaNacimientoControl?.value || null,
+      direccion: direccionControl?.value || null
     });
   }
 
   cambiarPassword(): void {
+    if (this.cambiandoPasswordEnCurso()) {
+      return;
+    }
+
     if (this.passwordForm.invalid) {
       Object.keys(this.passwordForm.controls).forEach(key => {
         this.passwordForm.controls[key].markAsTouched();
@@ -341,23 +323,9 @@ export class PerfilComponent implements OnInit {
       return;
     }
 
-    this.cargando = true;
-
-    const datos = {
+    this.cambiarPasswordMutation.mutate({
       password_actual: this.passwordForm.get('password_actual')?.value,
       password_nueva: this.passwordForm.get('password_nueva')?.value
-    };
-
-    this.usuariosService.cambiarPassword(datos).subscribe({
-      next: () => {
-        this.notificaciones.mostrarExito('Contraseña actualizada correctamente');
-        this.cambiandoPassword = false;
-        this.passwordForm.reset();
-        this.cargando = false;
-      },
-      error: () => {
-        this.cargando = false;
-      }
     });
   }
 
@@ -369,20 +337,23 @@ export class PerfilComponent implements OnInit {
   }
 
   get iniciales(): string {
-    if (!this.usuario) return '';
-    const nombres = this.usuario.nombres?.charAt(0) || '';
-    const apellidoPaterno = this.usuario.apellido_paterno?.charAt(0) || '';
+    const usuario = this.usuario();
+    if (!usuario) return '';
+    const nombres = usuario.nombres?.charAt(0) || '';
+    const apellidoPaterno = usuario.apellido_paterno?.charAt(0) || '';
     return (nombres + apellidoPaterno).toUpperCase();
   }
 
   get documentoLabel(): string {
-    if (!this.usuario) return 'Documento';
-    return this.usuario.tipo_usuario === 'extranjero' ? 'Pasaporte' : 'DNI'; // Cambiado
+    const usuario = this.usuario();
+    if (!usuario) return 'Documento';
+    return usuario.tipo_usuario === 'extranjero' ? 'Pasaporte' : 'DNI';
   }
 
   get telefonoFormateado(): string {
-    if (!this.usuario?.telefono) return 'No especificado';
-    return this.autenticacionService.formatearTelefono(this.usuario.telefono);
+    const usuario = this.usuario();
+    if (!usuario?.telefono) return 'No especificado';
+    return this.autenticacionService.formatearTelefono(usuario.telefono);
   }
 
   obtenerErroresPassword(): string[] {

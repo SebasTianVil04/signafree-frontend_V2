@@ -1,179 +1,106 @@
-<!-- src/app/componentes/compartidos/encabezado/encabezado.component.html -->
-
 <nav class="navbar" *ngIf="usuario">
-  <div class="navbar-container">
-    <div class="navbar-brand">
-      <a (click)="navegarA('/inicio')" class="logo">
+
+  <div class="navbar-top">
+    <div class="navbar-top-container">
+
+      <a (click)="navegarA($event, '/inicio')" class="logo">
         <span class="logo-icon">🤟</span>
         <span class="logo-text">SignaFree</span>
       </a>
-    </div>
 
-    <div class="navbar-menu" [class.active]="menuAbierto">
-      <ul class="nav-links">
-        <li>
-          <a (click)="navegarA('/inicio')" class="nav-link" [class.active]="esRutaActiva('/inicio')">
-            <span class="nav-icon">🏠</span>
-            <span>Inicio</span>
+      <div class="navbar-user">
+        <div class="user-menu" (click)="toggleMenuUsuario($event)">
+          <div class="user-avatar" [class.admin]="esAdmin" [class.user]="esUser">
+            {{ iniciales }}
+          </div>
+          <div class="user-info">
+            <span class="user-name">{{ usuario.nombres }}</span>
+            <span class="user-role">{{ nombreRol }}</span>
+          </div>
+          <span class="dropdown-arrow" [class.active]="menuUsuarioAbierto">▾</span>
+        </div>
+
+        <div class="user-dropdown" [class.active]="menuUsuarioAbierto">
+          <a (click)="navegarA($event, '/perfil')" class="dropdown-item">
+            <span class="dropdown-icon">👤</span>
+            <span>Mi Perfil</span>
           </a>
-        </li>
-
-        <ng-container *ngIf="esUser">
-          <li>
-            <a (click)="navegarA('/lecciones')" class="nav-link" [class.active]="esRutaActiva('/lecciones')">
-              <span class="nav-icon">📚</span>
-              <span>Lecciones</span>
-            </a>
-          </li>
-          <li>
-            <a (click)="navegarA('/examenes')" class="nav-link" [class.active]="esRutaActiva('/examenes')">
-              <span class="nav-icon">📝</span>
-              <span>Autoevaluación</span>
-            </a>
-          </li>
-          <li>
-            <a (click)="navegarA('/progreso')" class="nav-link" [class.active]="esRutaActiva('/progreso')">
-              <span class="nav-icon">📊</span>
-              <span>Mi Progreso</span>
-            </a>
-          </li>
-        </ng-container>
-
-        <ng-container *ngIf="esAdmin">
-          <li>
-            <a (click)="navegarA('/admin/panel')" class="nav-link" [class.active]="esRutaActiva('/admin/panel')">
-              <span class="nav-icon">📊</span>
-              <span>Panel</span>
-            </a>
-          </li>
-
-          <li class="has-submenu">
-            <a (click)="toggleSubmenu('contenido')" class="nav-link" [class.active]="submenuAbierto === 'contenido'">
-              <span class="nav-icon">📚</span>
-              <span>Gestion de Contenido</span>
-              <span class="dropdown-icon" [class.active]="submenuAbierto === 'contenido'">▼</span>
-            </a>
-
-            <ul class="submenu" [class.active]="submenuAbierto === 'contenido'">
-              <li>
-                <a (click)="navegarA('/admin/lecciones')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/lecciones')">
-                  <span class="submenu-icon">📖</span>
-                  <span>Lecciones</span>
-                </a>
-              </li>
-              <li>
-                <a (click)="navegarA('/admin/examenes')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/examenes')">
-                  <span class="submenu-icon">📝</span>
-                  <span>Autoevaluación</span>
-                </a>
-              </li>
-              <li>
-                <a (click)="navegarA('/admin/categorias')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/categorias')">
-                  <span class="submenu-icon">🖼️</span>
-                  <span>Categorías</span>
-                </a>
-              </li>
-              <li>
-                <a (click)="navegarA('/admin/imagenes')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/imagenes')">
-                  <span class="submenu-icon">🖼️</span>
-                  <span>Videos</span>
-                </a>
-              </li>
-            </ul>
-          </li>
-
-          <li>
-            <a (click)="navegarA('/admin/usuarios')" class="nav-link" [class.active]="esRutaActiva('/admin/usuarios')">
-              <span class="nav-icon">👥</span>
-              <span>Usuarios</span>
-            </a>
-          </li>
-
-
-          <li class="has-submenu">
-            <a (click)="navegarA('/admin/captura-unificada')" class="nav-link"
-              [class.active]="esRutaActiva('/admin/captura-unificada')">
-              <span class="submenu-icon">📸</span>
-              <span>Capturar Datos</span>
-            </a>
-          </li>
-
-
-          <li class="has-submenu">
-            <a (click)="toggleSubmenu('sistema')" class="nav-link" [class.active]="submenuAbierto === 'sistema'">
-              <span class="nav-icon">🤖</span>
-              <span>Sistema</span>
-              <span class="dropdown-icon" [class.active]="submenuAbierto === 'sistema'">▼</span>
-            </a>
-
-            <ul class="submenu" [class.active]="submenuAbierto === 'sistema'">
-              <li>
-                <a (click)="navegarA('/admin/entrenamiento')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/entrenamiento')">
-                  <span class="submenu-icon">⚡</span>
-                  <span>Entrenamiento</span>
-                </a>
-              </li>
-              <li>
-                <a (click)="navegarA('/admin/estadisticas')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/estadisticas')">
-                  <span class="submenu-icon">📈</span>
-                  <span>Estadísticas</span>
-                </a>
-              </li>
-              <li>
-                <a (click)="navegarA('/admin/traductor')" class="submenu-link"
-                  [class.active]="esRutaActiva('/admin/traductor')">
-                  <span class="submenu-icon">🌐</span>
-                  <span>Traductor</span>
-                </a>
-              </li>
-            </ul>
-          </li>
-        </ng-container>
-      </ul>
-    </div>
-
-    <div class="navbar-user">
-      <div class="user-menu" (click)="toggleMenuUsuario()">
-        <div class="user-avatar" [class.admin]="esAdmin" [class.user]="esUser">
-          {{ iniciales }}
+          <div class="dropdown-divider"></div>
+          <a (click)="cerrarSesion($event)" class="dropdown-item logout">
+            <span class="dropdown-icon">🚪</span>
+            <span>Cerrar Sesión</span>
+          </a>
         </div>
-        <div class="user-info">
-          <span class="user-name">{{ usuario.nombres }}</span>
-          <span class="user-role" [class.admin]="esAdmin" [class.user]="esUser">
-            {{ esAdmin ? 'Administrador' : 'Usuario' }}
-          </span>
-        </div>
-        <span class="dropdown-icon" [class.active]="menuUsuarioAbierto">▼</span>
       </div>
 
-      <div class="user-dropdown" [class.active]="menuUsuarioAbierto">
-        <a (click)="navegarA('/perfil')" class="dropdown-item">
-          <span class="dropdown-icon">👤</span>
-          <span>Mi Perfil</span>
-        </a>
+      <button class="navbar-toggle" (click)="toggleMenu()"
+        [attr.aria-label]="menuAbierto ? 'Cerrar menú' : 'Abrir menú'">
+        <span class="toggle-icon" [class.active]="menuAbierto">
+          <span></span><span></span><span></span>
+        </span>
+      </button>
 
-        <div class="dropdown-divider"></div>
-        <a (click)="cerrarSesion()" class="dropdown-item logout">
-          <span class="dropdown-icon">🚪</span>
-          <span>Cerrar Sesión</span>
-        </a>
-      </div>
     </div>
-
-    <button class="navbar-toggle" (click)="toggleMenu()" [attr.aria-label]="menuAbierto ? 'Cerrar menú' : 'Abrir menú'">
-      <span class="toggle-icon" [class.active]="menuAbierto">
-        <span></span>
-        <span></span>
-        <span></span>
-      </span>
-    </button>
   </div>
+
+  <div class="navbar-menu" [class.active]="menuAbierto">
+
+    <div class="mobile-user-section">
+      <div class="user-avatar-large" [class.admin]="esAdmin" [class.user]="esUser">
+        {{ iniciales }}
+      </div>
+      <div class="user-details">
+        <div class="user-name-large">{{ usuario.nombres }}</div>
+        <div class="user-role-large">{{ nombreRol }}</div>
+      </div>
+      <button class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar">✕</button>
+    </div>
+
+    <ul class="nav-links">
+      <li *ngFor="let item of menuItems; trackBy: trackByLabel"
+        [class.has-submenu]="item.hijos && item.hijos.length > 0">
+
+        <ng-container *ngIf="item.hijos && item.hijos.length > 0">
+          <a (click)="toggleSubmenu($event, item.label)" class="nav-link"
+            [class.active]="submenuAbierto === item.label">
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-label">{{ item.label }}</span>
+            <span class="dropdown-icon" [class.active]="submenuAbierto === item.label">▾</span>
+          </a>
+
+          <ul class="submenu" [class.active]="submenuAbierto === item.label">
+            <li *ngFor="let hijo of item.hijos; trackBy: trackByLabel">
+              <a (click)="navegarA($event, hijo.ruta)" class="submenu-link" [class.active]="esRutaActiva(hijo.ruta)">
+                <span class="submenu-icon">{{ hijo.icon }}</span>
+                <span>{{ hijo.label }}</span>
+              </a>
+            </li>
+          </ul>
+        </ng-container>
+
+        <ng-container *ngIf="!item.hijos || item.hijos.length === 0">
+          <a (click)="navegarA($event, item.ruta)" class="nav-link" [class.active]="esRutaActiva(item.ruta)">
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-label">{{ item.label }}</span>
+          </a>
+        </ng-container>
+
+      </li>
+    </ul>
+
+    <div class="mobile-user-actions">
+      <a (click)="navegarA($event, '/perfil')" class="mobile-action">
+        <span class="action-icon">👤</span>
+        <span>Mi Perfil</span>
+      </a>
+      <a (click)="cerrarSesion($event)" class="mobile-action logout">
+        <span class="action-icon">🚪</span>
+        <span>Cerrar Sesión</span>
+      </a>
+    </div>
+
+  </div>
+
 </nav>
 
-<div class="navbar-overlay" *ngIf="menuAbierto || menuUsuarioAbierto || submenuAbierto" (click)="cerrarMenus()"></div>
+<div class="navbar-overlay" *ngIf="menuAbierto || menuUsuarioAbierto" (click)="cerrarMenus()"></div>
