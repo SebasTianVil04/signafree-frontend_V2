@@ -14,7 +14,7 @@
             {{ iniciales }}
           </div>
           <div class="user-info">
-            <span class="user-name">{{ usuario.nombres }}</span>
+            <span class="user-name">{{ usuario.nombre_usuario }}</span>
             <span class="user-role">{{ nombreRol }}</span>
           </div>
           <span class="dropdown-arrow" [class.active]="menuUsuarioAbierto">▾</span>
@@ -50,7 +50,7 @@
         {{ iniciales }}
       </div>
       <div class="user-details">
-        <div class="user-name-large">{{ usuario.nombres }}</div>
+        <div class="user-name-large">{{ usuario.nombre_usuario }}</div>
         <div class="user-role-large">{{ nombreRol }}</div>
       </div>
       <button class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar">✕</button>

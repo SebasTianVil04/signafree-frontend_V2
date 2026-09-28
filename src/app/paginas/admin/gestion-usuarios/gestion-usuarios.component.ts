@@ -36,7 +36,6 @@ export class GestionUsuariosComponent implements OnInit {
   roles: Rol[] = [];
   error: string | null = null;
   filtroTexto: string = '';
-  filtroTipo: string = 'todos';
   filtroEstado: string = 'todos';
   paginaActual: number = 1;
   usuariosPorPagina: number = 10;
@@ -50,13 +49,7 @@ export class GestionUsuariosComponent implements OnInit {
   mostrarModalEdicion: boolean = false;
   usuarioEditando: Usuario | null = null;
   formEdicion = {
-    nombres: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    email: '',
-    telefono: '',
-    direccion: '',
-    fecha_nacimiento: ''
+    nombre_usuario: ''
   };
 
   mostrarModalRol: boolean = false;
@@ -294,14 +287,7 @@ export class GestionUsuariosComponent implements OnInit {
   abrirModalEdicion(usuario: Usuario): void {
     this.usuarioEditando = usuario;
     this.formEdicion = {
-      nombres: usuario.nombres || '',
-      apellido_paterno: usuario.apellido_paterno || '',
-      apellido_materno: usuario.apellido_materno || '',
-      email: usuario.email || '',
-      telefono: usuario.telefono || '',
-      direccion: usuario.direccion || '',
-      fecha_nacimiento: usuario.fecha_nacimiento ?
-        new Date(usuario.fecha_nacimiento).toISOString().split('T')[0] : ''
+      nombre_usuario: usuario.nombre_usuario || ''
     };
     this.mostrarModalEdicion = true;
   }
@@ -317,12 +303,10 @@ export class GestionUsuariosComponent implements OnInit {
   guardarEdicion(): void {
     if (!this.usuarioEditando || this.guardandoEdicion()) return;
 
-    const datosActualizados = {
-      ...this.formEdicion,
-      fecha_nacimiento: this.formEdicion.fecha_nacimiento || undefined
-    };
-
-    this.guardarEdicionMutation.mutate({ id: this.usuarioEditando.id, datos: datosActualizados });
+    this.guardarEdicionMutation.mutate({
+      id: this.usuarioEditando.id,
+      datos: { nombre_usuario: this.formEdicion.nombre_usuario }
+    });
   }
 
   abrirModalRol(usuario: Usuario): void {
@@ -395,7 +379,7 @@ export class GestionUsuariosComponent implements OnInit {
     if (this.usuarioIdEnAccion() !== null) return;
 
     const confirmacion = confirm(
-      `¿Estás seguro de eliminar al usuario "${usuario.nombre_completo}"?\n\n` +
+      `¿Estás seguro de eliminar al usuario "${usuario.nombre_usuario}"?\n\n` +
       `Esta acción es IRREVERSIBLE y eliminará:\n` +
       `- Todos sus progresos\n` +
       `- Todas sus estadísticas\n` +
@@ -408,7 +392,7 @@ export class GestionUsuariosComponent implements OnInit {
     const confirmacionFinal = confirm(
       `ÚLTIMA ADVERTENCIA:\n\n` +
       `Estás a punto de eliminar permanentemente al usuario:\n` +
-      `${usuario.nombre_completo} (${usuario.email})\n\n` +
+      `${usuario.nombre_usuario} (${usuario.email})\n\n` +
       `Esta acción NO se puede deshacer. ¿Continuar?`
     );
 
@@ -424,24 +408,14 @@ export class GestionUsuariosComponent implements OnInit {
     const nuevoEstado = !usuario.activo;
     const accion = nuevoEstado ? 'activar' : 'desactivar';
 
-    if (confirm(`¿Estás seguro de ${accion} al usuario ${usuario.nombre_completo}?`)) {
+    if (confirm(`¿Estás seguro de ${accion} al usuario ${usuario.nombre_usuario}?`)) {
       this.usuarioIdEnAccion.set(usuario.id);
       this.cambiarEstadoMutation.mutate({ id: usuario.id, activo: nuevoEstado });
     }
   }
 
-  obtenerEtiquetaTipoUsuario(tipo: string): string {
-    const etiquetas: { [key: string]: string } = {
-      'peruano_mayor': 'Peruano Mayor',
-      'peruano_menor': 'Peruano Menor',
-      'extranjero': 'Extranjero'
-    };
-    return etiquetas[tipo] || tipo;
-  }
-
   limpiarFiltros(): void {
     this.filtroTexto = '';
-    this.filtroTipo = 'todos';
     this.filtroEstado = 'todos';
     this.aplicarFiltros();
   }
@@ -452,13 +426,9 @@ export class GestionUsuariosComponent implements OnInit {
     if (this.filtroTexto) {
       const texto = this.filtroTexto.toLowerCase();
       filtrados = filtrados.filter(u =>
-        u.nombre_completo?.toLowerCase().includes(texto) ||
+        u.nombre_usuario?.toLowerCase().includes(texto) ||
         u.email.toLowerCase().includes(texto)
       );
-    }
-
-    if (this.filtroTipo !== 'todos') {
-      filtrados = filtrados.filter(u => u.tipo_usuario === this.filtroTipo);
     }
 
     if (this.filtroEstado === 'activos') {
@@ -500,13 +470,11 @@ export class GestionUsuariosComponent implements OnInit {
     try {
       const datosExportar = this.usuariosFiltrados.map(usuario => ({
         'ID': usuario.id,
-        'Nombre Completo': usuario.nombre_completo || '',
+        'Nombre de Usuario': usuario.nombre_usuario || '',
         'Email': usuario.email,
-        'DNI': usuario.dni || '-',
-        'Pasaporte': usuario.pasaporte || '-',
-        'Tipo Usuario': this.obtenerEtiquetaTipoUsuario(usuario.tipo_usuario),
         'Rol': usuario.rol?.nombre || 'Usuario',
         'Estado': usuario.activo ? 'Activo' : 'Inactivo',
+        'Verificado': usuario.verificado ? 'Sí' : 'No',
         'Fecha Registro': this.formatearFecha(usuario.fecha_creacion)
       }));
 
@@ -517,8 +485,6 @@ export class GestionUsuariosComponent implements OnInit {
         { wch: 30 },
         { wch: 35 },
         { wch: 15 },
-        { wch: 15 },
-        { wch: 18 },
         { wch: 12 },
         { wch: 12 },
         { wch: 15 }
@@ -558,10 +524,8 @@ export class GestionUsuariosComponent implements OnInit {
 
       const datosTabla = this.usuariosFiltrados.map(usuario => [
         usuario.id.toString(),
-        usuario.nombre_completo || '',
+        usuario.nombre_usuario || '',
         usuario.email,
-        usuario.dni || usuario.pasaporte || '-',
-        this.obtenerEtiquetaTipoUsuario(usuario.tipo_usuario),
         usuario.rol?.nombre || 'Usuario',
         usuario.activo ? 'Activo' : 'Inactivo',
         this.formatearFecha(usuario.fecha_creacion)
@@ -569,7 +533,7 @@ export class GestionUsuariosComponent implements OnInit {
 
       doc.autoTable({
         startY: 35,
-        head: [['ID', 'Nombre', 'Email', 'Documento', 'Tipo', 'Rol', 'Estado', 'Fecha Registro']],
+        head: [['ID', 'Usuario', 'Email', 'Rol', 'Estado', 'Fecha Registro']],
         body: datosTabla,
         styles: {
           fontSize: 8,
@@ -585,13 +549,11 @@ export class GestionUsuariosComponent implements OnInit {
         },
         columnStyles: {
           0: { cellWidth: 12 },
-          1: { cellWidth: 45 },
-          2: { cellWidth: 50 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 30 },
-          5: { cellWidth: 20 },
-          6: { cellWidth: 20 },
-          7: { cellWidth: 28 }
+          1: { cellWidth: 50 },
+          2: { cellWidth: 60 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 25 },
+          5: { cellWidth: 32 }
         },
         margin: { left: 14, right: 14 }
       });

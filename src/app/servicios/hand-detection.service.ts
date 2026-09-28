@@ -16,8 +16,6 @@ export class HandDetectionService {
   private isDetecting: boolean = false;
   private onResultsCallback: ((results: any) => void) | null = null;
   private animationFrameId: number | null = null;
-
-
   private envioEnCurso: Promise<void> | null = null;
   private cerrando: boolean = false;
 
@@ -40,7 +38,7 @@ export class HandDetectionService {
       this.hands.setOptions({
         maxNumHands: 2,
         modelComplexity: 1,
-        minDetectionConfidence: 0.7,
+        minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
 
@@ -147,12 +145,12 @@ export class HandDetectionService {
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         for (let index = 0; index < results.multiHandLandmarks.length; index++) {
           const landmarks = results.multiHandLandmarks[index];
-
           const handedness = results.multiHandedness?.[index]?.label || 'Unknown';
-          const isRightHand = handedness === 'Right';
+          const score = results.multiHandedness?.[index]?.score ?? 0;
 
-          const connectionColor = isRightHand ? '#00FF00' : '#00FFFF';
-          const landmarkColor = isRightHand ? '#FF0000' : '#FF00FF';
+          const esConfiable = score >= 0.75;
+          const connectionColor = !esConfiable ? '#888888' : (handedness === 'Right' ? '#00FF00' : '#00FFFF');
+          const landmarkColor = !esConfiable ? '#555555' : (handedness === 'Right' ? '#FF0000' : '#FF00FF');
 
           if (this.drawingUtils && this.handsModule) {
             this.drawingUtils.drawConnectors(
@@ -169,46 +167,37 @@ export class HandDetectionService {
             );
           }
         }
-
-        if (results.multiHandedness) {
-          for (let i = 0; i < results.multiHandedness.length; i++) {
-            const handedness = results.multiHandedness[i];
-            const landmarks = results.multiHandLandmarks[i];
-
-            if (landmarks && landmarks[0]) {
-              const wrist = landmarks[0];
-              const x = wrist.x * canvas.width;
-              const y = wrist.y * canvas.height;
-
-              this.canvasCtx.fillStyle = '#FFFFFF';
-              this.canvasCtx.strokeStyle = '#000000';
-              this.canvasCtx.lineWidth = 3;
-              this.canvasCtx.font = 'bold 16px Arial';
-
-              const score = handedness.score ?? 0;
-              const text = `${handedness.label} (${Math.round(score * 100)}%)`;
-              this.canvasCtx.strokeText(text, x - 40, y - 10);
-              this.canvasCtx.fillText(text, x - 40, y - 10);
-            }
-          }
-        }
       }
 
       this.canvasCtx.restore();
+
+      if (results.multiHandLandmarks && results.multiHandedness) {
+        for (let i = 0; i < results.multiHandedness.length; i++) {
+          const handedness = results.multiHandedness[i];
+          const landmarks = results.multiHandLandmarks[i];
+
+          if (landmarks && landmarks[0]) {
+            const wrist = landmarks[0];
+            const x = wrist.x * canvas.width;
+            const y = wrist.y * canvas.height;
+
+            this.canvasCtx.fillStyle = '#FFFFFF';
+            this.canvasCtx.strokeStyle = '#000000';
+            this.canvasCtx.lineWidth = 3;
+            this.canvasCtx.font = 'bold 16px Arial';
+
+            const score = handedness.score ?? 0;
+            const text = `${handedness.label} (${Math.round(score * 100)}%)`;
+            this.canvasCtx.strokeText(text, x - 40, y - 10);
+            this.canvasCtx.fillText(text, x - 40, y - 10);
+          }
+        }
+      }
     } catch (error) {
       console.warn('Error dibujando resultados:', error);
     }
   }
 
-  /**
-   * Detiene la detección de forma rápida y no bloqueante:
-   * 1) Corta el bucle de captura al instante (síncrono) para que la
-   *    navegación se sienta inmediata.
-   * 2) Espera (con límite de tiempo) a que termine cualquier send()
-   *    en vuelo.
-   * 3) Recién ahí cierra MediaPipe. Cerrar mientras un send() sigue
-   *    en curso es lo que colgaba la pestaña.
-   */
   async detenerDeteccion(): Promise<void> {
     if (this.cerrando) return;
     this.cerrando = true;
@@ -224,7 +213,6 @@ export class HandDetectionService {
         const canvas = this.canvasCtx.canvas;
         this.canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
       } catch {
-        // no-op
       }
     }
 
@@ -257,24 +245,41 @@ export class HandDetectionService {
   }
 
   verificarManoDetectada(results: any): boolean {
-    return !!(results?.multiHandLandmarks && results.multiHandLandmarks.length > 0);
+    if (!results?.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+      return false;
+    }
+
+    const scores = results.multiHandedness?.map((h: any) => h.score ?? 0) ?? [];
+    return scores.some((s: number) => s >= 0.75);
   }
 
-  obtenerInfoManos(results: any): any[] {
-    if (!results?.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-      return [];
+  obtenerLandmarksConSlotsFijos(results: any): any[] {
+    const lms = results?.multiHandLandmarks || [];
+    const handedness = results?.multiHandedness || [];
+
+    const slots: any[] = [[], []];
+
+    for (let i = 0; i < lms.length; i++) {
+      const label = (handedness[i]?.label || '').toString();
+      if (label === 'Right' && slots[0].length === 0) {
+        slots[0] = lms[i];
+      } else if (label === 'Left' && slots[1].length === 0) {
+        slots[1] = lms[i];
+      }
     }
 
-    const infos = [];
-    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-      infos.push({
-        landmarks: results.multiHandLandmarks[i],
-        handedness: results.multiHandedness?.[i]?.label || 'Unknown',
-        score: results.multiHandedness?.[i]?.score ?? 0
-      });
-    }
+    return slots;
+  }
 
-    return infos;
+  convertirSlotsASimplificados(slots: any[]): any[] {
+    return slots.map(mano => {
+      const puntos = Array.isArray(mano) ? mano : [];
+      return puntos.slice(0, 21).map((punto: any) => ({
+        x: Number(punto.x) || 0,
+        y: Number(punto.y) || 0,
+        z: Number(punto.z) || 0
+      }));
+    });
   }
 
   calcularCentroMano(landmarks: any[]): { x: number, y: number } {

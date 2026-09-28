@@ -92,13 +92,24 @@
             Vista de Cámara - {{ categoriaSeleccionada.nombre }}
           </h5>
 
-          <div class="form-check form-switch text-white mb-0" *ngIf="camaraActiva">
-            <input class="form-check-input" type="checkbox" role="switch" id="switchAutoGrabar"
-              [checked]="modoAutomatico" (change)="toggleModoAutomatico()">
-            <label class="form-check-label small" for="switchAutoGrabar">
-              <i class="bi" [class.bi-magic]="modoAutomatico" [class.bi-hand-index-thumb]="!modoAutomatico"></i>
-              {{ modoAutomatico ? 'Auto-grabación ON' : 'Modo manual' }}
-            </label>
+          <div class="d-flex gap-3 flex-wrap" *ngIf="camaraActiva">
+            <div class="form-check form-switch text-white mb-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="switchPrivacidad"
+                [checked]="filtroPrivacidadActivo" [disabled]="grabando" (change)="toggleFiltroPrivacidad()">
+              <label class="form-check-label small" for="switchPrivacidad">
+                <i class="bi bi-shield-check"></i>
+                Ocultar rostro
+              </label>
+            </div>
+
+            <div class="form-check form-switch text-white mb-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="switchAutoGrabar"
+                [checked]="modoAutomatico" (change)="toggleModoAutomatico()">
+              <label class="form-check-label small" for="switchAutoGrabar">
+                <i class="bi" [class.bi-magic]="modoAutomatico" [class.bi-hand-index-thumb]="!modoAutomatico"></i>
+                {{ modoAutomatico ? 'Auto-grabación ON' : 'Modo manual' }}
+              </label>
+            </div>
           </div>
         </div>
         <div class="card-body text-center bg-dark position-relative">
@@ -398,6 +409,12 @@
               Auto-grabación:
               <span *ngIf="modoAutomatico" class="badge bg-success">Activa</span>
               <span *ngIf="!modoAutomatico" class="badge bg-secondary">Desactivada</span>
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-shield-check me-2"></i>
+              Ocultar rostro:
+              <span *ngIf="filtroPrivacidadActivo" class="badge bg-success">Activo</span>
+              <span *ngIf="!filtroPrivacidadActivo" class="badge bg-secondary">Desactivado</span>
             </li>
             <li>
               <i class="bi bi-grid-3x3 me-2"></i>

@@ -20,23 +20,14 @@
   <div class="card mb-4">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-6">
           <div class="input-group">
             <span class="input-group-text">
               <i class="bi bi-search"></i>
             </span>
-            <input type="text" class="form-control" placeholder="Buscar por nombre o email" [(ngModel)]="filtroTexto"
-              (ngModelChange)="aplicarFiltros()">
+            <input type="text" class="form-control" placeholder="Buscar por nombre de usuario o email"
+              [(ngModel)]="filtroTexto" (ngModelChange)="aplicarFiltros()">
           </div>
-        </div>
-
-        <div class="col-6 col-md-3">
-          <select class="form-select" [(ngModel)]="filtroTipo" (ngModelChange)="aplicarFiltros()">
-            <option value="todos">Todos los tipos</option>
-            <option value="peruano_mayor">Peruano Mayor</option>
-            <option value="peruano_menor">Peruano Menor</option>
-            <option value="extranjero">Extranjero</option>
-          </select>
         </div>
 
         <div class="col-6 col-md-3">
@@ -47,7 +38,7 @@
           </select>
         </div>
 
-        <div class="col-12 col-md-2">
+        <div class="col-6 col-md-3">
           <button class="btn btn-outline-secondary w-100" (click)="limpiarFiltros()">
             <i class="bi bi-x-circle me-2"></i>
             Limpiar
@@ -66,7 +57,6 @@
               <th>ID</th>
               <th>Usuario</th>
               <th>Email</th>
-              <th>Tipo</th>
               <th>Rol</th>
               <th>Estado</th>
               <th>Fecha Registro</th>
@@ -79,23 +69,10 @@
               <td>
                 <div class="d-flex align-items-center">
                   <i class="bi bi-person-circle fs-3 text-primary me-2"></i>
-                  <div>
-                    <div class="fw-bold">{{ usuario.nombre_completo }}</div>
-                    <small class="text-muted" *ngIf="usuario.dni">
-                      DNI: {{ usuario.dni }}
-                    </small>
-                    <small class="text-muted" *ngIf="usuario.pasaporte">
-                      Pasaporte: {{ usuario.pasaporte }}
-                    </small>
-                  </div>
+                  <div class="fw-bold">{{ usuario.nombre_usuario }}</div>
                 </div>
               </td>
               <td>{{ usuario.email }}</td>
-              <td>
-                <span class="badge bg-info text-dark">
-                  {{ obtenerEtiquetaTipoUsuario(usuario.tipo_usuario) }}
-                </span>
-              </td>
               <td>
                 <span class="badge bg-secondary">
                   {{ usuario.rol?.nombre || 'Usuario' }}
@@ -143,7 +120,7 @@
 
   <div class="modal fade" [class.show]="mostrarModalEdicion" [style.display]="mostrarModalEdicion ? 'block' : 'none'"
     tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-info text-white">
           <h5 class="modal-title">
@@ -155,60 +132,21 @@
         </div>
         <div class="modal-body">
           <form *ngIf="usuarioEditando">
-            <div class="row mb-3">
-              <div class="col-md-12">
-                <label class="form-label fw-bold">Nombres</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.nombres" name="nombres"
-                  [disabled]="guardandoEdicion()">
-              </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Nombre de Usuario</label>
+              <input type="text" class="form-control" [(ngModel)]="formEdicion.nombre_usuario" name="nombre_usuario"
+                [disabled]="guardandoEdicion()">
             </div>
 
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Apellido Paterno</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_paterno"
-                  name="apellido_paterno" [disabled]="guardandoEdicion()">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Apellido Materno</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.apellido_materno"
-                  name="apellido_materno" [disabled]="guardandoEdicion()">
-              </div>
-            </div>
-
-            <div class="row mb-3">
-              <div class="col-md-12">
-                <label class="form-label fw-bold">Email</label>
-                <input type="email" class="form-control" [(ngModel)]="formEdicion.email" name="email"
-                  [disabled]="guardandoEdicion()">
-              </div>
-            </div>
-
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Teléfono</label>
-                <input type="text" class="form-control" [(ngModel)]="formEdicion.telefono" name="telefono"
-                  placeholder="+51987654321" [disabled]="guardandoEdicion()">
-                <small class="text-muted">Incluye código de país (ej: +51)</small>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Fecha de Nacimiento</label>
-                <input type="date" class="form-control" [(ngModel)]="formEdicion.fecha_nacimiento"
-                  name="fecha_nacimiento" [disabled]="guardandoEdicion()">
-              </div>
-            </div>
-
-            <div class="row mb-3">
-              <div class="col-md-12">
-                <label class="form-label fw-bold">Dirección</label>
-                <textarea class="form-control" rows="2" [(ngModel)]="formEdicion.direccion" name="direccion"
-                  [disabled]="guardandoEdicion()"></textarea>
-              </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Email</label>
+              <input type="email" class="form-control" [value]="usuarioEditando.email" disabled readonly>
+              <small class="text-muted">El correo no se puede modificar desde aquí</small>
             </div>
 
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              <strong>Nota:</strong> Los campos DNI/Pasaporte y tipo de usuario no se pueden modificar por seguridad.
+              <strong>Nota:</strong> Solo el nombre de usuario puede modificarse desde este panel.
             </div>
           </form>
         </div>
@@ -242,7 +180,7 @@
         <div class="modal-body" *ngIf="usuarioCambiandoRol">
           <div class="mb-3">
             <p class="fw-bold">Usuario:</p>
-            <p>{{ usuarioCambiandoRol.nombre_completo }}</p>
+            <p>{{ usuarioCambiandoRol.nombre_usuario }}</p>
             <p class="text-muted small">{{ usuarioCambiandoRol.email }}</p>
           </div>
 
@@ -358,7 +296,7 @@
           <div class="d-flex align-items-center">
             <i class="bi bi-person-circle fs-2 text-primary me-3"></i>
             <div>
-              <h6 class="mb-1">{{ usuarioSeleccionado.nombre_completo }}</h6>
+              <h6 class="mb-1">{{ usuarioSeleccionado.nombre_usuario }}</h6>
               <small class="text-muted">{{ usuarioSeleccionado.email }}</small>
             </div>
           </div>

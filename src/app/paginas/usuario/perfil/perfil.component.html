@@ -4,11 +4,10 @@
       <div class="avatar-section">
         <div class="avatar-large">{{ iniciales }}</div>
         <div class="usuario-info">
-          <h2 class="usuario-nombre">{{ usuario()?.nombres }} {{ usuario()?.apellido_paterno }} {{ usuario()?.apellido_materno }}</h2>
+          <h2 class="usuario-nombre">{{ usuario()?.nombre_usuario }}</h2>
           <p class="usuario-email">{{ usuario()?.email }}</p>
-          <span class="usuario-badge" [class.admin-badge]="usuario()?.es_admin"
-            [class.trainer-badge]="usuario()?.rol?.codigo === 'entrenador'">
-            {{ usuario()?.es_admin ? 'Administrador' : (usuario()?.rol?.nombre || 'Usuario') }}
+          <span class="usuario-badge" [class.admin-badge]="usuario()?.es_admin">
+            {{ nombreRol }}
           </span>
         </div>
       </div>
@@ -20,70 +19,45 @@
     <div class="perfil-divider"></div>
 
     <div class="perfil-section">
-      <h3 class="section-title">Información Personal</h3>
+      <h3 class="section-title">Información de la Cuenta</h3>
 
       <form [formGroup]="perfilForm">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Tipo de Usuario</label>
-            <input type="text" formControlName="tipo_usuario" class="form-input" readonly />
+            <label class="form-label">Estado de la Cuenta</label>
+            <input type="text" [value]="estadoCuenta" class="form-input" readonly />
           </div>
 
           <div class="form-group">
-            <label class="form-label">{{ documentoLabel }}</label>
-            <input type="text" formControlName="documento" class="form-input" readonly />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Nombres *</label>
-            <input type="text" formControlName="nombres" class="form-input" placeholder="Nombres completos" readonly />
-            <p class="help-text">No se puede modificar</p>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Apellidos *</label>
-            <input type="text" formControlName="apellidos" class="form-input" placeholder="Apellidos completos"
-              readonly />
-            <p class="help-text">No se puede modificar</p>
+            <label class="form-label">Verificación</label>
+            <input type="text" [value]="estadoVerificacion" class="form-input" readonly />
           </div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Correo Electrónico *</label>
-          <input type="email" formControlName="email" class="form-input" placeholder="correo@ejemplo.com" readonly />
+          <label class="form-label">Correo Electrónico</label>
+          <input type="email" [value]="usuario()?.email" class="form-input" readonly />
           <p class="help-text">No se puede modificar</p>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Teléfono</label>
-
-            <div *ngIf="!editando" class="telefono-display">
-              <input type="text" [value]="telefonoFormateado" class="form-input" readonly />
-            </div>
-
-            <div *ngIf="editando" class="telefono-wrapper">
-              <select formControlName="codigo_pais" class="form-select codigo-pais" (change)="onCodigoPaisChange()">
-                <option *ngFor="let pais of codigosPais" [value]="pais.codigo">
-                  {{ pais.flag }} {{ pais.codigo }}
-                </option>
-              </select>
-              <input type="tel" formControlName="telefono" class="form-input telefono-input" placeholder="987654321"
-                [maxlength]="maxLongitudTelefono" (input)="validarSoloNumeros($event)" />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Fecha de Nacimiento</label>
-            <input type="date" formControlName="fecha_nacimiento" class="form-input" />
-          </div>
-        </div>
-
         <div class="form-group">
-          <label class="form-label">Dirección</label>
-          <input type="text" formControlName="direccion" class="form-input" placeholder="Av. Example 123, Lima" />
+          <label class="form-label">Nombre de Usuario *</label>
+          <input type="text" formControlName="nombre_usuario" class="form-input"
+            [class.input-error]="perfilForm.get('nombre_usuario')?.invalid && perfilForm.get('nombre_usuario')?.touched"
+            placeholder="usuario_123" />
+          <p class="help-text" *ngIf="editando">
+            Entre 3 y 30 caracteres: letras, números y guion bajo (_)
+          </p>
+          <div *ngIf="perfilForm.get('nombre_usuario')?.invalid && perfilForm.get('nombre_usuario')?.touched"
+            class="error-message">
+            <span *ngIf="perfilForm.get('nombre_usuario')?.errors?.['required']">Este campo es obligatorio.</span>
+            <span *ngIf="perfilForm.get('nombre_usuario')?.errors?.['minlength'] || perfilForm.get('nombre_usuario')?.errors?.['maxlength']">
+              Debe tener entre 3 y 30 caracteres.
+            </span>
+            <span *ngIf="perfilForm.get('nombre_usuario')?.errors?.['pattern']">
+              Solo letras, números y guion bajo (_).
+            </span>
+          </div>
         </div>
 
         <div class="form-actions" *ngIf="editando">

@@ -14,7 +14,6 @@ import {
   RespuestaRecuperacion,
   CambiarPassword,
   VerificarEmailResponse,
-  TipoUsuario,
   ValidacionUtils,
   esUsuarioAdmin
 } from '../modelos/usuario.model';
@@ -222,39 +221,8 @@ export class AutenticacionService {
     return false;
   }
 
-  obtenerTipoUsuario(): TipoUsuario | null {
-    return this.usuarioActualValor?.tipo_usuario || null;
-  }
-
-  esPeruanoMayor(): boolean {
-    return this.usuarioActualValor?.tipo_usuario === 'peruano_mayor';
-  }
-
-  esPeruanoMenor(): boolean {
-    return this.usuarioActualValor?.tipo_usuario === 'peruano_menor';
-  }
-
-  esExtranjero(): boolean {
-    return this.usuarioActualValor?.tipo_usuario === 'extranjero';
-  }
-
   obtenerToken(): string | null {
     return localStorage.getItem('token');
-  }
-
-  obtenerDocumentoIdentidad(): string {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return 'Sin documento';
-    if (usuario.tipo_usuario === 'extranjero' && usuario.pasaporte) {
-      return usuario.pasaporte;
-    }
-    return usuario.dni || 'Sin documento';
-  }
-
-  obtenerTipoDocumento(): string {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return 'Documento';
-    return ValidacionUtils.obtenerTipoDocumento(usuario);
   }
 
   obtenerUsuarioActual(): Usuario | null {
@@ -286,38 +254,8 @@ export class AutenticacionService {
     this.cargaUsuario$ = undefined;
   }
 
-  obtenerTelefonoCompleto(codigoPais: string, numero: string): string | null {
-    if (!numero || numero.trim() === '') return null;
-    const numeroLimpio = numero.replace(/\D/g, '');
-    return `${codigoPais}${numeroLimpio}`;
-  }
-
-  extraerCodigoPais(telefono: string | null | undefined): string {
-    if (!telefono) return '+51';
-    return ValidacionUtils.extraerCodigoPais(telefono);
-  }
-
-  extraerNumeroTelefono(telefono: string | null | undefined): string {
-    if (!telefono) return '';
-    return ValidacionUtils.extraerNumeroSinCodigo(telefono);
-  }
-
-  formatearTelefono(telefono: string | null | undefined): string {
-    if (!telefono) return 'No especificado';
-    return ValidacionUtils.formatearTelefono(telefono);
-  }
-
-  validarDni(dni: string): boolean {
-    return ValidacionUtils.esDniValido(dni);
-  }
-
-  validarPasaporte(pasaporte: string): boolean {
-    return ValidacionUtils.esPasaporteValido(pasaporte);
-  }
-
-  validarTelefono(telefono: string): boolean {
-    if (!telefono) return true;
-    return ValidacionUtils.esTelefonoValido(telefono);
+  validarNombreUsuario(nombreUsuario: string): boolean {
+    return ValidacionUtils.esNombreUsuarioValido(nombreUsuario);
   }
 
   validarEmail(email: string): boolean {
@@ -411,19 +349,7 @@ export class AutenticacionService {
     );
   }
 
-  calcularEdad(fechaNacimiento: Date | string): number | null {
-    return ValidacionUtils.calcularEdad(fechaNacimiento);
-  }
-
-  validarEdadPorTipo(fechaNacimiento: Date | string, tipoUsuario: TipoUsuario): boolean {
-    return ValidacionUtils.validarEdadPorTipo(fechaNacimiento, tipoUsuario);
-  }
-
   normalizarEmail(email: string): string {
     return ValidacionUtils.normalizarEmail(email);
-  }
-
-  normalizarPasaporte(pasaporte: string): string {
-    return ValidacionUtils.normalizarPasaporte(pasaporte);
   }
 }

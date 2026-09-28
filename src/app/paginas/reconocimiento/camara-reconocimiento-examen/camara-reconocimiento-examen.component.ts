@@ -4,7 +4,7 @@ import { AutenticacionService } from '../../../servicios/autenticacion.service';
 import { ReconocimientoService, ResultadoReconocimientoVideo } from '../../../servicios/reconocimiento.service';
 import { CategoriaService, Categoria } from '../../../servicios/categoria.service';
 import { Subscription } from 'rxjs';
-import { obtenerConfiguracionTiempo, ConfiguracionTiempo, calcularTiempoPorEdad } from '../../../config/tiempos-practica.config';
+import { obtenerConfiguracionTiempo, ConfiguracionTiempo, NivelDificultad } from '../../../config/tiempos-practica.config';
 import { Hands, HAND_CONNECTIONS, Results } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { Camera } from '@mediapipe/camera_utils';
@@ -22,6 +22,8 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
   @Input() senaObjetivo: string = '';
   @Input() categoriaId?: number;
   @Input() tipoContenido?: 'letras' | 'numeros' | 'colores' | 'comunes';
+  @Input() nivelDificultad: NivelDificultad = 1;
+  @Input() activarAudio: boolean = true;
   @Output() resultadoEmitido = new EventEmitter<any>();
 
   procesando: boolean = false;
@@ -70,6 +72,11 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
   private camaraInicializada: boolean = false;
   private componenteDestruido: boolean = false;
 
+  private readonly RETRASO_EMIT_EXITO_MS = 1300;
+  private colaVoz: string[] = [];
+  private hablandoVoz: boolean = false;
+  private emitPendiente: any = null;
+
   constructor(
     private http: HttpClient,
     private autenticacionService: AutenticacionService,
@@ -78,15 +85,18 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
   ) {
-    this.configuracionTiempo = this.obtenerConfiguracion();
+    this.configuracionTiempo = obtenerConfiguracionTiempo(this.nivelDificultad);
     this.aplicarConfiguracion();
   }
 
   ngOnInit(): void {
     this.componenteDestruido = false;
-    
+
+    this.configuracionTiempo = obtenerConfiguracionTiempo(this.nivelDificultad);
+    this.aplicarConfiguracion();
+
     this.cargarCategoriasDisponibles();
-    
+
     if (this.categoriaId) {
       this.reconocimientoService.establecerCategoria(this.categoriaId);
     }
@@ -134,17 +144,6 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
   ngOnDestroy(): void {
     this.componenteDestruido = true;
     this.detenerTodoInmediatamente();
-  }
-
-  private obtenerConfiguracion(): ConfiguracionTiempo {
-    const usuario = this.autenticacionService.usuarioActualValor;
-    if (!usuario) return obtenerConfiguracionTiempo(null);
-    if (usuario.tipo_usuario) return obtenerConfiguracionTiempo(usuario.tipo_usuario);
-    if (usuario.fecha_nacimiento) {
-      const edad = this.autenticacionService.calcularEdad(usuario.fecha_nacimiento);
-      return calcularTiempoPorEdad(edad);
-    }
-    return obtenerConfiguracionTiempo(null);
   }
 
   private aplicarConfiguracion(): void {
@@ -207,7 +206,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     const nombresBuscados = mapeoTipos[this.tipoContenido!] || ['Comunes'];
 
     const categoriaEncontrada = this.categoriasDisponibles.find(cat =>
-      nombresBuscados.some(nombre => 
+      nombresBuscados.some(nombre =>
         cat.nombre.toUpperCase().includes(nombre.toUpperCase())
       )
     );
@@ -235,6 +234,13 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     this.isProcessingFrame = false;
 
     this.detenerTemporizador();
+
+    if (this.emitPendiente) {
+      clearTimeout(this.emitPendiente);
+      this.emitPendiente = null;
+    }
+
+    this.detenerColaVoz();
 
     try {
       this.reconocimientoService.detenerReconocimiento();
@@ -375,7 +381,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
           clearTimeout(timeout);
           resolve();
         };
-        
+
         videoEl.onerror = () => {
           clearTimeout(timeout);
           reject(new Error('Error al cargar el video'));
@@ -388,9 +394,9 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
       }
 
       await videoEl.play();
-      
+
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       this.ajustarCanvasATamanioVideo();
 
       this.camaraActiva = true;
@@ -402,7 +408,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
       this.cdr.detectChanges();
 
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       await this.iniciarReconocimiento();
 
     } catch (error: any) {
@@ -427,7 +433,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
+
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         const settings = videoTrack.getSettings();
@@ -451,7 +457,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
   private ajustarCanvasATamanioVideo(): void {
     const video = this.videoElement?.nativeElement;
     const canvas = this.canvasElement?.nativeElement;
-    
+
     if (video && canvas && video.videoWidth > 0 && video.videoHeight > 0) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -542,7 +548,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     }
 
     this.isProcessingFrame = false;
-    
+
     if (!this.componenteDestruido) {
       this.cdr.markForCheck();
     }
@@ -667,7 +673,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
       this.error = 'Error al iniciar';
       this.errorDetalle = error.message;
       this.reconocimientoActivo = false;
-      
+
       if (!this.componenteDestruido) {
         this.cdr.detectChanges();
       }
@@ -692,7 +698,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     this.confianza = resultado.confianza || 0;
 
     this.verificarDeteccionEstable();
-    
+
     if (!this.componenteDestruido) {
       this.cdr.detectChanges();
     }
@@ -718,20 +724,31 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     this.detenerTemporizador();
     this.reconocimientoService.detenerReconocimiento();
 
-    setTimeout(() => {
+    const senaConfirmada = this.senaDetectada;
+
+    if (this.activarAudio) {
+      this.reproducirLetraPorVoz(senaConfirmada);
+    }
+
+    const datosResultado = {
+      exito: true,
+      sena_reconocida: senaConfirmada,
+      confianza: this.confianza,
+      detecciones: this.deteccionesConsecutivas,
+      categoria_id: this.categoriaId,
+      tipo_contenido: this.tipoContenido,
+      categoria_nombre: this.categoriaSeleccionada?.nombre,
+      modelo_usado: this.categoriaSeleccionada?.modelo_nombre
+    };
+
+    const retraso = this.activarAudio ? this.RETRASO_EMIT_EXITO_MS : 500;
+
+    this.emitPendiente = setTimeout(() => {
+      this.emitPendiente = null;
       if (!this.componenteDestruido) {
-        this.resultadoEmitido.emit({
-          exito: true,
-          sena_reconocida: this.senaDetectada,
-          confianza: this.confianza,
-          detecciones: this.deteccionesConsecutivas,
-          categoria_id: this.categoriaId,
-          tipo_contenido: this.tipoContenido,
-          categoria_nombre: this.categoriaSeleccionada?.nombre,
-          modelo_usado: this.categoriaSeleccionada?.modelo_nombre
-        });
+        this.resultadoEmitido.emit(datosResultado);
       }
-    }, 500);
+    }, retraso);
   }
 
   private manejarTiempoAgotado(): void {
@@ -741,27 +758,75 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
     this.detenerTemporizador();
     this.reconocimientoService.detenerReconocimiento();
 
-    setTimeout(() => {
+    const datosResultado = {
+      exito: false,
+      sena_reconocida: this.senaDetectada || '',
+      confianza: this.confianza,
+      detecciones: this.deteccionesConsecutivas,
+      timeout: true,
+      categoria_id: this.categoriaId,
+      tipo_contenido: this.tipoContenido,
+      categoria_nombre: this.categoriaSeleccionada?.nombre,
+      modelo_usado: this.categoriaSeleccionada?.modelo_nombre
+    };
+
+    this.emitPendiente = setTimeout(() => {
+      this.emitPendiente = null;
       if (!this.componenteDestruido) {
-        this.resultadoEmitido.emit({
-          exito: false,
-          sena_reconocida: this.senaDetectada || '',
-          confianza: this.confianza,
-          detecciones: this.deteccionesConsecutivas,
-          timeout: true,
-          categoria_id: this.categoriaId,
-          tipo_contenido: this.tipoContenido,
-          categoria_nombre: this.categoriaSeleccionada?.nombre,
-          modelo_usado: this.categoriaSeleccionada?.modelo_nombre
-        });
+        this.resultadoEmitido.emit(datosResultado);
       }
     }, 500);
+  }
+
+  private reproducirLetraPorVoz(texto: string): void {
+    if (!texto || !window.speechSynthesis) return;
+
+    if (this.colaVoz.length >= 5) {
+      this.colaVoz.shift();
+    }
+    this.colaVoz.push(texto);
+    this.procesarColaVoz();
+  }
+
+  private procesarColaVoz(): void {
+    if (this.hablandoVoz || this.colaVoz.length === 0 || !window.speechSynthesis || this.componenteDestruido) {
+      return;
+    }
+
+    const texto = this.colaVoz.shift()!;
+    this.hablandoVoz = true;
+
+    const utterance = new SpeechSynthesisUtterance(texto);
+    utterance.lang = 'es-PE';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onend = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    utterance.onerror = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  private detenerColaVoz(): void {
+    this.colaVoz = [];
+    this.hablandoVoz = false;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
   }
 
   private iniciarTemporizador(): void {
     this.detenerTemporizador();
     this.temporizador = this.tiempoInicial;
-    
+
     this.intervaloTemporizador = setInterval(() => {
       if (this.componenteDestruido) {
         this.detenerTemporizador();
@@ -857,14 +922,7 @@ export class CamaraReconocimientoExamenComponent implements OnInit, AfterViewIni
   }
 
   get infoConfiguracion(): string {
-    const usuario = this.autenticacionService.usuarioActualValor;
-    if (!usuario) return 'Configuración estándar';
-
-    const edad = usuario.fecha_nacimiento
-      ? this.autenticacionService.calcularEdad(usuario.fecha_nacimiento)
-      : null;
-
-    return `${this.configuracionTiempo.descripcion}${edad ? ` (${edad} años)` : ''}`;
+    return this.configuracionTiempo.descripcion;
   }
 
   get requiereDosManos(): boolean {

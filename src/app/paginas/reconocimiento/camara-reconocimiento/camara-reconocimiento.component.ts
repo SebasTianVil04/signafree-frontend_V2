@@ -3,12 +3,10 @@ import { HttpClient } from '@angular/common/http';
 import { AutenticacionService } from '../../../servicios/autenticacion.service';
 import { ReconocimientoService, ResultadoReconocimientoVideo } from '../../../servicios/reconocimiento.service';
 import { CategoriaService, Categoria } from '../../../servicios/categoria.service';
+import { HandDetectionService } from '../../../servicios/hand-detection.service';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { QueryClient } from '@tanstack/angular-query-experimental';
-import { obtenerConfiguracionTiempo, ConfiguracionTiempo, calcularTiempoPorEdad } from '../../../config/tiempos-practica.config';
-import { Hands, HAND_CONNECTIONS, Results } from '@mediapipe/hands';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { Camera } from '@mediapipe/camera_utils';
+import { obtenerConfiguracionTiempo, ConfiguracionTiempo, NivelDificultad } from '../../../config/tiempos-practica.config';
 
 @Component({
   selector: 'app-camara-reconocimiento',
@@ -24,7 +22,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   @Input() modo: 'video' = 'video';
   @Input() categoriaId?: number;
   @Input() tipoContenido?: 'letras' | 'numeros' | 'colores' | 'comunes';
+  @Input() nivelDificultad: NivelDificultad = 1;
   @Input() modoContinuo: boolean = false;
+  @Input() activarAudio: boolean = true;
   @Output() resultadoEmitido = new EventEmitter<any>();
 
   procesando: boolean = false;
@@ -55,7 +55,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   configuracionTiempo: ConfiguracionTiempo;
   tiempoInicial: number = 45;
   umbralDeteccionEstable: number = 2;
-  umbralConfianzaMinima: number = 0.70;
+  umbralConfianzaMinima: number = 0.30;
 
   resultadosRecientes: any[] = [];
   deteccionesConsecutivas: number = 0;
@@ -66,21 +66,16 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   cargandoCategorias: boolean = false;
   instruccionesAbiertas: boolean = false;
 
+  letraEnVivo: string = '';
+  confianzaEnVivo: number = 0;
+
   private reconocimientoSubscription?: Subscription;
   estaProcesando: boolean = false;
 
-  private hands?: Hands;
-  private camera?: Camera;
-  private mediaPipeInicializado: boolean = false;
   private ultimoFrameEnviado: number = 0;
   private minIntervaloEntreFrames: number = 80;
 
-  private frameEnProceso: boolean = false;
-  private ultimoFrameProcesadoMP: number = 0;
-  private minIntervaloProcesamientoMP: number = 100;
-
   private inicializacionEnProgreso: boolean = false;
-  private animationFrameId?: number;
 
   private permisoDenegado: boolean = false;
   private reintentosPermiso: number = 0;
@@ -88,25 +83,38 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private streamActivo: MediaStream | null = null;
   private camaraInicializada: boolean = false;
 
-  private categoriaValidadaInternamente: boolean = false;
-  private modeloValidadoInternamente: boolean = false;
-  private categoriaIdInterno: number = 0;
-  private modeloNombreInterno: string = '';
+  private readonly LETRAS_ESTABLES_CONTINUO = 2;
+  private readonly COOLDOWN_CONTINUO_MS = 500;
+  private ultimaLetraEmitidaContinuo: string = '';
+  private ultimoTimestampEmisionContinuo: number = 0;
+  private bloqueoRepeticionContinuo: boolean = false;
+
+  private readonly LADO_MAX_FRAME = 480;
+  private readonly RETRASO_EMIT_EXITO_MS = 1300;
+
+  private ultimosSlotsMP: any[] = [[], []];
+
+  private colaVoz: string[] = [];
+  private hablandoVoz: boolean = false;
+  private emitPendiente: any = null;
 
   constructor(
     private http: HttpClient,
     private autenticacionService: AutenticacionService,
     private reconocimientoService: ReconocimientoService,
+    private handDetectionService: HandDetectionService,
     private categoriaService: CategoriaService,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
     private queryClient: QueryClient
   ) {
-    this.configuracionTiempo = this.obtenerConfiguracion();
+    this.configuracionTiempo = obtenerConfiguracionTiempo(this.nivelDificultad);
     this.aplicarConfiguracion();
   }
 
   ngOnInit(): void {
+    this.configuracionTiempo = obtenerConfiguracionTiempo(this.nivelDificultad);
+    this.aplicarConfiguracion();
     this.cargarCategoriasDisponibles();
   }
 
@@ -117,12 +125,13 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   ngOnDestroy(): void {
+    if (this.emitPendiente) {
+      clearTimeout(this.emitPendiente);
+      this.emitPendiente = null;
+    }
     this.detenerTodo();
     if (this.reconocimientoSubscription) {
       this.reconocimientoSubscription.unsubscribe();
-    }
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
     }
   }
 
@@ -142,38 +151,21 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
   private configurarCategoriaAutomatica(): void {
     if (this.categoriaId && this.categoriaId > 0) {
-      this.categoriaSeleccionada = this.categoriasDisponibles.find(
-        cat => cat.id === this.categoriaId
-      );
-      this.categoriaIdInterno = this.categoriaId;
-    }
-    else if (this.tipoContenido) {
+      this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this.categoriaId);
+    } else if (this.tipoContenido) {
       this.categoriaId = this.obtenerCategoriaPorTipo();
-      this.categoriaIdInterno = this.categoriaId;
-    }
-    else if (this.senaObjetivo) {
+    } else if (this.senaObjetivo) {
       this.tipoContenido = this.detectarTipoContenido(this.senaObjetivo);
       this.categoriaId = this.obtenerCategoriaPorTipo();
-      this.categoriaIdInterno = this.categoriaId;
-    }
-    else if (this.categoriasDisponibles.length > 0) {
+    } else if (this.categoriasDisponibles.length > 0) {
       this.categoriaId = this.categoriasDisponibles[0].id;
       this.categoriaSeleccionada = this.categoriasDisponibles[0];
-      this.categoriaIdInterno = this.categoriaId;
-    }
-
-    if (this.categoriaId && this.categoriaId > 0) {
-      this.reconocimientoService.establecerCategoria(this.categoriaId);
-      this.modeloNombreInterno = this.categoriaSeleccionada?.modelo_nombre || 'Global';
-      this.categoriaValidadaInternamente = true;
-      this.modeloValidadoInternamente = true;
     }
   }
 
   private esperarCategoriasCargadas(): Promise<void> {
     return new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(), 3000);
-
       const verificar = () => {
         if (!this.cargandoCategorias) {
           clearTimeout(timeout);
@@ -182,7 +174,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
           setTimeout(verificar, 200);
         }
       };
-
       verificar();
     });
   }
@@ -190,9 +181,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private configurarSuscripciones(): void {
     this.reconocimientoSubscription = this.reconocimientoService.resultado$.subscribe(
       (resultado: ResultadoReconocimientoVideo) => {
-        this.ngZone.run(() => {
-          this.procesarResultadoVideo(resultado);
-        });
+        this.ngZone.run(() => this.procesarResultadoVideo(resultado));
       }
     );
 
@@ -219,14 +208,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       staleTime: Infinity
     }).then(response => {
       if (response.exito) {
-        this.categoriasDisponibles = response.datos.filter(cat =>
-          cat.activa && cat.tiene_modelo && cat.modelo_activo
-        );
-
+        this.categoriasDisponibles = response.datos.filter(cat => cat.activa && cat.tiene_modelo && cat.modelo_activo);
         if (this.categoriaId) {
-          this.categoriaSeleccionada = this.categoriasDisponibles.find(
-            cat => cat.id === this.categoriaId
-          );
+          this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this.categoriaId);
         }
       }
       this.cargandoCategorias = false;
@@ -239,20 +223,10 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
   private detectarTipoContenido(sena: string): 'letras' | 'numeros' | 'colores' | 'comunes' {
     const senaUpper = sena.toUpperCase().trim();
-
-    if (/^\d+$/.test(senaUpper)) {
-      return 'numeros';
-    }
-
-    if (/^[A-ZÑ]$/.test(senaUpper)) {
-      return 'letras';
-    }
-
+    if (/^\d+$/.test(senaUpper)) return 'numeros';
+    if (/^[A-ZÑ]$/.test(senaUpper)) return 'letras';
     const colores = ['ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'BLANCO', 'NEGRO', 'MORADO', 'NARANJA'];
-    if (colores.includes(senaUpper)) {
-      return 'colores';
-    }
-
+    if (colores.includes(senaUpper)) return 'colores';
     return 'comunes';
   }
 
@@ -286,22 +260,11 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     return 0;
   }
 
-  private obtenerConfiguracion(): ConfiguracionTiempo {
-    const usuario = this.autenticacionService.usuarioActualValor;
-    if (!usuario) return obtenerConfiguracionTiempo(null);
-    if (usuario.tipo_usuario) return obtenerConfiguracionTiempo(usuario.tipo_usuario);
-    if (usuario.fecha_nacimiento) {
-      const edad = this.autenticacionService.calcularEdad(usuario.fecha_nacimiento);
-      return calcularTiempoPorEdad(edad);
-    }
-    return obtenerConfiguracionTiempo(null);
-  }
-
   private aplicarConfiguracion(): void {
     this.tiempoInicial = this.configuracionTiempo.tiempo_segundos;
     this.temporizador = this.configuracionTiempo.tiempo_segundos;
     this.umbralDeteccionEstable = Math.max(2, this.configuracionTiempo.detecciones_requeridas - 2);
-    this.umbralConfianzaMinima = Math.max(0.70, this.configuracionTiempo.umbral_confianza);
+    this.umbralConfianzaMinima = 0.30;
   }
 
   async inicializarCamara(): Promise<void> {
@@ -333,7 +296,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         ]);
       } catch (error) { }
 
-      await this.inicializarMediaPipe();
+      await this.handDetectionService.inicializarDetector();
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const stream = await this.solicitarPermisoCamara();
@@ -344,16 +307,8 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Timeout cargando video')), 10000);
-
-        videoEl.onloadedmetadata = () => {
-          clearTimeout(timeout);
-          resolve();
-        };
-
-        videoEl.onerror = () => {
-          clearTimeout(timeout);
-          reject(new Error('Error al cargar el video'));
-        };
+        videoEl.onloadedmetadata = () => { clearTimeout(timeout); resolve(); };
+        videoEl.onerror = () => { clearTimeout(timeout); reject(new Error('Error al cargar el video')); };
       });
 
       await videoEl.play();
@@ -371,7 +326,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
       await new Promise(resolve => setTimeout(resolve, 500));
       await this.iniciarReconocimiento();
-
     } catch (error: any) {
       this.cargando = false;
       this.inicializacionEnProgreso = false;
@@ -392,7 +346,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         },
         audio: false
       };
-
       return await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error: any) {
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
@@ -411,7 +364,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private ajustarCanvasATamanioVideo(): void {
     const video = this.videoElement?.nativeElement;
     const canvas = this.canvasElement?.nativeElement;
-
     if (video && canvas && video.videoWidth > 0 && video.videoHeight > 0) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -421,71 +373,39 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     }
   }
 
-  private async inicializarMediaPipe(): Promise<void> {
-    if (this.mediaPipeInicializado && this.hands) return;
+  private async iniciarDeteccionManos(): Promise<void> {
+    if (!this.videoElement?.nativeElement || !this.canvasElement?.nativeElement) return;
 
-    return new Promise<void>((resolve, reject) => {
-      try {
-        this.hands = new Hands({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        this.hands.setOptions({
-          maxNumHands: 2,
-          modelComplexity: 0,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.5
-        });
-
-        this.hands.onResults((results) => this.onMediaPipeResults(results));
-        this.mediaPipeInicializado = true;
-        resolve();
-      } catch (error) {
-        this.mediaPipeInicializado = false;
-        reject(error);
-      }
-    });
+    await this.handDetectionService.iniciarDeteccion(
+      this.videoElement.nativeElement,
+      this.canvasElement.nativeElement,
+      (results: any) => this.onMediaPipeResults(results)
+    );
   }
 
-  private onMediaPipeResults(results: Results): void {
-    const canvas = this.canvasElement?.nativeElement;
-    const ctx = canvas?.getContext('2d');
+  private onMediaPipeResults(results: any): void {
     const video = this.videoElement?.nativeElement;
-
-    if (!canvas || !ctx || !video || video.readyState < 2) {
-      return;
-    }
-
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    if (!video || video.readyState < 2) return;
 
     this.manosDetectadas = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-    this.manoDetectada = this.manosDetectadas > 0;
+    this.manoDetectada = this.handDetectionService.verificarManoDetectada(results);
 
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      const colors = ['#00FF00', '#FF00FF'];
+    this.ultimosSlotsMP = this.handDetectionService.obtenerLandmarksConSlotsFijos(results);
 
-      results.multiHandLandmarks.forEach((landmarks, index) => {
-        const color = colors[index] || '#00FF00';
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color, lineWidth: 2 });
-        drawLandmarks(ctx, landmarks, { color, lineWidth: 1, radius: 3 });
-      });
-
-      this.capturarYEnviarFrame(results.multiHandLandmarks);
+    if (this.manoDetectada) {
+      const hayMano = this.ultimosSlotsMP.some(s => Array.isArray(s) && s.length >= 21);
+      if (hayMano) {
+        this.capturarYEnviarFrame();
+      }
+    } else if (this.modoContinuo) {
+      this.bloqueoRepeticionContinuo = false;
+      this.reconocimientoService.limpiarBuffer();
     }
 
     this.cdr.markForCheck();
   }
 
-  private esSenaDinamica(): boolean {
-    const objetivo = (this.senaObjetivo || '').trim();
-    if (objetivo.length > 1) return true;
-    return this.tipoContenido === 'comunes';
-  }
-
-  private capturarYEnviarFrame(landmarks: any[]): void {
+  private capturarYEnviarFrame(): void {
     if (!this.reconocimientoActivo || this.pausado) return;
 
     const ahora = Date.now();
@@ -494,25 +414,10 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     const frameBase64 = this.capturarFrameDesdeVideo();
     if (!frameBase64) return;
 
-    if (this.esSenaDinamica()) {
-      this.reconocimientoService.agregarFrame(frameBase64);
-    } else {
-      const landmarksSimplificados = this.extraerLandmarksSimplificados(landmarks);
-      this.reconocimientoService.agregarFrame(frameBase64, landmarksSimplificados);
-    }
+    const landmarksSimplificados = this.handDetectionService.convertirSlotsASimplificados(this.ultimosSlotsMP);
 
+    this.reconocimientoService.agregarFrame(frameBase64, landmarksSimplificados);
     this.ultimoFrameEnviado = ahora;
-  }
-
-  private extraerLandmarksSimplificados(landmarks: any[]): any[] {
-    return landmarks.map(mano => {
-      const puntos = Array.isArray(mano) ? mano : [];
-      return puntos.slice(0, 21).map((punto: any) => ({
-        x: Number(punto.x) || 0,
-        y: Number(punto.y) || 0,
-        z: Number(punto.z) || 0
-      }));
-    });
   }
 
   private capturarFrameDesdeVideo(): string | null {
@@ -520,88 +425,31 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     if (!video) return null;
 
     try {
+      const anchoVideo = video.videoWidth || 640;
+      const altoVideo = video.videoHeight || 480;
+      const escala = Math.min(1, this.LADO_MAX_FRAME / Math.max(anchoVideo, altoVideo));
+      const anchoDestino = Math.max(1, Math.round(anchoVideo * escala));
+      const altoDestino = Math.max(1, Math.round(altoVideo * escala));
+
       const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = 256;
-      tempCanvas.height = 256;
+      tempCanvas.width = anchoDestino;
+      tempCanvas.height = altoDestino;
       const tempCtx = tempCanvas.getContext('2d');
       if (!tempCtx) return null;
 
-      tempCtx.drawImage(video, 0, 0, 256, 256);
-
-      const calidad = this.esSenaDinamica() ? 0.85 : 0.7;
-      return tempCanvas.toDataURL('image/jpeg', calidad);
+      tempCtx.drawImage(video, 0, 0, anchoDestino, altoDestino);
+      return tempCanvas.toDataURL('image/jpeg', 0.85);
     } catch (error) {
       return null;
     }
   }
 
-  private iniciarProcesamientoMediaPipe(): void {
-    if (!this.videoElement?.nativeElement || !this.hands) return;
-
-    if (this.camera) {
-      try { this.camera.stop(); } catch (e) { }
-      this.camera = undefined;
-    }
-
-    this.frameEnProceso = false;
-    this.ultimoFrameProcesadoMP = 0;
-
-    try {
-      this.camera = new Camera(this.videoElement.nativeElement, {
-        onFrame: async () => {
-          if (!this.reconocimientoActivo || this.pausado || !this.hands) return;
-
-          if (this.frameEnProceso) return;
-
-          const ahora = Date.now();
-          if (ahora - this.ultimoFrameProcesadoMP < this.minIntervaloProcesamientoMP) return;
-
-          const video = this.videoElement?.nativeElement;
-          if (!video || video.readyState < 2) return;
-
-          this.frameEnProceso = true;
-          this.ultimoFrameProcesadoMP = ahora;
-
-          try {
-            await this.hands.send({ image: video });
-          } catch (error) {
-          } finally {
-            this.frameEnProceso = false;
-          }
-        },
-        width: 640,
-        height: 480
-      });
-
-      this.camera.start();
-    } catch (error) { }
-  }
-
   async iniciarReconocimiento(): Promise<void> {
     try {
-      if (!this.categoriaIdInterno && this.categoriasDisponibles.length > 0) {
-        this.configurarCategoriaAutomatica();
-      }
-
-      if (!this.categoriaIdInterno) {
-        this.categoriaIdInterno = 1;
-        this.reconocimientoService.establecerCategoria(1);
-      }
-
-      if (!this.videoElement?.nativeElement) {
-        throw new Error('Elemento de video no disponible');
-      }
-
-      if (!this.camaraActiva || !this.camaraInicializada) {
-        throw new Error('Cámara no activa');
-      }
-
-      if (!this.mediaPipeInicializado) {
-        await this.inicializarMediaPipe();
-      }
+      if (!this.videoElement?.nativeElement) throw new Error('Elemento de video no disponible');
+      if (!this.camaraActiva || !this.camaraInicializada) throw new Error('Cámara no activa');
 
       await new Promise(resolve => setTimeout(resolve, 300));
-      await this.precalentarModelo();
 
       this.reconocimientoService.iniciarReconocimiento();
       this.reconocimientoActivo = true;
@@ -617,10 +465,12 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       this.ultimasSenasDetectadas = [];
       this.ultimoFrameEnviado = 0;
       this.confianza = 0;
+      this.ultimaLetraEmitidaContinuo = '';
+      this.ultimoTimestampEmisionContinuo = 0;
+      this.bloqueoRepeticionContinuo = false;
 
       this.iniciarTemporizador();
-      this.iniciarProcesamientoMediaPipe();
-
+      await this.iniciarDeteccionManos();
     } catch (error: any) {
       this.error = 'Error al iniciar reconocimiento';
       this.errorDetalle = error.message;
@@ -629,32 +479,20 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     }
   }
 
-  private async precalentarModelo(): Promise<void> {
-    if (!this.videoElement?.nativeElement) return;
-
-    try {
-      for (let i = 0; i < 3; i++) {
-        const frameBase64 = this.capturarFrameDesdeVideo();
-        if (frameBase64) {
-          if (this.esSenaDinamica()) {
-            this.reconocimientoService.agregarFrame(frameBase64);
-          } else {
-            this.reconocimientoService.agregarFrame(frameBase64, []);
-          }
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      this.reconocimientoService.limpiarBuffer();
-    } catch (error) { }
-  }
-
   private procesarResultadoVideo(resultado: ResultadoReconocimientoVideo): void {
     if (!this.reconocimientoActivo || this.pausado) return;
 
     this.senaDetectada = (resultado.sena_detectada || '').trim().toUpperCase();
     this.confianza = resultado.confianza || 0;
+    this.letraEnVivo = this.senaDetectada;
+    this.confianzaEnVivo = this.confianza;
 
-    this.verificarDeteccionSimple();
+    if (this.modoContinuo) {
+      this.verificarDeteccionContinua();
+    } else {
+      this.verificarDeteccionSimple();
+    }
+
     this.cdr.detectChanges();
   }
 
@@ -666,7 +504,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
     if (senaDetectadaNorm === senaObjetivoNorm) {
       this.deteccionesConsecutivas++;
-
       if (this.deteccionesConsecutivas >= this.umbralDeteccionEstable) {
         this.manejarAciertoSimple();
       }
@@ -678,8 +515,109 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     }
 
     this.ultimasSenasDetectadas.push(senaDetectadaNorm);
-    if (this.ultimasSenasDetectadas.length > 3) {
-      this.ultimasSenasDetectadas.shift();
+    if (this.ultimasSenasDetectadas.length > 3) this.ultimasSenasDetectadas.shift();
+  }
+
+  private verificarDeteccionContinua(): void {
+    const letra = this.senaDetectada.trim().toUpperCase();
+
+    if (!letra || letra === 'DESCONOCIDO' || letra === '?') {
+      this.deteccionesConsecutivas = 0;
+      this.bloqueoRepeticionContinuo = false;
+      return;
+    }
+    if (this.confianza < this.umbralConfianzaMinima) {
+      this.deteccionesConsecutivas = 0;
+      return;
+    }
+
+    if (letra !== this.ultimaLetraEmitidaContinuo) {
+      this.bloqueoRepeticionContinuo = false;
+    }
+
+    if (letra === this.ultimasSenasDetectadas[this.ultimasSenasDetectadas.length - 1]) {
+      this.deteccionesConsecutivas++;
+    } else {
+      this.deteccionesConsecutivas = 1;
+    }
+
+    this.ultimasSenasDetectadas.push(letra);
+    if (this.ultimasSenasDetectadas.length > 5) this.ultimasSenasDetectadas.shift();
+
+    if (this.deteccionesConsecutivas < this.LETRAS_ESTABLES_CONTINUO) return;
+
+    if (letra === this.ultimaLetraEmitidaContinuo && this.bloqueoRepeticionContinuo) return;
+
+    const ahora = Date.now();
+    if (ahora - this.ultimoTimestampEmisionContinuo < this.COOLDOWN_CONTINUO_MS) return;
+
+    this.ultimaLetraEmitidaContinuo = letra;
+    this.ultimoTimestampEmisionContinuo = ahora;
+    this.bloqueoRepeticionContinuo = true;
+    this.deteccionesConsecutivas = 0;
+
+    if (this.activarAudio) {
+      this.reproducirLetraPorVoz(letra);
+    }
+
+    this.resultadoEmitido.emit({
+      exito: true,
+      precision: this.confianza,
+      sena_reconocida: letra,
+      tiempo: Math.floor((Date.now() - this.tiempoInicio) / 1000),
+      intentos: this.intentos,
+      mensaje: 'Letra detectada',
+      modo: 'continuo',
+      categoria_id: this.categoriaId,
+      tipo_contenido: this.tipoContenido,
+      categoria_nombre: this.categoriaSeleccionada?.nombre
+    });
+
+    this.mostrarFeedbackTemporal('exito', `Letra detectada: ${letra}`);
+  }
+
+  private reproducirLetraPorVoz(texto: string): void {
+    if (!window.speechSynthesis) return;
+
+    if (this.colaVoz.length >= 5) {
+      this.colaVoz.shift();
+    }
+    this.colaVoz.push(texto);
+    this.procesarColaVoz();
+  }
+
+  private procesarColaVoz(): void {
+    if (this.hablandoVoz || this.colaVoz.length === 0 || !window.speechSynthesis) {
+      return;
+    }
+
+    const texto = this.colaVoz.shift()!;
+    this.hablandoVoz = true;
+
+    const utterance = new SpeechSynthesisUtterance(texto);
+    utterance.lang = 'es-PE';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onend = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    utterance.onerror = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  private detenerColaVoz(): void {
+    this.colaVoz = [];
+    this.hablandoVoz = false;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
   }
 
@@ -693,9 +631,13 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       this.reconocimientoService.detenerReconocimiento();
     }
 
+    if (this.activarAudio) {
+      this.reproducirLetraPorVoz(this.senaObjetivo);
+    }
+
     this.mostrarFeedbackTemporal('exito', `¡Correcto! Seña ${this.senaObjetivo} detectada`);
 
-    this.resultadoEmitido.emit({
+    const datosResultado = {
       exito: true,
       precision: this.confianza,
       sena_reconocida: this.senaObjetivo,
@@ -703,17 +645,25 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       intentos: this.intentos,
       mensaje: 'Reconocimiento exitoso',
       modo: 'video',
-      categoria_id: this.categoriaIdInterno,
+      categoria_id: this.categoriaId,
       tipo_contenido: this.tipoContenido,
-      categoria_nombre: this.categoriaSeleccionada?.nombre,
-      modelo_usado: this.modeloNombreInterno
-    });
+      categoria_nombre: this.categoriaSeleccionada?.nombre
+    };
 
     if (this.modoContinuo) {
       this.deteccionesConsecutivas = 0;
       this.senaDetectada = '';
       this.confianza = 0;
+      this.resultadoEmitido.emit(datosResultado);
+      return;
     }
+
+    const retraso = this.activarAudio ? this.RETRASO_EMIT_EXITO_MS : 0;
+
+    this.emitPendiente = setTimeout(() => {
+      this.emitPendiente = null;
+      this.resultadoEmitido.emit(datosResultado);
+    }, retraso);
   }
 
   private manejarTiempoAgotado(): void {
@@ -734,10 +684,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         mensaje: 'Tiempo agotado',
         modo: 'video',
         manosDetectadas: this.manosDetectadas,
-        categoria_id: this.categoriaIdInterno,
+        categoria_id: this.categoriaId,
         tipo_contenido: this.tipoContenido,
-        categoria_nombre: this.categoriaSeleccionada?.nombre,
-        modelo_usado: this.modeloNombreInterno
+        categoria_nombre: this.categoriaSeleccionada?.nombre
       });
     }, 2000);
   }
@@ -746,7 +695,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     this.feedbackTipo = tipo;
     this.feedbackMensaje = mensaje;
     this.mostrarFeedback = true;
-
     setTimeout(() => {
       this.mostrarFeedback = false;
       this.cdr.detectChanges();
@@ -759,13 +707,10 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
     this.intervaloTemporizador = setInterval(() => {
       this.temporizador--;
-
       if (this.temporizador === 10) {
         this.mostrarFeedbackTemporal('error', 'Quedan 10 segundos!');
       }
-
       this.ngZone.run(() => this.cdr.markForCheck());
-
       if (this.temporizador <= 0) {
         this.manejarTiempoAgotado();
       }
@@ -790,14 +735,12 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         this.reconocimientoActivo = true;
         this.tiempoInicio = Date.now();
         this.iniciarTemporizador();
-        this.iniciarProcesamientoMediaPipe();
       }
     }, 500);
   }
 
   togglePausa(): void {
     this.pausado = !this.pausado;
-
     if (this.pausado) {
       this.detenerTemporizador();
       this.reconocimientoService.detenerReconocimiento();
@@ -827,6 +770,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     this.intentos = 0;
     this.aciertos = 0;
     this.pausado = false;
+    this.ultimaLetraEmitidaContinuo = '';
+    this.ultimoTimestampEmisionContinuo = 0;
+    this.bloqueoRepeticionContinuo = false;
 
     setTimeout(() => {
       if (this.camaraActiva && this.camaraInicializada && !this.cargando) {
@@ -854,31 +800,12 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   detenerTodo(): void {
     this.detenerTemporizador();
     this.reconocimientoService.detenerReconocimiento();
-
-    if (this.camera) {
-      try {
-        this.camera.stop();
-      } catch (error) { }
-      this.camera = undefined;
-    }
-
-    if (this.hands) {
-      try {
-        this.hands.close();
-      } catch (error) { }
-      this.hands = undefined;
-    }
-
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = undefined;
-    }
+    this.handDetectionService.detenerDeteccion();
+    this.detenerColaVoz();
 
     if (this.streamActivo) {
       try {
-        this.streamActivo.getTracks().forEach(track => {
-          track.stop();
-        });
+        this.streamActivo.getTracks().forEach(track => track.stop());
         this.streamActivo = null;
       } catch (error) { }
     }
@@ -899,13 +826,16 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     this.manosDetectadas = 0;
     this.ultimasSenasDetectadas = [];
     this.ultimoFrameEnviado = 0;
-    this.frameEnProceso = false;
-    this.ultimoFrameProcesadoMP = 0;
     this.inicializacionEnProgreso = false;
-    this.mediaPipeInicializado = false;
+    this.ultimosSlotsMP = [[], []];
+    this.bloqueoRepeticionContinuo = false;
   }
 
   cancelarPractica(): void {
+    if (this.emitPendiente) {
+      clearTimeout(this.emitPendiente);
+      this.emitPendiente = null;
+    }
     this.resultadoEmitido.emit({
       exito: false,
       precision: 0,
@@ -916,11 +846,10 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       modo: 'video',
       manosDetectadas: this.manosDetectadas,
       consistencia: 0,
-      categoria_id: this.categoriaIdInterno,
+      categoria_id: this.categoriaId,
       tipo_contenido: this.tipoContenido,
       categoria_nombre: this.categoriaSeleccionada?.nombre
     });
-
     this.detenerTodo();
   }
 
@@ -967,14 +896,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   get infoConfiguracion(): string {
-    const usuario = this.autenticacionService.usuarioActualValor;
-    if (!usuario) return 'Configuración estándar';
-
-    const edad = usuario.fecha_nacimiento
-      ? this.autenticacionService.calcularEdad(usuario.fecha_nacimiento)
-      : null;
-
-    return `${this.configuracionTiempo.descripcion}${edad ? ` (${edad} años)` : ''}`;
+    return this.configuracionTiempo.descripcion;
   }
 
   get requiereDosManos(): boolean {
@@ -995,10 +917,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   get puedeIniciar(): boolean {
-    return this.categoriaValidadaInternamente &&
-      this.modeloValidadoInternamente &&
-      !this.cargando &&
-      !this.inicializacionEnProgreso;
+    return this.camaraActiva && !this.cargando && !this.inicializacionEnProgreso;
   }
 
   get infoCategoria(): string {
@@ -1007,7 +926,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   get infoModelo(): string {
-    return this.modeloNombreInterno || 'Modelo global';
+    return 'Modelo global';
   }
 
   toggleInstrucciones(): void {

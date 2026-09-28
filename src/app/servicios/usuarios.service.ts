@@ -4,12 +4,10 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { NotificacionesService } from './notificaciones.service';
-import { Usuario, DatosReniec } from '../modelos/usuario.model';
+import { Usuario } from '../modelos/usuario.model';
 
 export interface ActualizacionPerfilRequest {
-  telefono?: string | null;
-  fecha_nacimiento?: string | null;
-  direccion?: string | null;
+  nombre_usuario?: string;
 }
 
 export interface CambiarPasswordRequest {
@@ -83,9 +81,9 @@ export class UsuariosService {
         console.log('Contraseña actualizada');
       }),
       catchError(error => {
-        const mensaje = error.error?.detail || error.error?.mensaje || 'Error inesperado'; 
+        const mensaje = error.error?.detail || error.error?.mensaje || 'Error inesperado';
         console.error('Error al cambiar contraseña:', error);
-        console.error('Detalle del error:', error.error); 
+        console.error('Detalle del error:', error.error);
         this.notificaciones.mostrarError(mensaje);
         return throwError(error);
       })
@@ -123,23 +121,6 @@ export class UsuariosService {
     return this.http.get(`${this.apiUrl}/mis-lecciones`, { params }).pipe(
       tap(respuesta => {
         console.log('Lecciones obtenidas:', respuesta);
-      }),
-      catchError(error => {
-        const mensaje = this.obtenerMensajeError(error);
-        this.notificaciones.mostrarError(mensaje);
-        return throwError(error);
-      })
-    );
-  }
-
-  verificarDni(dni: string): Observable<DatosReniec> {
-    return this.http.post<any>(`${this.apiUrl}/verificar-dni`, { dni }).pipe(
-      tap(response => {
-        if (response.valido && response.datos) {
-          console.log('DNI verificado:', response.datos);
-        } else {
-          throw new Error(response.error || 'No se pudo verificar el DNI');
-        }
       }),
       catchError(error => {
         const mensaje = this.obtenerMensajeError(error);

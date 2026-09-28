@@ -1,5 +1,3 @@
-export type TipoUsuario = 'peruano_mayor' | 'peruano_menor' | 'extranjero';
-
 export interface RolUsuario {
   id: number;
   codigo: string;
@@ -8,23 +6,13 @@ export interface RolUsuario {
 
 export interface Usuario {
   id: number;
-  tipo_usuario: TipoUsuario;
+  nombre_usuario: string;
   email: string;
-  nombres: string;
-  apellido_paterno: string;
-  apellido_materno: string;
-  apellidos?: string;
-  dni?: string | null;
-  pasaporte?: string | null;
-  telefono?: string | null;
-  direccion?: string | null;
-  fecha_nacimiento?: Date | string | null;
   activo: boolean;
   es_admin?: boolean;
   verificado: boolean;
   rol?: RolUsuario;
   permisos?: string[];
-  nombre_completo?: string;
   fecha_creacion?: Date | string;
 }
 
@@ -44,24 +32,9 @@ export interface LoginRequest {
 }
 
 export interface RegistroRequest {
-  tipo_usuario: TipoUsuario;
-  dni?: string | null;
-  pasaporte?: string | null; // Cambiado de carnet_extranjeria
-  nombres: string;
-  apellido_paterno: string;
-  apellido_materno: string;
+  nombre_usuario: string;
   email: string;
   password: string;
-  telefono?: string | null; // Incluye código de país
-  fecha_nacimiento?: Date | string | null;
-  direccion?: string | null;
-}
-
-export interface DatosReniec {
-  dni: string;
-  nombres: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
 }
 
 export interface SolicitudRecuperacion {
@@ -76,7 +49,7 @@ export interface RespuestaRecuperacion {
 export interface VerificarTokenResponse {
   mensaje: string;
   email: string;
-  expira_en: string; 
+  expira_en: string;
 }
 
 export interface ConfirmarRecuperacion {
@@ -102,7 +75,7 @@ export interface VerificarEmailResponse {
   existe: boolean;
   activo?: boolean;
   mensaje: string;
-  emailNoExiste?: boolean; 
+  emailNoExiste?: boolean;
 }
 
 export interface ValidacionPassword {
@@ -131,16 +104,7 @@ export interface EstadoRecuperacion extends EstadoFormulario {
   emailAsociado: string;
 }
 
-// Interfaz para códigos de país
-export interface CodigoPais {
-  codigo: string;
-  pais: string;
-  flag: string;
-  longitud?: number; // Longitud esperada del número
-}
-
-// Tipos para manejo de errores
-export type TipoError = 
+export type TipoError =
   | 'email_no_valido'
   | 'email_no_existe'
   | 'usuario_desactivado'
@@ -153,13 +117,8 @@ export type TipoError =
   | 'sin_conexion'
   | 'servidor_error'
   | 'rate_limit'
-  | 'dni_invalido'
-  | 'pasaporte_invalido' 
-  | 'dni_ya_registrado'
-  | 'pasaporte_ya_registrado' 
-  | 'edad_no_valida'
-  | 'fecha_invalida'
-  | 'telefono_invalido'
+  | 'nombre_usuario_invalido'
+  | 'nombre_usuario_ya_registrado'
   | 'desconocido';
 
 export interface ErrorPersonalizado {
@@ -182,13 +141,8 @@ export const MENSAJES_ERROR = {
   sin_conexion: 'Sin conexión a internet. Verifica tu conexión',
   servidor_error: 'Error del servidor. Intenta más tarde',
   rate_limit: 'Demasiados intentos. Espera unos minutos',
-  dni_invalido: 'El DNI debe tener 8 dígitos',
-  pasaporte_invalido: 'El pasaporte debe tener entre 6 y 20 caracteres', 
-  dni_ya_registrado: 'Este DNI ya está registrado',
-  pasaporte_ya_registrado: 'Este pasaporte ya está registrado', 
-  edad_no_valida: 'La edad no cumple con los requisitos',
-  fecha_invalida: 'La fecha de nacimiento no es válida',
-  telefono_invalido: 'El número de teléfono no es válido',
+  nombre_usuario_invalido: 'El nombre de usuario no es válido',
+  nombre_usuario_ya_registrado: 'Este nombre de usuario ya está en uso',
   desconocido: 'Error inesperado. Intenta nuevamente'
 } as const;
 
@@ -196,46 +150,36 @@ export const CONFIGURACION_DEFAULT = {
   tiempoEsperaValidacion: 500,
   tiempoRedireccion: 3000,
   longitudMinimaPassword: 8,
-  longitudDni: 8,
-  longitudMinimaPasaporte: 6, 
-  longitudMaximaPasaporte: 20, 
-  edadMinimaAdulto: 18,
+  longitudMinimaNombreUsuario: 3,
+  longitudMaximaNombreUsuario: 30,
   requiereMayuscula: true,
   requiereMinuscula: true,
   requiereNumero: true,
-  requiereCaracterEspecial: true,
-  longitudMinimaTelefono: 9,
-  longitudMaximaTelefono: 15
+  requiereCaracterEspecial: true
 };
 
 export type EstadoValidacion = 'validando' | 'valido' | 'invalido' | 'neutral';
 export type TipoFormulario = 'recuperacion' | 'restablecer' | 'cambiar';
 export type NivelFortaleza = 'debil' | 'medio' | 'fuerte';
 
-// Códigos de país disponibles
-export const CODIGOS_PAIS: CodigoPais[] = [
-  { codigo: '+51', pais: 'Perú', flag: '🇵🇪', longitud: 9 },
-  { codigo: '+1', pais: 'Estados Unidos', flag: '🇺🇸', longitud: 10 },
-  { codigo: '+34', pais: 'España', flag: '🇪🇸', longitud: 9 },
-  { codigo: '+54', pais: 'Argentina', flag: '🇦🇷', longitud: 10 },
-  { codigo: '+56', pais: 'Chile', flag: '🇨🇱', longitud: 9 },
-  { codigo: '+57', pais: 'Colombia', flag: '🇨🇴', longitud: 10 },
-  { codigo: '+52', pais: 'México', flag: '🇲🇽', longitud: 10 },
-  { codigo: '+55', pais: 'Brasil', flag: '🇧🇷', longitud: 11 },
-  { codigo: '+593', pais: 'Ecuador', flag: '🇪🇨', longitud: 9 },
-  { codigo: '+58', pais: 'Venezuela', flag: '🇻🇪', longitud: 10 }
-];
-
-// Utilidades de validación
 export class ValidacionUtils {
   static esEmailValido(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   }
 
+  static esNombreUsuarioValido(nombreUsuario: string): boolean {
+    if (!nombreUsuario) return false;
+    const longitudValida =
+      nombreUsuario.length >= CONFIGURACION_DEFAULT.longitudMinimaNombreUsuario &&
+      nombreUsuario.length <= CONFIGURACION_DEFAULT.longitudMaximaNombreUsuario;
+    const formatoValido = /^[a-zA-Z0-9_]+$/.test(nombreUsuario);
+    return longitudValida && formatoValido;
+  }
+
   static esPasswordSegura(password: string): ValidacionPassword {
     const errores: string[] = [];
-    
+
     if (password.length < CONFIGURACION_DEFAULT.longitudMinimaPassword) {
       errores.push('Debe tener al menos 8 caracteres');
     }
@@ -256,139 +200,6 @@ export class ValidacionUtils {
       esValida: errores.length === 0,
       errores
     };
-  }
-
-  static esDniValido(dni: string): boolean {
-    return /^\d{8}$/.test(dni);
-  }
-
-  static esPasaporteValido(pasaporte: string): boolean {
-    if (!pasaporte) return false;
-    
-    const longitudValida = pasaporte.length >= CONFIGURACION_DEFAULT.longitudMinimaPasaporte && 
-                          pasaporte.length <= CONFIGURACION_DEFAULT.longitudMaximaPasaporte;
-    
-    const formatoValido = /^[A-Z0-9\-\s]+$/i.test(pasaporte);
-    
-    return longitudValida && formatoValido;
-  }
-
-  static esTelefonoValido(telefono: string): boolean {
-
-    if (!telefono.startsWith('+')) {
-      return false;
-    }
-    
-    const soloDigitos = telefono.replace(/\D/g, '');
-    
-    return soloDigitos.length >= CONFIGURACION_DEFAULT.longitudMinimaTelefono && 
-           soloDigitos.length <= CONFIGURACION_DEFAULT.longitudMaximaTelefono;
-  }
-
-  static calcularEdad(fechaNacimiento: Date | string): number | null {
-    try {
-      const fecha = typeof fechaNacimiento === 'string' 
-        ? new Date(fechaNacimiento) 
-        : fechaNacimiento;
-
-      if (isNaN(fecha.getTime())) {
-        return null;
-      }
-
-      const hoy = new Date();
-      let edad = hoy.getFullYear() - fecha.getFullYear();
-      const mesActual = hoy.getMonth();
-      const mesNacimiento = fecha.getMonth();
-
-      if (mesActual < mesNacimiento || 
-          (mesActual === mesNacimiento && hoy.getDate() < fecha.getDate())) {
-        edad--;
-      }
-
-      return edad;
-    } catch {
-      return null;
-    }
-  }
-
-  static validarEdadPorTipo(fechaNacimiento: Date | string, tipoUsuario: TipoUsuario): boolean {
-    const edad = this.calcularEdad(fechaNacimiento);
-    
-    if (edad === null) {
-      return false;
-    }
-
-    switch (tipoUsuario) {
-      case 'peruano_menor':
-        return edad < CONFIGURACION_DEFAULT.edadMinimaAdulto;
-      case 'peruano_mayor':
-      case 'extranjero':
-        return edad >= CONFIGURACION_DEFAULT.edadMinimaAdulto;
-      default:
-        return false;
-    }
-  }
-
-  static extraerCodigoPais(telefono: string): string {
-    if (!telefono || !telefono.startsWith('+')) {
-      return '+51'; // Default para Perú
-    }
-
-    // Códigos de país conocidos ordenados por longitud (de mayor a menor)
-    const codigosConocidos = [
-      '+593', '+507', '+506', '+505', '+504', '+503', '+502', '+501', 
-      '+51', '+52', '+53', '+54', '+55', '+56', '+57', '+58', 
-      '+34', '+33', '+44', '+49', '+39', '+41', '+43', '+45', 
-      '+1', '+7' 
-    ];
-
-    // Buscar el código de país que coincida
-    for (const codigo of codigosConocidos) {
-      if (telefono.startsWith(codigo)) {
-        return codigo;
-      }
-    }
-
-    // Si no encuentra coincidencia, intentar extraer hasta el primer espacio o hasta 4 dígitos
-    const match = telefono.match(/^(\+\d{1,4})/);
-    return match ? match[1] : '+51';
-  }
-
-  static extraerNumeroSinCodigo(telefono: string): string {
-    if (!telefono || !telefono.startsWith('+')) {
-      return telefono;
-    }
-
-    const codigoPais = this.extraerCodigoPais(telefono);
-    // Remover el código de país y cualquier espacio o carácter no numérico al inicio
-    let numero = telefono.substring(codigoPais.length).trim();
-    
-    // Remover espacios del número
-    numero = numero.replace(/\s/g, '');
-    
-    return numero;
-  }
-
-  static formatearTelefono(telefono: string): string {
-    if (!telefono || !telefono.startsWith('+')) {
-      return telefono;
-    }
-
-    const codigoPais = this.extraerCodigoPais(telefono);
-    const numero = this.extraerNumeroSinCodigo(telefono);
-
-    if (!numero) {
-      return codigoPais;
-    }
-
-    // Formatear número en grupos de 3 dígitos
-    if (numero.length === 9) {
-      return `${codigoPais} ${numero.slice(0, 3)} ${numero.slice(3, 6)} ${numero.slice(6)}`;
-    } else if (numero.length === 10) {
-      return `${codigoPais} ${numero.slice(0, 3)} ${numero.slice(3, 6)} ${numero.slice(6)}`;
-    }
-
-    return `${codigoPais} ${numero}`;
   }
 
   static obtenerFortalezaPassword(password: string): FortalezaPassword {
@@ -420,63 +231,14 @@ export class ValidacionUtils {
   static passwordsCoinciden(password: string, confirmarPassword: string): boolean {
     return password === confirmarPassword;
   }
-
-  static obtenerDocumentoIdentidad(usuario: Usuario): string {
-    if (usuario.tipo_usuario === 'extranjero' && usuario.pasaporte) {
-      return usuario.pasaporte;
-    }
-    return usuario.dni || 'Sin documento';
-  }
-
-  static obtenerTipoDocumento(usuario: Usuario): string {
-    if (usuario.tipo_usuario === 'extranjero') {
-      return 'Pasaporte'; // Cambiado de 'Carnet de Extranjería'
-    }
-    return 'DNI';
-  }
-
-  static esFechaValida(fecha: string | Date): boolean {
-    try {
-      const fechaObj = typeof fecha === 'string' ? new Date(fecha) : fecha;
-      
-      // Verificar que sea una fecha válida
-      if (isNaN(fechaObj.getTime())) {
-        return false;
-      }
-
-      // Verificar que no sea una fecha futura
-      const hoy = new Date();
-      if (fechaObj > hoy) {
-        return false;
-      }
-
-      // Verificar que la persona no tenga más de 120 años
-      const edad = this.calcularEdad(fechaObj);
-      if (edad === null || edad > 120) {
-        return false;
-      }
-
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  static normalizarPasaporte(pasaporte: string): string {
-    // Normalizar pasaporte: convertir a mayúsculas y remover espacios extras
-    return pasaporte.trim().toUpperCase().replace(/\s+/g, ' ');
-  }
 }
 
-// Type guards
 export function esUsuarioValido(obj: any): obj is Usuario {
-  return obj && 
+  return obj &&
     typeof obj.id === 'number' &&
     typeof obj.email === 'string' &&
-    typeof obj.nombres === 'string' &&
-    typeof obj.activo === 'boolean' &&
-    typeof obj.tipo_usuario === 'string' &&
-    ['peruano_mayor', 'peruano_menor', 'extranjero'].includes(obj.tipo_usuario);
+    typeof obj.nombre_usuario === 'string' &&
+    typeof obj.activo === 'boolean';
 }
 
 export function esAuthResponse(obj: any): obj is AuthResponse {
@@ -492,17 +254,12 @@ export function esErrorPersonalizado(obj: any): obj is ErrorPersonalizado {
     typeof obj.mensaje === 'string';
 }
 
-export function esTipoUsuarioValido(tipo: any): tipo is TipoUsuario {
-  return ['peruano_mayor', 'peruano_menor', 'extranjero'].includes(tipo);
-}
-
-// Constantes de configuración
 export const CONFIG_APP = {
   API_TIMEOUT: 30000,
   DEBOUNCE_TIME: 500,
   REDIRECT_DELAY: 3000,
   TOKEN_REFRESH_MARGIN: 300000,
-  MAX_FILE_SIZE: 5242880, // 5MB
+  MAX_FILE_SIZE: 5242880,
   FORMATOS_IMAGEN_PERMITIDOS: ['image/jpeg', 'image/png', 'image/webp']
 } as const;
 
@@ -517,22 +274,11 @@ export const RUTAS_AUTH = {
   INICIO: '/inicio'
 } as const;
 
-export const ETIQUETAS_TIPO_USUARIO: Record<TipoUsuario, string> = {
-  peruano_mayor: 'Peruano Mayor de Edad',
-  peruano_menor: 'Peruano Menor de Edad',
-  extranjero: 'Extranjero'
-};
-
 export const MENSAJES_VALIDACION = {
-  dni: {
-    requerido: 'El DNI es obligatorio',
-    formato: 'El DNI debe tener 8 dígitos',
-    duplicado: 'Este DNI ya está registrado'
-  },
-  pasaporte: { // Cambiado de carnet
-    requerido: 'El pasaporte es obligatorio',
-    formato: 'El pasaporte debe tener entre 6 y 20 caracteres alfanuméricos',
-    duplicado: 'Este pasaporte ya está registrado'
+  nombre_usuario: {
+    requerido: 'El nombre de usuario es obligatorio',
+    formato: 'Solo letras, números y guion bajo, entre 3 y 30 caracteres',
+    duplicado: 'Este nombre de usuario ya está en uso'
   },
   email: {
     requerido: 'El correo electrónico es obligatorio',
@@ -543,16 +289,5 @@ export const MENSAJES_VALIDACION = {
     requerido: 'La contrasena es obligatoria',
     minimo: 'La contrasena debe tener al menos 8 caracteres',
     debil: 'La contrasena es muy débil'
-  },
-  telefono: {
-    formato: 'El formato del teléfono no es válido',
-    minimo: 'El número es demasiado corto',
-    duplicado: 'Este número de teléfono ya está registrado'
-  },
-  fecha: {
-    requerido: 'La fecha de nacimiento es obligatoria',
-    invalida: 'La fecha no es válida',
-    futura: 'La fecha no puede ser futura',
-    edadNoCoincide: 'La edad no coincide con el tipo de usuario'
   }
 } as const;

@@ -4,6 +4,7 @@ import { CapturaService } from '../../../servicios/captura.service';
 import { CategoriaService, Categoria } from '../../../servicios/categoria.service';
 import { SenaCategoriaService, SenaCategoria } from '../../../servicios/sena-categoria.service';
 import { HandDetectionService } from '../../../servicios/hand-detection.service';
+import { PrivacyFilterService } from '../../../servicios/privacy-filter.service';
 import { Results } from '@mediapipe/hands';
 import { environment } from '../../../../environments/environment';
 
@@ -62,6 +63,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   editandoSenaId: number | null = null;
 
   modoAutomatico: boolean = true;
+  filtroPrivacidadActivo: boolean = true;
+  private framesTotalesGrabacion: number = 0;
+  private framesConManoGrabacion: number = 0;
+  private porcentajeManoUltimaToma: number = 0;
   private framesConsecutivosConMano: number = 0;
   private readonly FRAMES_ESTABLES_REQUERIDOS = 6;
   progresoEstabilidad: number = 0;
@@ -76,6 +81,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     private categoriaService: CategoriaService,
     private senaCategoriaService: SenaCategoriaService,
     private handDetectionService: HandDetectionService,
+    private privacyFilter: PrivacyFilterService,
     private sanitizer: DomSanitizer
   ) { }
 
@@ -87,9 +93,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   ngAfterViewInit(): void { }
 
   ngOnDestroy(): void {
-    // detenerCamara() dispara el cierre de la cámara y de MediaPipe de
-    // forma asíncrona pero no bloqueante (ver HandDetectionService):
-    // la navegación no se congela esperando a que termine.
     this.detenerCamara();
     this.limpiarRecursos();
   }
@@ -126,6 +129,9 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
         if (typeof config.modoAutomatico === 'boolean') {
           this.modoAutomatico = config.modoAutomatico;
         }
+        if (typeof config.filtroPrivacidadActivo === 'boolean') {
+          this.filtroPrivacidadActivo = config.filtroPrivacidadActivo;
+        }
       } catch (e) {
         console.warn('Error cargando configuración:', e);
       }
@@ -136,7 +142,8 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     const config = {
       metaVideos: this.metaVideos,
       categoriaId: this.categoriaSeleccionada?.id,
-      modoAutomatico: this.modoAutomatico
+      modoAutomatico: this.modoAutomatico,
+      filtroPrivacidadActivo: this.filtroPrivacidadActivo
     };
     localStorage.setItem('configCapturaUnificada', JSON.stringify(config));
   }
@@ -233,6 +240,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     this.mensaje = this.modoAutomatico
       ? 'Auto-grabación activada: se grabará sola al estabilizar la mano'
       : 'Auto-grabación desactivada: usa el botón "Grabar Video"';
+  }
+
+  toggleFiltroPrivacidad(): void {
+    if (this.grabando) return;
+    this.filtroPrivacidadActivo = !this.filtroPrivacidadActivo;
+    this.guardarConfiguracion();
+    this.mensaje = this.filtroPrivacidadActivo
+      ? 'Filtro de privacidad activado: el rostro no se grabará'
+      : 'Filtro de privacidad desactivado: se grabará la imagen completa';
   }
 
   obtenerRutaReferencia(): string {
@@ -489,8 +505,19 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   onHandsDetected(results: Results): void {
+    if (this.filtroPrivacidadActivo) {
+      this.privacyFilter.actualizarMascara(results);
+    }
+
     this.manoDetectada = this.handDetectionService.verificarManoDetectada(results);
     this.numeroManos = results.multiHandLandmarks?.length || 0;
+
+    if (this.grabando) {
+      this.framesTotalesGrabacion++;
+      if (this.manoDetectada) {
+        this.framesConManoGrabacion++;
+      }
+    }
 
     if (this.manoDetectada && !this.grabando && this.senaActual) {
       this.mensaje = `Mano detectada. Listo para grabar "${this.senaActual.nombre}"`;
@@ -543,12 +570,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       this.detenerGrabacion();
     }
 
-    // No se espera esta promesa a propósito: el cierre de MediaPipe
-    // ahora es rápido y seguro (ver HandDetectionService), y no
-    // queremos bloquear la navegación ni este método por eso.
-    this.handDetectionService.detenerDeteccion().catch(() => {
-      // Cualquier error de cierre ya quedó logueado dentro del servicio.
-    });
+    this.handDetectionService.detenerDeteccion().catch(() => {});
+
+    this.privacyFilter.detenerRender();
+    this.privacyFilter.reiniciar();
 
     if (this.streamOriginal) {
       this.streamOriginal.getTracks().forEach((track: any) => {
@@ -606,10 +631,19 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     this.tiempoGrabacion = 0;
     this.recordedChunks = [];
     this.tiempoInicio = performance.now();
+    this.framesTotalesGrabacion = 0;
+    this.framesConManoGrabacion = 0;
     this.error = null;
 
+    const usaFiltro = this.filtroPrivacidadActivo;
+
     try {
-      this.streamCaptura = this.streamOriginal;
+      if (usaFiltro) {
+        this.privacyFilter.iniciarRender(this.videoElement.nativeElement);
+        this.streamCaptura = this.privacyFilter.obtenerStream(30);
+      } else {
+        this.streamCaptura = this.streamOriginal;
+      }
 
       const mimeType = this.obtenerMejorMimeType();
 
@@ -627,11 +661,20 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       };
 
       this.mediaRecorder.onstop = () => {
+        if (usaFiltro) {
+          this.privacyFilter.detenerRender();
+          this.streamCaptura?.getTracks().forEach((t: any) => t.stop());
+        }
+
         if (this.recordedChunks.length === 0) {
           this.error = 'No se capturaron datos de video';
           this.activarCooldown();
           return;
         }
+
+        this.porcentajeManoUltimaToma = this.framesTotalesGrabacion > 0
+          ? Math.round((this.framesConManoGrabacion / this.framesTotalesGrabacion) * 100)
+          : 0;
 
         const blob = new Blob(this.recordedChunks, { type: mimeType });
 
@@ -655,6 +698,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
     } catch (error) {
       console.error('Error iniciando grabación:', error);
+      this.privacyFilter.detenerRender();
       this.error = 'Error al iniciar la grabación. Intenta nuevamente.';
       this.grabando = false;
     }
@@ -760,6 +804,8 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
             const videoData = response.datos;
             this.mensaje += ` | Frames: ${videoData.frames_extraidos}`;
           }
+
+          this.mensaje += ` | Mano visible: ${this.porcentajeManoUltimaToma}%`;
 
           if (videosRestantes > 0) {
             this.mensaje += ` | Faltan: ${videosRestantes} videos`;

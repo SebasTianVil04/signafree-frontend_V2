@@ -88,6 +88,7 @@ export class TraductorService {
 
   traducirSenasATextoVideo(
     framesBase64: string[],
+    framesLandmarks: any[][] = [],
     configuracion: ConfiguracionTraduccion = {}
   ): Observable<RespuestaAPI> {
     if (!framesBase64 || framesBase64.length === 0) {
@@ -96,6 +97,7 @@ export class TraductorService {
 
     const solicitud = {
       frames_base64: framesBase64.map(frame => `data:image/jpeg;base64,${frame}`),
+      frames_landmarks: framesLandmarks,
       configuracion: {
         confianza_minima: configuracion.confianza_minima || 0.25,
         usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
@@ -123,7 +125,6 @@ export class TraductorService {
       catchError(error => this.handleError('obtenerModelosActivos', error))
     );
   }
-
 
   probarTodosModelos(framesBase64: string[]): Observable<RespuestaAPI> {
     const solicitud = { frames_base64: framesBase64 };
@@ -223,6 +224,7 @@ export class TraductorService {
 
   traducirSenasATextoConFrames(
     frames: string[],
+    landmarks: any[][] = [],
     configuracion: ConfiguracionTraduccion = {}
   ): Observable<RespuestaAPI> {
     if (!frames || frames.length === 0) {
@@ -231,6 +233,7 @@ export class TraductorService {
 
     const solicitud = {
       frames_base64: frames.map(frame => `data:image/jpeg;base64,${frame}`),
+      frames_landmarks: landmarks,
       configuracion: {
         confianza_minima: configuracion.confianza_minima || 0.25,
         usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
@@ -239,7 +242,7 @@ export class TraductorService {
     };
 
     return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/senas-a-texto`,  // ✅ URL corregida
+      `${this.apiUrl}/senas-a-texto`,
       solicitud,
       { headers: this.getHeaders() }
     ).pipe(

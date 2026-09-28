@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, Subject, BehaviorSubject, throwError, Subscription } from 'rxjs';
-import { catchError, timeout, retry } from 'rxjs/operators';
+import { catchError, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface ResultadoReconocimientoVideo {
@@ -47,6 +47,12 @@ export interface ConfiguracionReconocimiento {
   uso_landmarks: boolean;
 }
 
+interface PrediccionBuffer {
+  sena: string;
+  confianza: number;
+  timestamp: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -57,12 +63,20 @@ export class ReconocimientoService {
   private readonly MAX_FRAMES_BUFFER = 24;
   private readonly MIN_FRAMES_PROCESAMIENTO = 12;
   private readonly FRAMES_OPTIMOS = 16;
+  private readonly FRAMES_OVERLAP = 6;
+  private readonly VENTANA_MAX_FRAME_MS = 2000;
 
   private reconocimientoActivo = false;
   private procesando = false;
   private ultimoProcesamiento = 0;
-  private readonly MIN_INTERVALO_PROCESAMIENTO = 800;
-  private readonly TIMEOUT_RECONOCIMIENTO = 12000;
+  private readonly MIN_INTERVALO_PROCESAMIENTO = 500;
+  private readonly TIMEOUT_RECONOCIMIENTO = 6000;
+
+  private readonly TAMANO_VENTANA_VOTING = 2;
+  private readonly MIN_CONSENSO = 2;
+  private historialPredicciones: PrediccionBuffer[] = [];
+
+  private ultimaSenaCruda: string = '';
 
   private resultadoSubject = new Subject<ResultadoReconocimientoVideo>();
   public resultado$ = this.resultadoSubject.asObservable();
@@ -73,22 +87,18 @@ export class ReconocimientoService {
   private confianzaSubject = new BehaviorSubject<number>(0);
   public confianza$ = this.confianzaSubject.asObservable();
 
-  private categoriaIdActual: number | null = null;
-
   private configuracion: ConfiguracionReconocimiento = {
-    confianza_minima: 0.55,
+    confianza_minima: 0.40,
     max_frames: 16,
-    requerir_consistencia: true,
-    min_frames_consistentes: 10,
+    requerir_consistencia: false,
+    min_frames_consistentes: 8,
     uso_landmarks: true
   };
 
   private requestInFlight = false;
   private solicitudActual: Subscription | null = null;
 
-  constructor(private http: HttpClient) {
-    console.log('[ReconocimientoService] Inicializado');
-  }
+  constructor(private http: HttpClient) { }
 
   private getHeaders(): HttpHeaders {
     const token = localStorage.getItem('token');
@@ -103,27 +113,21 @@ export class ReconocimientoService {
     return headers;
   }
 
-  establecerCategoria(categoriaId: number): void {
-    this.categoriaIdActual = categoriaId;
-    console.log(`[ReconocimientoService] Categoría establecida: ${categoriaId}`);
+  establecerCategoria(_categoriaId: number): void {
   }
 
   obtenerCategoriaActual(): number | null {
-    return this.categoriaIdActual;
+    return null;
   }
 
   actualizarConfiguracion(config: Partial<ConfiguracionReconocimiento>): void {
     this.configuracion = { ...this.configuracion, ...config };
-    console.log('[ReconocimientoService] Configuración actualizada:', this.configuracion);
   }
 
-  procesarSecuenciaFrames(frames: FrameProcesado[], categoriaId?: number): Observable<any> {
-    const categoriaAUsar = categoriaId || this.categoriaIdActual;
-
+  procesarSecuenciaFrames(frames: FrameProcesado[], _categoriaId?: number): Observable<any> {
     const solicitud = {
       frames: frames,
-      configuracion: this.configuracion,
-      categoria_id: categoriaAUsar
+      configuracion: this.configuracion
     };
 
     return this.http.post<any>(
@@ -132,7 +136,6 @@ export class ReconocimientoService {
       { headers: this.getHeaders() }
     ).pipe(
       timeout(this.TIMEOUT_RECONOCIMIENTO),
-      retry(1),
       catchError(error => this.handleError('procesarSecuenciaFrames', error))
     );
   }
@@ -152,8 +155,7 @@ export class ReconocimientoService {
       errorMsg = error.message || errorMsg;
     }
 
-    console.error(`❌ ${operation}:`, errorMsg);
-
+    console.warn(`[RECONOCIMIENTO] ${operation}:`, errorMsg);
     return throwError(() => new Error(errorMsg));
   }
 
@@ -168,15 +170,11 @@ export class ReconocimientoService {
   }
 
   agregarFrame(frameBase64: string, landmarks?: any[]): void {
-    if (!this.reconocimientoActivo || this.procesando || this.requestInFlight) {
+    if (!this.reconocimientoActivo) {
       return;
     }
 
     const ahora = Date.now();
-
-    if (frameBase64.length > 100000) {
-      console.warn('[ReconocimientoService] Frame grande sin comprimir:', frameBase64.length, 'bytes base64');
-    }
 
     const frameProcesado: FrameProcesado = {
       frame_base64: frameBase64,
@@ -190,7 +188,9 @@ export class ReconocimientoService {
       this.framesBuffer.shift();
     }
 
-    this.evaluarProcesamiento(ahora);
+    if (!this.procesando && !this.requestInFlight) {
+      this.evaluarProcesamiento(ahora);
+    }
   }
 
   private evaluarProcesamiento(ahora: number): void {
@@ -214,8 +214,6 @@ export class ReconocimientoService {
 
     const framesParaProcesar = this.seleccionarFramesOptimos();
 
-    console.log('🔄 Procesando:', framesParaProcesar.length, 'frames');
-
     this.solicitudActual = this.procesarSecuenciaFrames(framesParaProcesar).subscribe({
       next: (response) => {
         this.procesando = false;
@@ -233,39 +231,69 @@ export class ReconocimientoService {
 
           if (datos.confianza !== undefined && datos.confianza !== null && !isNaN(datos.confianza)) {
             confianza = Number(datos.confianza);
-          } else if (datos.confianza_preliminar !== undefined && !isNaN(datos.confianza_preliminar)) {
-            confianza = Number(datos.confianza_preliminar);
-          } else if (datos.confianza_raw !== undefined && !isNaN(datos.confianza_raw)) {
-            confianza = Number(datos.confianza_raw);
           } else if (datos.porcentaje !== undefined && !isNaN(datos.porcentaje)) {
             confianza = Number(datos.porcentaje) / 100;
-          } else {
-            console.warn('⚠️ No se encontró confianza válida en la respuesta:', Object.keys(datos));
-            confianza = 0;
           }
 
           if (isNaN(confianza) || !isFinite(confianza)) {
-            console.error('❌ Confianza inválida (NaN/Inf):', confianza);
             confianza = 0;
           } else if (confianza > 1) {
             confianza = confianza / 100;
           }
 
-          this.confianzaSubject.next(confianza);
+          const senaCruda = (datos.sena_detectada || '').trim();
+
+          const huboCambioDeSena = !!senaCruda &&
+            !!this.ultimaSenaCruda &&
+            senaCruda !== this.ultimaSenaCruda;
+
+          if (senaCruda) {
+            this.ultimaSenaCruda = senaCruda;
+          }
+
+          if (huboCambioDeSena) {
+            this.historialPredicciones = [];
+          }
+
+          const resultadoConsenso = this.aplicarConsenso({
+            sena: senaCruda,
+            confianza: confianza,
+            timestamp: Date.now()
+          });
+
+          if (!resultadoConsenso) {
+            if (huboCambioDeSena) {
+              this.framesBuffer = [];
+            } else {
+              this.limpiarBufferParcial();
+            }
+            this.evaluarProcesamiento(Date.now());
+            return;
+          }
+
+          this.confianzaSubject.next(resultadoConsenso.confianza);
 
           const resultadoCompleto: ResultadoReconocimientoVideo = {
             ...datos,
-            confianza: confianza,
-            confianza_raw: datos.confianza_raw ?? confianza,
-            confianza_preliminar: datos.confianza_preliminar ?? confianza
+            sena_detectada: resultadoConsenso.sena,
+            texto_traducido: resultadoConsenso.sena,
+            confianza: resultadoConsenso.confianza,
+            confianza_raw: resultadoConsenso.confianza
           };
 
           this.resultadoSubject.next(resultadoCompleto);
-          this.limpiarBufferParcial();
+
+          if (huboCambioDeSena) {
+            this.framesBuffer = [];
+          } else {
+            this.limpiarBufferParcial();
+          }
+          this.evaluarProcesamiento(Date.now());
         } else {
-          console.error('❌ Respuesta sin éxito:', response.mensaje, response.errores);
           this.confianzaSubject.next(0);
           this.emitirResultadoError(response.mensaje || 'Error en reconocimiento');
+          this.limpiarBufferParcial();
+          this.evaluarProcesamiento(Date.now());
         }
       },
       error: (error) => {
@@ -277,19 +305,65 @@ export class ReconocimientoService {
           return;
         }
 
-        console.error('❌ Error HTTP:', error.status, error.message);
         this.confianzaSubject.next(0);
         this.emitirResultadoError(error.message);
         this.limpiarBufferParcial();
+        this.evaluarProcesamiento(Date.now());
       }
     });
   }
 
+  private aplicarConsenso(nuevaPrediccion: PrediccionBuffer): { sena: string; confianza: number } | null {
+    if (!nuevaPrediccion.sena || nuevaPrediccion.confianza === 0) {
+      return null;
+    }
+
+    this.historialPredicciones.push(nuevaPrediccion);
+
+    if (this.historialPredicciones.length > this.TAMANO_VENTANA_VOTING) {
+      this.historialPredicciones.shift();
+    }
+
+    const votos: { [sena: string]: number } = {};
+    const pesos: { [sena: string]: number } = {};
+
+    for (const p of this.historialPredicciones) {
+      votos[p.sena] = (votos[p.sena] || 0) + 1;
+      pesos[p.sena] = (pesos[p.sena] || 0) + p.confianza;
+    }
+
+    let senaGanadora = '';
+    let maxPeso = 0;
+    for (const sena in pesos) {
+      if (pesos[sena] > maxPeso) {
+        maxPeso = pesos[sena];
+        senaGanadora = sena;
+      }
+    }
+
+    if (votos[senaGanadora] < this.MIN_CONSENSO) {
+      return null;
+    }
+
+    const confianzaPromedio = pesos[senaGanadora] / votos[senaGanadora];
+
+    return {
+      sena: senaGanadora,
+      confianza: confianzaPromedio
+    };
+  }
+
   private seleccionarFramesOptimos(): FrameProcesado[] {
-    const totalFrames = this.framesBuffer.length;
+    const ahora = Date.now();
+    const framesFrescos = this.framesBuffer.filter(f => (ahora - f.timestamp) <= this.VENTANA_MAX_FRAME_MS);
+    const fuente = framesFrescos.length >= this.MIN_FRAMES_PROCESAMIENTO
+      ? framesFrescos
+      : this.framesBuffer;
+
+    const totalFrames = fuente.length;
 
     if (totalFrames <= this.FRAMES_OPTIMOS) {
-      return [...this.framesBuffer];
+      return [...fuente];
     }
 
     const indices: number[] = [];
@@ -300,7 +374,7 @@ export class ReconocimientoService {
       indices.push(Math.min(index, totalFrames - 1));
     }
 
-    return indices.map(i => this.framesBuffer[i]);
+    return indices.map(i => fuente[i]);
   }
 
   private emitirResultadoError(mensaje: string): void {
@@ -327,26 +401,30 @@ export class ReconocimientoService {
   }
 
   private limpiarBufferParcial(): void {
-    if (this.framesBuffer.length > 6) {
-      this.framesBuffer = this.framesBuffer.slice(-6);
+    if (this.framesBuffer.length > this.FRAMES_OVERLAP) {
+      this.framesBuffer = this.framesBuffer.slice(-this.FRAMES_OVERLAP);
+    } else {
+      this.framesBuffer = [];
     }
   }
 
   iniciarReconocimiento(): void {
     this.reconocimientoActivo = true;
     this.framesBuffer = [];
+    this.historialPredicciones = [];
+    this.ultimaSenaCruda = '';
     this.procesando = false;
     this.requestInFlight = false;
     this.ultimoProcesamiento = 0;
     this.estadoSubject.next(true);
     this.confianzaSubject.next(0);
-
-    console.log('🎬 Reconocimiento iniciado');
   }
 
   detenerReconocimiento(): void {
     this.reconocimientoActivo = false;
     this.framesBuffer = [];
+    this.historialPredicciones = [];
+    this.ultimaSenaCruda = '';
     this.procesando = false;
     this.requestInFlight = false;
     this.estadoSubject.next(false);
@@ -355,8 +433,6 @@ export class ReconocimientoService {
       this.solicitudActual.unsubscribe();
       this.solicitudActual = null;
     }
-
-    console.log('⏹️ Reconocimiento detenido');
   }
 
   estaActivo(): boolean {
@@ -400,6 +476,7 @@ export class ReconocimientoService {
 
   limpiarBuffer(): void {
     this.framesBuffer = [];
-    console.log('Buffer limpiado');
+    this.historialPredicciones = [];
+    this.ultimaSenaCruda = '';
   }
 }

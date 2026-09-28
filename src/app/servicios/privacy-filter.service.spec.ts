@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { ApiPeruService } from './api-peru.service';
+import { PrivacyFilterService } from './privacy-filter.service';
 
-describe('ApiPeruService', () => {
-  let service: ApiPeruService;
+describe('PrivacyFilterService', () => {
+  let service: PrivacyFilterService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(ApiPeruService);
+    service = TestBed.inject(PrivacyFilterService);
   });
 
   it('should be created', () => {

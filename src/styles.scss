@@ -198,3 +198,19 @@ $desktop: 1200px;
     left: 50%;
     transform: translate(-50%, -50%);
 }
+
+app-camara-reconocimiento {
+
+    .video-feed,
+    .canvas-overlay {
+        transform: none !important;
+    }
+}
+
+app-traductor {
+
+    .camera-container video,
+    .camera-container canvas {
+        transform: none !important;
+    }
+}

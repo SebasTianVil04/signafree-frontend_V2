@@ -110,10 +110,8 @@ export class EncabezadoComponent implements OnInit {
   }
 
   get iniciales(): string {
-    if (!this.usuario) return '';
-    const nombres = this.usuario.nombres?.charAt(0) || '';
-    const apellidos = this.usuario.apellidos?.charAt(0) || '';
-    return (nombres + apellidos).toUpperCase();
+    if (!this.usuario?.nombre_usuario) return '';
+    return this.usuario.nombre_usuario.substring(0, 2).toUpperCase();
   }
 
   get esAdmin(): boolean {

@@ -39,17 +39,12 @@ export class InicioComponent implements OnInit, OnDestroy {
   }
 
   get iniciales(): string {
-    if (!this.usuario) return '';
-    const n = this.usuario.nombres?.charAt(0) || '';
-    const a = (this.usuario.apellidos || this.usuario.apellido_paterno || '').charAt(0) || '';
-    return (n + a).toUpperCase();
+    if (!this.usuario?.nombre_usuario) return '';
+    return this.usuario.nombre_usuario.substring(0, 2).toUpperCase();
   }
 
   get nombreCompleto(): string {
-    if (!this.usuario) return '';
-    const apellidos = this.usuario.apellidos
-      || `${this.usuario.apellido_paterno || ''} ${this.usuario.apellido_materno || ''}`.trim();
-    return `${this.usuario.nombres || ''} ${apellidos}`.trim();
+    return this.usuario?.nombre_usuario || '';
   }
 
   get nombreRol(): string {

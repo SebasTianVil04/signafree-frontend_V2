@@ -6,6 +6,7 @@ import {
   AfterViewInit,
   NgZone,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { TraductorService, ConfiguracionTraduccion, RespuestaAPI } from '../../servicios/traductor.service';
 import { HandDetectionService } from '../../servicios/hand-detection.service';
 import { RecursosSenasService, RecursoSena } from '../../servicios/recursos-senas.service';
@@ -50,9 +51,35 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
 
   reconocimientoContinuo = false;
 
+  letraEnVivo = '';
+  confianzaEnVivo = 0;
+
   private framesBuffer: string[] = [];
   private readonly MAX_FRAMES_BUFFER = 16;
   private capturaManualActiva = false;
+  private reconocimientoContinuoSubscription?: Subscription;
+
+  private readonly LETRAS_ESTABLES_REQUERIDAS = 1;
+  private readonly COOLDOWN_LETRAS_MS = 500;
+  private readonly CONFIANZA_MINIMA_CONTINUO = 0.30;
+  private readonly FRAMES_SIN_MANO_TOLERADOS = 6;
+
+  private letraCandidata = '';
+  private contadorLetraCandidata = 0;
+  private ultimaLetraTimestamp = 0;
+  private framesSinManoContinuo = 0;
+
+  private ultimaLetraConfirmada = '';
+  private bloqueoRepeticion = false;
+
+  private ultimosSlotsMP: any[] = [[], []];
+
+  private frameCanvas: HTMLCanvasElement | null = null;
+  private frameCtx: CanvasRenderingContext2D | null = null;
+  private readonly FRAME_CAPTURE_SIZE = 320;
+
+  private colaVoz: string[] = [];
+  private hablandoVoz = false;
 
   constructor(
     private traductorSvc: TraductorService,
@@ -72,6 +99,8 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.detenerReproduccion();
     this.detenerReconocimientoContinuo();
     this.reconocimientoSvc.detenerReconocimiento();
+    this.reconocimientoContinuoSubscription?.unsubscribe();
+    this.detenerColaVoz();
   }
 
   cambiarModo(nuevo: 'voz-a-senas' | 'senas-a-texto'): void {
@@ -93,6 +122,18 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.historicoLetras = [];
     this.framesBuffer = [];
     this.capturaManualActiva = false;
+    this.resetearEstadoContinuo();
+  }
+
+  private resetearEstadoContinuo(): void {
+    this.letraCandidata = '';
+    this.contadorLetraCandidata = 0;
+    this.ultimaLetraTimestamp = 0;
+    this.framesSinManoContinuo = 0;
+    this.letraEnVivo = '';
+    this.confianzaEnVivo = 0;
+    this.ultimaLetraConfirmada = '';
+    this.bloqueoRepeticion = false;
   }
 
   iniciarReconocimientoVoz(): void {
@@ -271,13 +312,29 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
         this.canvasElement.nativeElement,
         (results: any) => {
           this.manoDetectada = this.handDetectionSvc.verificarManoDetectada(results);
-          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            this.confianzaDeteccion = results.multiHandedness?.[0]?.score || 0;
-            if (this.reconocimientoContinuo && this.manoDetectada) {
+          this.ultimosSlotsMP = this.handDetectionSvc.obtenerLandmarksConSlotsFijos(results);
+
+          const hayMano = this.ultimosSlotsMP.some(s => Array.isArray(s) && s.length >= 21);
+
+          if (this.manoDetectada && hayMano) {
+            this.framesSinManoContinuo = 0;
+
+            if (this.reconocimientoContinuo) {
               this.capturarFrameParaBuffer();
             }
           } else {
             this.confianzaDeteccion = 0;
+
+            if (this.reconocimientoContinuo) {
+              this.framesSinManoContinuo++;
+
+              if (this.framesSinManoContinuo >= this.FRAMES_SIN_MANO_TOLERADOS) {
+                this.reconocimientoSvc.limpiarBuffer();
+                this.letraCandidata = '';
+                this.contadorLetraCandidata = 0;
+                this.bloqueoRepeticion = false;
+              }
+            }
           }
         }
       );
@@ -286,25 +343,51 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     }
   }
 
+  private calcularEncuadreLetterbox(video: HTMLVideoElement, tamano: number) {
+    const anchoVideo = video.videoWidth || 640;
+    const altoVideo = video.videoHeight || 480;
+    const escala = Math.min(tamano / anchoVideo, tamano / altoVideo);
+    const anchoDestino = Math.max(1, Math.round(anchoVideo * escala));
+    const altoDestino = Math.max(1, Math.round(altoVideo * escala));
+    const offsetX = Math.floor((tamano - anchoDestino) / 2);
+    const offsetY = Math.floor((tamano - altoDestino) / 2);
+    return { anchoDestino, altoDestino, offsetX, offsetY };
+  }
+
+  private obtenerCanvasReutilizable(): CanvasRenderingContext2D | null {
+    if (!this.frameCanvas) {
+      this.frameCanvas = document.createElement('canvas');
+      this.frameCanvas.width = this.FRAME_CAPTURE_SIZE;
+      this.frameCanvas.height = this.FRAME_CAPTURE_SIZE;
+      this.frameCtx = this.frameCanvas.getContext('2d');
+    }
+    return this.frameCtx;
+  }
+
   private capturarFrameParaBuffer(): void {
     if (!this.camaraActiva || this.procesando) return;
 
-    const canvas = document.createElement('canvas');
     const video = this.videoElement.nativeElement;
-    canvas.width = 224;
-    canvas.height = 224;
-    const ctx = canvas.getContext('2d');
+    const TAMANO = this.FRAME_CAPTURE_SIZE;
+    const ctx = this.obtenerCanvasReutilizable();
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, 224, 224);
-    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    const { anchoDestino, altoDestino, offsetX, offsetY } = this.calcularEncuadreLetterbox(video, TAMANO);
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, TAMANO, TAMANO);
+    ctx.drawImage(video, offsetX, offsetY, anchoDestino, altoDestino);
+
+    const base64 = ctx.canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
 
     this.framesBuffer.push(base64);
     if (this.framesBuffer.length > this.MAX_FRAMES_BUFFER) {
       this.framesBuffer.shift();
     }
 
-    this.reconocimientoSvc.agregarFrame(base64);
+    const landmarksSimplificados = this.handDetectionSvc.convertirSlotsASimplificados(this.ultimosSlotsMP);
+
+    this.reconocimientoSvc.agregarFrame(base64, landmarksSimplificados);
   }
 
   capturarYReconocer(): void {
@@ -321,6 +404,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.capturaManualActiva = true;
 
     const frames: string[] = [];
+    const framesLandmarks: any[][] = [];
     const video = this.videoElement.nativeElement;
     const canvas = document.createElement('canvas');
     const CAPTURE_SIZE = 320;
@@ -334,21 +418,33 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
       return;
     }
 
+    const { anchoDestino, altoDestino, offsetX, offsetY } = this.calcularEncuadreLetterbox(video, CAPTURE_SIZE);
+
     let count = 0;
     const MAX_FRAMES = 12;
     const INTERVAL_MS = 120;
 
     const interval = setInterval(() => {
-      ctx.drawImage(video, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
+      ctx.drawImage(video, offsetX, offsetY, anchoDestino, altoDestino);
 
       const base64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
       frames.push(base64);
+
+      const slotsActuales = this.ultimosSlotsMP;
+      const hayMano = slotsActuales.some(s => Array.isArray(s) && s.length >= 21);
+      const landmarksActuales = hayMano
+        ? this.handDetectionSvc.convertirSlotsASimplificados(slotsActuales)
+        : [[], []];
+      framesLandmarks.push(landmarksActuales);
+
       count++;
 
       if (count >= MAX_FRAMES) {
         clearInterval(interval);
 
-        this.traductorSvc.traducirSenasATextoConFrames(frames, this.configuracion).subscribe({
+        this.traductorSvc.traducirSenasATextoConFrames(frames, framesLandmarks, this.configuracion).subscribe({
           next: (res: RespuestaAPI) => {
             this.procesarResultadoReconocimiento(res);
             this.capturaManualActiva = false;
@@ -375,7 +471,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
         this.textoReconocido = this.historicoLetras.join('');
 
         if (this.configuracion.activarAudio) {
-          this.traductorSvc.sintetizarVoz(letra, { velocidad: 1.0 });
+          this.reproducirLetraPorVoz(letra);
         }
       } else {
         this.error = 'No se pudo reconocer la seña (confianza baja)';
@@ -391,7 +487,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
   }
 
   private configurarReconocimientoContinuo(): void {
-    this.reconocimientoSvc.resultado$.subscribe({
+    this.reconocimientoContinuoSubscription = this.reconocimientoSvc.resultado$.subscribe({
       next: (resultado) => {
         if (this.reconocimientoContinuo && resultado?.sena_detectada) {
           this.ngZone.run(() => {
@@ -399,25 +495,111 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
           });
         }
       },
-      error: (err) => {
-        console.error('Error en reconocimiento continuo:', err);
-      },
+      error: () => { },
     });
 
-    this.reconocimientoSvc.confianza$.subscribe(() => { });
+    this.reconocimientoContinuoSubscription.add(
+      this.reconocimientoSvc.confianza$.subscribe(() => { })
+    );
   }
 
   private procesarResultadoContinuo(resultado: any): void {
     const confianza = resultado.confianza || 0;
-    if (confianza >= (this.configuracion.confianza_minima || 0.25)) {
-      this.resultadoReconocimiento = resultado;
-      const letra = resultado.sena_detectada;
-      if (letra && letra !== 'desconocido' && letra !== '?' && letra !== this.textoReconocido) {
-        this.textoReconocido = letra;
-        if (this.configuracion.activarAudio) {
-          this.traductorSvc.sintetizarVoz(letra, { velocidad: 1.0 });
-        }
-      }
+    const letra = (resultado.sena_detectada || '').trim().toUpperCase();
+
+    this.letraEnVivo = letra;
+    this.confianzaEnVivo = confianza;
+
+    if (!letra || letra === 'DESCONOCIDO' || letra === '?' || confianza < this.CONFIANZA_MINIMA_CONTINUO) {
+      this.letraCandidata = '';
+      this.contadorLetraCandidata = 0;
+      this.bloqueoRepeticion = false;
+      return;
+    }
+
+    this.resultadoReconocimiento = resultado;
+    this.confianzaDeteccion = confianza;
+
+    if (letra !== this.ultimaLetraConfirmada) {
+      this.bloqueoRepeticion = false;
+    }
+
+    if (letra === this.letraCandidata) {
+      this.contadorLetraCandidata++;
+    } else {
+      this.letraCandidata = letra;
+      this.contadorLetraCandidata = 1;
+    }
+
+    if (this.contadorLetraCandidata < this.LETRAS_ESTABLES_REQUERIDAS) {
+      return;
+    }
+
+    if (letra === this.ultimaLetraConfirmada && this.bloqueoRepeticion) {
+      return;
+    }
+
+    const ahora = Date.now();
+    if (ahora - this.ultimaLetraTimestamp < this.COOLDOWN_LETRAS_MS) {
+      return;
+    }
+
+    this.ultimaLetraTimestamp = ahora;
+    this.ultimaLetraConfirmada = letra;
+    this.bloqueoRepeticion = true;
+    this.letraCandidata = '';
+    this.contadorLetraCandidata = 0;
+
+    this.historicoLetras.push(letra);
+    this.textoReconocido = this.historicoLetras.join('');
+
+    if (this.configuracion.activarAudio) {
+      this.reproducirLetraPorVoz(letra);
+    }
+  }
+
+  private reproducirLetraPorVoz(texto: string): void {
+    if (!window.speechSynthesis) return;
+
+    if (this.colaVoz.length >= 5) {
+      this.colaVoz.shift();
+    }
+    this.colaVoz.push(texto);
+    this.procesarColaVoz();
+  }
+
+  private procesarColaVoz(): void {
+    if (this.hablandoVoz || this.colaVoz.length === 0 || !window.speechSynthesis) {
+      return;
+    }
+
+    const texto = this.colaVoz.shift()!;
+    this.hablandoVoz = true;
+
+    const utterance = new SpeechSynthesisUtterance(texto);
+    utterance.lang = 'es-PE';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onend = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    utterance.onerror = () => {
+      this.hablandoVoz = false;
+      this.procesarColaVoz();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  private detenerColaVoz(): void {
+    this.colaVoz = [];
+    this.hablandoVoz = false;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
   }
 
@@ -434,12 +616,14 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
       this.error = 'Primero debes iniciar la cámara';
       return;
     }
+    this.resetearEstadoContinuo();
     this.reconocimientoContinuo = true;
     this.reconocimientoSvc.iniciarReconocimiento();
   }
 
   private detenerReconocimientoContinuo(): void {
     this.reconocimientoContinuo = false;
+    this.resetearEstadoContinuo();
     this.reconocimientoSvc.detenerReconocimiento();
   }
 
@@ -458,6 +642,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.historicoLetras = [];
     this.textoReconocido = '';
     this.resultadoReconocimiento = null;
+    this.resetearEstadoContinuo();
   }
 
   borrarUltima(): void {
@@ -473,6 +658,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.detenerReconocimientoContinuo();
     this.handDetectionSvc.detenerDeteccion();
     this.reconocimientoSvc.detenerReconocimiento();
+    this.detenerColaVoz();
 
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
@@ -491,6 +677,8 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.confianzaDeteccion = 0;
     this.framesBuffer = [];
     this.capturaManualActiva = false;
+    this.ultimosSlotsMP = [[], []];
+    this.resetearEstadoContinuo();
   }
 
   obtenerClaseConfianza(confianza: number): string {
