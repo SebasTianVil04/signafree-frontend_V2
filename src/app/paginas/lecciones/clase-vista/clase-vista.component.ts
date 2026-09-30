@@ -5,7 +5,8 @@ import { Subscription, firstValueFrom } from 'rxjs';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 import { ProgresoService, ProgresoClase, ResultadoPracticaRequest, ResultadoPracticaResponse } from '../../../servicios/progreso.service';
 import { Leccion } from '../../../modelos/leccion.model';
-import { Clase, Examen, LeccionesService, ProgresoExamen } from '../../../servicios/lecciones.service';
+import { Clase, Examen, LeccionesService } from '../../../servicios/lecciones.service';
+import { ClasesService } from '../../../servicios/clase.service';
 import { SeguimientoTiempoService } from '../../../servicios/seguimiento-tiempo.service';
 
 @Component({
@@ -20,15 +21,18 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
   progresoClase: ProgresoClase | null = null;
   clasesDeLeccion: Clase[] = [];
   examenesDeLeccion: Examen[] = [];
-  progresoExamenes: ProgresoExamen[] = [];
 
   leccionId: number = 0;
   claseId: number = 0;
 
   modoActual: 'aprender' | 'practicar' = 'aprender';
   videoUrl: SafeResourceUrl | null = null;
+  videoLocalUrl: string | null = null;
+  videoTipo: 'local' | 'externo' | null = null;
+  cargandoVideo: boolean = false;
 
   cargando: boolean = true;
+  cambiandoClase: boolean = false;
   error: string = '';
   cargandoExamenes: boolean = false;
 
@@ -38,10 +42,11 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
 
   menuAbierto: boolean = true;
 
-  progresoClases: { [claseId: number]: ProgresoClase } = {};
+  estadoClases: { [claseId: number]: boolean } = {};
   clasesCompletadas: number = 0;
 
   private procesandoResultado: boolean = false;
+  private reintentoVideo: boolean = false;
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -49,6 +54,7 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     public router: Router,
     private sanitizer: DomSanitizer,
     private leccionesService: LeccionesService,
+    private clasesService: ClasesService,
     private progresoService: ProgresoService,
     private cdr: ChangeDetectorRef,
     private seguimientoTiempo: SeguimientoTiempoService,
@@ -56,19 +62,21 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    this.route.params.subscribe(params => {
-      this.leccionId = +params['leccionId'];
-      this.claseId = +params['claseId'];
+    this.subscriptions.push(
+      this.route.params.subscribe(params => {
+        this.leccionId = +params['leccionId'];
+        this.claseId = +params['claseId'];
 
-      if (this.leccionId && this.claseId) {
-        this.resetearEstadoPractica();
-        this.iniciarSesionEstudio();
-        this.cargarDatosCompletos();
-      } else {
-        this.error = 'Parámetros de navegación inválidos';
-        this.cargando = false;
-      }
-    });
+        if (this.leccionId && this.claseId) {
+          this.resetearEstadoPractica();
+          this.iniciarSesionEstudio();
+          this.cargarDatosCompletos();
+        } else {
+          this.error = 'Parámetros de navegación inválidos';
+          this.cargando = false;
+        }
+      })
+    );
   }
 
   ngOnDestroy(): void {
@@ -82,6 +90,7 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     this.tiempoInicioPractica = 0;
     this.modoActual = 'aprender';
     this.procesandoResultado = false;
+    this.reintentoVideo = false;
   }
 
   private iniciarSesionEstudio(): void {
@@ -95,23 +104,64 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
   }
 
   async cargarDatosCompletos(): Promise<void> {
-    this.cargando = true;
+    const claseId = this.claseId;
+    const primeraCarga = !this.claseActual;
+
     this.error = '';
+    if (primeraCarga) {
+      this.cargando = true;
+    } else {
+      this.cambiandoClase = true;
+    }
+
+    const criticos = Promise.all([
+      this.cargarLeccion(),
+      this.cargarClase(),
+      this.cargarClasesDeLeccion()
+    ]);
+
+    const secundarios = Promise.all([
+      this.cargarProgresoClasesLeccion(),
+      this.cargarExamenesDeLeccion()
+    ]);
+
+    Promise.allSettled([criticos, secundarios]).then(() => {
+      if (claseId !== this.claseId) return;
+      this.actualizarClasesCompletadas();
+      this.cdr.detectChanges();
+    });
 
     try {
-      await this.cargarLeccion();
-      await this.cargarClase();
-      await this.cargarClasesDeLeccion();
-      await this.cargarProgresoLeccion();
-      await this.cargarExamenesDeLeccion();
-      await this.cargarProgresoExamenes();
-      this.actualizarDisponibilidadExamenes();
-      this.cdr.detectChanges();
+      await criticos;
+      if (claseId !== this.claseId) return;
+      this.actualizarClasesCompletadas();
+      this.precargarSiguienteClase();
     } catch (error) {
-      this.error = 'Error al cargar los datos de la clase';
+      if (claseId === this.claseId) {
+        this.error = this.error || 'Error al cargar los datos de la clase';
+      }
     } finally {
-      this.cargando = false;
+      if (claseId === this.claseId) {
+        this.cargando = false;
+        this.cambiandoClase = false;
+        this.cdr.detectChanges();
+      }
     }
+  }
+
+  private precargarSiguienteClase(): void {
+    const indice = this.clasesDeLeccion.findIndex(c => c.id === this.claseId);
+    if (indice < 0) return;
+
+    const siguiente = this.clasesDeLeccion[indice + 1];
+    if (!siguiente?.id) return;
+
+    const siguienteId = siguiente.id;
+    this.queryClient.prefetchQuery({
+      queryKey: ['clase', siguienteId],
+      queryFn: () => firstValueFrom(this.leccionesService.obtenerClase(siguienteId)),
+      staleTime: Infinity
+    });
   }
 
   cargarLeccion(): Promise<void> {
@@ -129,14 +179,20 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
   }
 
   cargarClase(): Promise<void> {
+    const claseId = this.claseId;
+
     return this.queryClient.fetchQuery({
-      queryKey: ['clase', this.claseId],
-      queryFn: () => firstValueFrom(this.leccionesService.obtenerClase(this.claseId)),
+      queryKey: ['clase', claseId],
+      queryFn: () => firstValueFrom(this.leccionesService.obtenerClase(claseId)),
       staleTime: Infinity
     }).then(response => {
+      if (claseId !== this.claseId) {
+        return;
+      }
+
       if (response.exito && response.datos) {
         this.claseActual = { ...response.datos };
-        this.generarUrlVideo();
+        this.cargarVideo();
         this.cargarProgresoClase();
         this.marcarComoVista();
       } else {
@@ -144,6 +200,52 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
         throw new Error(this.error);
       }
     });
+  }
+
+  async cargarVideo(): Promise<void> {
+    const claseId = this.claseId;
+
+    this.cargandoVideo = true;
+    this.videoTipo = null;
+    this.videoUrl = null;
+    this.videoLocalUrl = null;
+
+    try {
+      const respuesta = await firstValueFrom(this.clasesService.obtenerVideoClase(claseId));
+
+      if (claseId !== this.claseId) {
+        return;
+      }
+
+      const video = respuesta.datos;
+
+      if (respuesta.exito && video) {
+        if (video.tipo === 'local') {
+          this.videoLocalUrl = this.clasesService.construirUrlAbsoluta(video.url);
+          this.videoTipo = 'local';
+        } else {
+          this.videoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(video.url);
+          this.videoTipo = 'externo';
+        }
+      }
+    } catch {
+      if (claseId === this.claseId) {
+        this.videoTipo = null;
+      }
+    } finally {
+      if (claseId === this.claseId) {
+        this.cargandoVideo = false;
+        this.cdr.detectChanges();
+      }
+    }
+  }
+
+  alErrorVideoLocal(): void {
+    if (this.videoTipo !== 'local' || this.reintentoVideo) {
+      return;
+    }
+    this.reintentoVideo = true;
+    this.cargarVideo();
   }
 
   cargarClasesDeLeccion(): Promise<void> {
@@ -156,31 +258,42 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
         this.clasesDeLeccion = response.datos
           .filter(c => c.activa)
           .sort((a, b) => a.orden - b.orden);
-
-        const promesas = this.clasesDeLeccion.map(clase =>
-          this.cargarProgresoIndividualClase(clase.id!)
-        );
-
-        return Promise.all(promesas).then(() => undefined);
       }
-      return undefined;
     }).catch(() => undefined);
   }
 
-  cargarProgresoLeccion(): Promise<void> {
-    return new Promise((resolve) => {
-      this.progresoService.obtenerProgresoLeccion(this.leccionId).subscribe({
-        next: () => resolve(),
-        error: () => resolve()
-      });
-    });
+  async cargarProgresoClasesLeccion(): Promise<void> {
+    const leccionId = this.leccionId;
+
+    try {
+      const respuesta = await firstValueFrom(this.clasesService.obtenerProgresoClasesLeccion(leccionId));
+
+      if (leccionId !== this.leccionId) {
+        return;
+      }
+
+      const estado: { [claseId: number]: boolean } = {};
+      for (const clase of respuesta.datos?.clases ?? []) {
+        estado[clase.clase_id] = clase.completada;
+      }
+      this.estadoClases = estado;
+    } catch {
+      if (leccionId === this.leccionId) {
+        this.estadoClases = {};
+      }
+    }
   }
 
   cargarProgresoClase(): void {
-    this.progresoService.obtenerProgresoClase(this.claseId).subscribe({
+    const claseId = this.claseId;
+
+    this.progresoService.obtenerProgresoClase(claseId).subscribe({
       next: (progreso) => {
+        if (claseId !== this.claseId) {
+          return;
+        }
         this.progresoClase = progreso;
-        this.progresoClases[this.claseId] = progreso;
+        this.estadoClases = { ...this.estadoClases, [claseId]: progreso.completada };
         this.actualizarClasesCompletadas();
         this.cdr.detectChanges();
       },
@@ -188,33 +301,27 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     });
   }
 
-  cargarProgresoIndividualClase(claseId: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.progresoService.obtenerProgresoClase(claseId).subscribe({
-        next: (progreso) => {
-          this.progresoClases[claseId] = progreso;
-          this.actualizarClasesCompletadas();
-          resolve();
-        },
-        error: () => resolve()
-      });
-    });
-  }
-
   actualizarClasesCompletadas(): void {
-    this.clasesCompletadas = Object.values(this.progresoClases).filter(
-      progreso => progreso.completada
-    ).length;
+    this.clasesCompletadas = Object.values(this.estadoClases).filter(Boolean).length;
     this.actualizarDisponibilidadExamenes();
   }
 
   cargarExamenesDeLeccion(): Promise<void> {
-    this.cargandoExamenes = true;
+    if (this.examenesDeLeccion.length === 0) {
+      this.cargandoExamenes = true;
+    }
+
+    const leccionId = this.leccionId;
+
     return this.queryClient.fetchQuery({
-      queryKey: ['examenes-leccion', this.leccionId],
-      queryFn: () => firstValueFrom(this.leccionesService.obtenerExamenesDeLeccion(this.leccionId)),
-      staleTime: Infinity
+      queryKey: ['examenes-leccion', leccionId],
+      queryFn: () => firstValueFrom(this.leccionesService.obtenerExamenesDeLeccion(leccionId)),
+      staleTime: 0
     }).then(response => {
+      if (leccionId !== this.leccionId) {
+        return;
+      }
+
       if (response.exito && response.datos) {
         this.examenesDeLeccion = response.datos
           .filter(examen => examen.activo)
@@ -227,44 +334,6 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
       this.examenesDeLeccion = [];
       this.cargandoExamenes = false;
     });
-  }
-
-  cargarProgresoExamenes(): Promise<void> {
-    return new Promise((resolve) => {
-      this.leccionesService.obtenerProgresoExamenes(this.leccionId).subscribe({
-        next: (response) => {
-          if (response.exito && response.datos) {
-            this.progresoExamenes = Array.isArray(response.datos) ? response.datos : [];
-            this.actualizarProgresoExamenes();
-          } else {
-            this.progresoExamenes = [];
-          }
-          resolve();
-        },
-        error: () => {
-          this.progresoExamenes = [];
-          resolve();
-        }
-      });
-    });
-  }
-
-  actualizarProgresoExamenes(): void {
-    if (!Array.isArray(this.progresoExamenes)) {
-      this.progresoExamenes = [];
-      return;
-    }
-
-    this.examenesDeLeccion = this.examenesDeLeccion.map(examen => {
-      const progreso = this.progresoExamenes.find(p => p.examen_id === examen.id);
-      return {
-        ...examen,
-        completado: progreso?.completado || false,
-        mejor_calificacion: progreso?.mejor_calificacion || 0
-      };
-    });
-
-    this.cdr.detectChanges();
   }
 
   verificarDisponibilidadExamen(examen: Examen): boolean {
@@ -455,7 +524,7 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
       next: (respuesta) => {
         if (respuesta.progreso) {
           this.progresoClase = { ...respuesta.progreso };
-          this.progresoClases[this.claseId] = { ...respuesta.progreso };
+          this.estadoClases = { ...this.estadoClases, [this.claseId]: respuesta.progreso.completada };
 
           const validacion = this.validarIntentoConProgresoActualizado(respuesta.progreso);
 
@@ -573,7 +642,7 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
       next: (respuesta) => {
         if (respuesta.progreso) {
           this.progresoClase = respuesta.progreso;
-          this.progresoClases[this.claseId] = respuesta.progreso;
+          this.estadoClases = { ...this.estadoClases, [this.claseId]: respuesta.progreso.completada };
 
           const validacion = this.validarIntentoConProgresoActualizado(respuesta.progreso);
           this.resultadoPractica.exito = validacion.cumpleRequisitos;
@@ -615,7 +684,7 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     this.progresoService.obtenerProgresoClase(this.claseId).subscribe({
       next: (progresoActualizado) => {
         this.progresoClase = { ...progresoActualizado };
-        this.progresoClases[this.claseId] = { ...progresoActualizado };
+        this.estadoClases = { ...this.estadoClases, [this.claseId]: progresoActualizado.completada };
 
         if (this.resultadoPractica) {
           const validacion = this.validarIntentoConProgresoActualizado(progresoActualizado);
@@ -647,18 +716,6 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     }, 300);
   }
 
-  generarUrlVideo(): void {
-    if (!this.claseActual) return;
-
-    const url = this.leccionesService.generarUrlVideoEmbebida(this.claseActual);
-
-    if (url) {
-      this.videoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-    } else {
-      this.videoUrl = null;
-    }
-  }
-
   marcarComoVista(): void {
     if (this.progresoClase && !this.progresoClase.vista) {
       this.progresoService.marcarClaseVista(this.claseId).subscribe({
@@ -682,13 +739,8 @@ export class ClaseVistaComponent implements OnInit, OnDestroy {
     this.modoActual = modo;
   }
 
-  obtenerProgresoClase(claseId: number): ProgresoClase | null {
-    return this.progresoClases[claseId] || null;
-  }
-
   estaClaseCompletada(claseId: number): boolean {
-    const progreso = this.obtenerProgresoClase(claseId);
-    return progreso ? progreso.completada : false;
+    return !!this.estadoClases[claseId];
   }
 
   estaClaseBloqueada(claseId: number): boolean {

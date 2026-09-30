@@ -1,74 +1,11 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { CLASE_DEFAULT, extraerVideoId, generarUrlEmbebida } from '../modelos/clase.model';
+import type { Clase, ClaseActualizar, ClaseCrear, TipoVideo } from '../modelos/clase.model';
 
-export interface Clase {
-  id?: number;
-  leccion_id: number;
-  titulo: string;
-  descripcion?: string;
-  contenido_texto?: string;
-  sena?: string;
-  tipo_video: 'youtube' | 'google_drive' | 'vimeo';
-  video_url?: string;
-  video_id?: string;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  orden: number;
-  duracion_estimada?: number;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica: boolean;
-  intentos_minimos: number;
-  precision_minima: number;
-  activa: boolean;
-  fecha_creacion?: string;
-  fecha_actualizacion?: string;
-  url_video_embebida?: string;
-}
-
-export interface ClaseCrear {
-  leccion_id: number;
-  titulo: string;
-  descripcion?: string;
-  contenido_texto?: string;
-  sena?: string;
-  tipo_video: 'youtube' | 'google_drive' | 'vimeo';
-  video_url?: string;
-  video_id?: string;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  orden: number;
-  duracion_estimada?: number;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica: boolean;
-  intentos_minimos: number;
-  precision_minima: number;
-  activa: boolean;
-}
-
-export interface ClaseActualizar {
-  titulo?: string;
-  descripcion?: string;
-  contenido_texto?: string;
-  sena?: string;
-  tipo_video?: 'youtube' | 'google_drive' | 'vimeo';
-  video_url?: string;
-  video_id?: string;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  orden?: number;
-  duracion_estimada?: number;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica?: boolean;
-  intentos_minimos?: number;
-  precision_minima?: number;
-  activa?: boolean;
-}
+export type { Clase, ClaseActualizar, ClaseCrear, TipoVideo };
 
 export interface RespuestaAPI<T = any> {
   exito: boolean;
@@ -85,131 +22,105 @@ export interface RespuestaLista<T = any> {
   por_pagina: number;
 }
 
+export interface VideoClase {
+  tipo: 'local' | 'externo';
+  url: string;
+  expira_en_segundos: number | null;
+}
+
+export interface ResultadoSubidaVideo {
+  clase_id: number;
+  tamano_bytes: number;
+}
+
+export interface EstadoClaseLeccion {
+  clase_id: number;
+  completada: boolean;
+}
+
+export interface ProgresoClasesLeccion {
+  leccion_id: number;
+  total_clases: number;
+  clases_completadas: number;
+  clases: EstadoClaseLeccion[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ClasesService {
-  private apiUrl = `${environment.apiUrl}/clases`;
+  private readonly apiUrl = `${environment.apiUrl}/clases`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
-  private getHeaders(): HttpHeaders {
-    const token = localStorage.getItem('token');
-    return new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    });
-  }
+  private limpiarDatos<T extends object>(datos: T): Partial<T> {
+    const limpio: Record<string, unknown> = {};
 
-
-  private limpiarDatos<T>(datos: T): T {
-    const resultado: any = {};
-    
-    for (const [key, value] of Object.entries(datos as any)) {
-      // Si es un string vacío o solo espacios, convertir a null
-      if (typeof value === 'string' && value.trim() === '') {
-        resultado[key] = null;
-      }
-      // Si es null o undefined, mantener como está
-      else if (value === null || value === undefined) {
-        resultado[key] = null;
-      }
-      // Para cualquier otro valor, mantenerlo
-      else {
-        resultado[key] = value;
-      }
+    for (const [clave, valor] of Object.entries(datos)) {
+      if (valor === undefined) continue;
+      limpio[clave] = typeof valor === 'string' && valor.trim() === '' ? null : valor;
     }
-    
-    return resultado as T;
+
+    return limpio as Partial<T>;
   }
 
-  obtenerClasesDeLeccion(leccionId: number): Observable<RespuestaAPI<Clase[]>> {
-    return this.http.get<RespuestaAPI<Clase[]>>(
-      `${this.apiUrl}/leccion/${leccionId}`,
-      { headers: this.getHeaders() }
-    );
+  obtenerClasesDeLeccion(leccionId: number): Observable<RespuestaLista<Clase>> {
+    return this.http.get<RespuestaLista<Clase>>(`${this.apiUrl}/leccion/${leccionId}`);
   }
 
   obtenerClase(claseId: number): Observable<RespuestaAPI<Clase>> {
-    return this.http.get<RespuestaAPI<Clase>>(
-      `${this.apiUrl}/${claseId}`,
-      { headers: this.getHeaders() }
+    return this.http.get<RespuestaAPI<Clase>>(`${this.apiUrl}/${claseId}`);
+  }
+
+  obtenerProgresoClasesLeccion(leccionId: number): Observable<RespuestaAPI<ProgresoClasesLeccion>> {
+    return this.http.get<RespuestaAPI<ProgresoClasesLeccion>>(
+      `${environment.apiUrl}/lecciones/${leccionId}/progreso-clases`
     );
   }
 
   crearClase(clase: ClaseCrear): Observable<RespuestaAPI<Clase>> {
-    // Limpiar los datos antes de enviar
-    const datosLimpios = this.limpiarDatos(clase);
-    
-    console.log('🧹 Datos después de limpiar:', datosLimpios);
-    console.log('   sena:', datosLimpios.sena);
-    console.log('   sena type:', typeof datosLimpios.sena);
-    
-    return this.http.post<RespuestaAPI<Clase>>(
-      `${this.apiUrl}/`,
-      datosLimpios,
-      { headers: this.getHeaders() }
-    );
+    return this.http.post<RespuestaAPI<Clase>>(`${this.apiUrl}/`, {
+      ...CLASE_DEFAULT,
+      ...this.limpiarDatos(clase)
+    });
   }
 
   actualizarClase(id: number, clase: ClaseActualizar): Observable<RespuestaAPI<Clase>> {
-    // Limpiar los datos antes de enviar
-    const datosLimpios = this.limpiarDatos(clase);
-    
-    return this.http.put<RespuestaAPI<Clase>>(
-      `${this.apiUrl}/${id}`,
-      datosLimpios,
-      { headers: this.getHeaders() }
-    );
+    return this.http.put<RespuestaAPI<Clase>>(`${this.apiUrl}/${id}`, this.limpiarDatos(clase));
   }
 
   eliminarClase(id: number): Observable<RespuestaAPI<null>> {
-    return this.http.delete<RespuestaAPI<null>>(
-      `${this.apiUrl}/${id}`,
-      { headers: this.getHeaders() }
-    );
+    return this.http.delete<RespuestaAPI<null>>(`${this.apiUrl}/${id}`);
+  }
+
+  obtenerVideoClase(claseId: number): Observable<RespuestaAPI<VideoClase>> {
+    return this.http.get<RespuestaAPI<VideoClase>>(`${this.apiUrl}/${claseId}/video`);
+  }
+
+  subirVideoClase(claseId: number, archivo: File): Observable<HttpEvent<RespuestaAPI<ResultadoSubidaVideo>>> {
+    const formulario = new FormData();
+    formulario.append('archivo', archivo, archivo.name);
+
+    return this.http.post<RespuestaAPI<ResultadoSubidaVideo>>(`${this.apiUrl}/${claseId}/video`, formulario, {
+      reportProgress: true,
+      observe: 'events'
+    });
+  }
+
+  eliminarVideoClase(claseId: number): Observable<RespuestaAPI<null>> {
+    return this.http.delete<RespuestaAPI<null>>(`${this.apiUrl}/${claseId}/video`);
+  }
+
+  construirUrlAbsoluta(ruta: string): string {
+    const base = new URL(environment.apiUrl, window.location.origin);
+    return new URL(ruta, base).href;
   }
 
   extraerVideoId(url: string, tipoVideo: string): string {
-    if (!url) return '';
-
-    let videoId = '';
-
-    switch (tipoVideo) {
-      case 'youtube':
-        const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-        const youtubeMatch = url.match(youtubeRegex);
-        videoId = youtubeMatch ? youtubeMatch[1] : '';
-        break;
-
-      case 'google_drive':
-        const driveRegex = /\/file\/d\/([a-zA-Z0-9_-]+)/;
-        const driveMatch = url.match(driveRegex);
-        videoId = driveMatch ? driveMatch[1] : '';
-        break;
-
-      case 'vimeo':
-        const vimeoRegex = /vimeo\.com\/(\d+)/;
-        const vimeoMatch = url.match(vimeoRegex);
-        videoId = vimeoMatch ? vimeoMatch[1] : '';
-        break;
-    }
-
-    return videoId;
+    return extraerVideoId(url, tipoVideo);
   }
 
   generarUrlEmbebida(videoId: string, tipoVideo: string): string {
-    if (!videoId) return '';
-
-    switch (tipoVideo) {
-      case 'youtube':
-        return `https://www.youtube.com/embed/${videoId}`;
-      case 'google_drive':
-        return `https://drive.google.com/file/d/${videoId}/preview`;
-      case 'vimeo':
-        return `https://player.vimeo.com/video/${videoId}`;
-      default:
-        return '';
-    }
+    return generarUrlEmbebida(videoId, tipoVideo);
   }
 }

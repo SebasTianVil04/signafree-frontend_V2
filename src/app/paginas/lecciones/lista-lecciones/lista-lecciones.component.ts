@@ -14,6 +14,7 @@ import { LeccionesService, RespuestaAPI } from '../../../servicios/lecciones.ser
 })
 export class ListaLeccionesComponent implements OnInit {
   leccionesFiltradas: Leccion[] = [];
+  skeletons = [1, 2, 3, 4, 5, 6];
 
   filtros = {
     categoria_id: undefined as number | undefined,
@@ -33,8 +34,9 @@ export class ListaLeccionesComponent implements OnInit {
   leccionesQuery = injectQuery(() => ({
     queryKey: ['lecciones'],
     queryFn: () => firstValueFrom(this.leccionesService.obtenerLecciones({})),
-    staleTime: 30_000,
-    retry: 3,
+    staleTime: 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   }));
 
   get categorias(): CategoriaDB[] {
@@ -64,6 +66,10 @@ export class ListaLeccionesComponent implements OnInit {
   }
 
   ngOnInit(): void {}
+
+  cargarLecciones(): void {
+    this.leccionesQuery.refetch();
+  }
 
   private obtenerLeccionesBase(): Leccion[] {
     const res = this.leccionesQuery.data();

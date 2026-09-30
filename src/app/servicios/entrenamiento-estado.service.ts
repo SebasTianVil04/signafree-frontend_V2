@@ -54,18 +54,16 @@ const ESTADO_INICIAL: EstadoEntrenamientoUI = {
   clasesActuales: []
 };
 
-
 @Injectable({ providedIn: 'root' })
 export class EntrenamientoEstadoService {
-  private estadoSubject = new BehaviorSubject<EstadoEntrenamientoUI>({ ...ESTADO_INICIAL });
-  estado$ = this.estadoSubject.asObservable();
-
+  private readonly estadoSubject = new BehaviorSubject<EstadoEntrenamientoUI>({ ...ESTADO_INICIAL });
+  readonly estado$ = this.estadoSubject.asObservable();
 
   resultadoPendiente: ResultadoEntrenamiento | null = null;
 
   private suscripcionMonitoreo: Subscription | null = null;
-  private intervaloTiempo: any = null;
-  private inicioEntrenamiento: Date | null = null;
+  private intervaloTiempo: ReturnType<typeof setInterval> | null = null;
+  private inicioEntrenamiento: number | null = null;
 
   get estadoActual(): EstadoEntrenamientoUI {
     return this.estadoSubject.value;
@@ -89,51 +87,58 @@ export class EntrenamientoEstadoService {
       totalEpochs
     });
 
-    this.inicioEntrenamiento = new Date();
-    this.actualizarTiempo();
+    this.inicioEntrenamiento = Date.now();
     this.intervaloTiempo = setInterval(() => this.actualizarTiempo(), 1000);
 
     this.suscripcionMonitoreo = datasetService.monitorearEntrenamiento(nombreModelo).subscribe({
-      next: (progreso: ProgresosEntrenamiento) => {
-        this.patch({
-          progresoActual: progreso.progreso || 0,
-          estadoEntrenamiento: progreso.estado || 'preparando',
-          mensajeProgreso: progreso.mensaje || 'Procesando...',
-          accuracyActual: progreso.accuracy || 0,
-          lossActual: progreso.loss || 0,
-          trainAccuracyActual: progreso.train_accuracy || 0,
-          trainLossActual: progreso.train_loss || 0,
-          framesProcesados: progreso.frames_procesados || 0,
-          totalFrames: progreso.total_frames || 0,
-          numClases: progreso.num_clases || 0,
-          clasesActuales: progreso.clases ? [...progreso.clases] : this.estadoActual.clasesActuales,
-          epochActual: progreso.epoch_actual ?? this.estadoActual.epochActual,
-          totalEpochs: progreso.total_epochs ?? this.estadoActual.totalEpochs
-        });
-
-        if (progreso.estado === 'completado') {
-          setTimeout(() => this.finalizarExitoso(progreso, nombreModelo), 500);
-        } else if (progreso.estado === 'error' || progreso.estado === 'timeout') {
-          this.finalizarConError(progreso.mensaje || 'Error en el entrenamiento');
-        }
-      },
-      error: () => {
-        this.finalizarConError('Error monitoreando entrenamiento');
-      }
+      next: progreso => this.procesarProgreso(progreso, nombreModelo),
+      error: () => this.finalizarConError('Error monitoreando entrenamiento')
     });
   }
 
+  consumirResultadoPendiente(): ResultadoEntrenamiento | null {
+    const resultado = this.resultadoPendiente;
+    this.resultadoPendiente = null;
+    return resultado;
+  }
+
+  private procesarProgreso(progreso: ProgresosEntrenamiento, nombreModelo: string): void {
+    const actual = this.estadoActual;
+
+    this.patch({
+      progresoActual: progreso.progreso || 0,
+      estadoEntrenamiento: progreso.estado || 'preparando',
+      mensajeProgreso: progreso.mensaje || 'Procesando...',
+      accuracyActual: progreso.accuracy || 0,
+      lossActual: progreso.loss || 0,
+      trainAccuracyActual: progreso.train_accuracy || 0,
+      trainLossActual: progreso.train_loss || 0,
+      framesProcesados: progreso.frames_procesados || 0,
+      totalFrames: progreso.total_frames || 0,
+      numClases: progreso.num_clases || 0,
+      clasesActuales: progreso.clases ? [...progreso.clases] : actual.clasesActuales,
+      epochActual: progreso.epoch_actual ?? actual.epochActual,
+      totalEpochs: progreso.total_epochs ?? actual.totalEpochs
+    });
+
+    if (progreso.estado === 'completado') {
+      setTimeout(() => this.finalizarExitoso(progreso, nombreModelo), 500);
+    } else if (progreso.estado === 'error' || progreso.estado === 'timeout') {
+      this.finalizarConError(progreso.mensaje || 'Error en el entrenamiento');
+    }
+  }
+
   private finalizarExitoso(progreso: ProgresosEntrenamiento, nombreModelo: string): void {
-    const accuracyFinal = progreso.accuracy ?? this.estadoActual.accuracyActual;
+    const actual = this.estadoActual;
 
     this.resultadoPendiente = {
       exito: true,
       nombre_modelo: progreso.nombre_modelo || nombreModelo,
-      accuracy: accuracyFinal,
-      loss: progreso.loss ?? this.estadoActual.lossActual,
+      accuracy: progreso.accuracy ?? actual.accuracyActual,
+      loss: progreso.loss ?? actual.lossActual,
       num_clases: progreso.num_clases,
       clases: progreso.clases ? [...progreso.clases] : [],
-      epochs_entrenadas: this.estadoActual.totalEpochs,
+      epochs_entrenadas: actual.totalEpochs,
       videos_asociados: progreso.total_videos,
       modo: 'produccion'
     };
@@ -152,10 +157,9 @@ export class EntrenamientoEstadoService {
   }
 
   private detenerMonitoreoInterno(): void {
-    if (this.suscripcionMonitoreo) {
-      this.suscripcionMonitoreo.unsubscribe();
-      this.suscripcionMonitoreo = null;
-    }
+    this.suscripcionMonitoreo?.unsubscribe();
+    this.suscripcionMonitoreo = null;
+
     if (this.intervaloTiempo) {
       clearInterval(this.intervaloTiempo);
       this.intervaloTiempo = null;
@@ -164,17 +168,12 @@ export class EntrenamientoEstadoService {
   }
 
   private actualizarTiempo(): void {
-    if (!this.inicioEntrenamiento) return;
-    const diferencia = new Date().getTime() - this.inicioEntrenamiento.getTime();
-    const minutos = Math.floor(diferencia / 60000);
-    const segundos = Math.floor((diferencia % 60000) / 1000);
+    if (this.inicioEntrenamiento === null) return;
+
+    const segundosTotales = Math.floor((Date.now() - this.inicioEntrenamiento) / 1000);
+    const minutos = Math.floor(segundosTotales / 60);
+    const segundos = segundosTotales % 60;
+
     this.patch({ tiempoTranscurrido: `${minutos}:${segundos.toString().padStart(2, '0')}` });
-  }
-
-
-  consumirResultadoPendiente(): ResultadoEntrenamiento | null {
-    const resultado = this.resultadoPendiente;
-    this.resultadoPendiente = null;
-    return resultado;
   }
 }

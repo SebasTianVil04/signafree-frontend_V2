@@ -9,7 +9,8 @@
       </a>
 
       <div class="navbar-user">
-        <div class="user-menu" (click)="toggleMenuUsuario($event)">
+        <div class="user-menu" (click)="toggleMenuUsuario($event)" role="button" tabindex="0"
+          (keydown.enter)="toggleMenuUsuario($event)" [attr.aria-expanded]="menuUsuarioAbierto">
           <div class="user-avatar" [class.admin]="esAdmin" [class.user]="esUser">
             {{ iniciales }}
           </div>
@@ -33,7 +34,8 @@
         </div>
       </div>
 
-      <button class="navbar-toggle" (click)="toggleMenu()"
+      <button type="button" class="navbar-toggle" (click)="toggleMenu()"
+        [attr.aria-expanded]="menuAbierto"
         [attr.aria-label]="menuAbierto ? 'Cerrar menú' : 'Abrir menú'">
         <span class="toggle-icon" [class.active]="menuAbierto">
           <span></span><span></span><span></span>
@@ -53,7 +55,7 @@
         <div class="user-name-large">{{ usuario.nombre_usuario }}</div>
         <div class="user-role-large">{{ nombreRol }}</div>
       </div>
-      <button class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar">✕</button>
+      <button type="button" class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar">✕</button>
     </div>
 
     <ul class="nav-links">
@@ -62,7 +64,8 @@
 
         <ng-container *ngIf="item.hijos && item.hijos.length > 0">
           <a (click)="toggleSubmenu($event, item.label)" class="nav-link"
-            [class.active]="submenuAbierto === item.label">
+            [class.active]="submenuAbierto === item.label"
+            [attr.aria-expanded]="submenuAbierto === item.label">
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label">{{ item.label }}</span>
             <span class="dropdown-icon" [class.active]="submenuAbierto === item.label">▾</span>

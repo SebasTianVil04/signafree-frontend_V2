@@ -1,81 +1,73 @@
 import { Injectable } from '@angular/core';
-import { 
-  HttpRequest, 
-  HttpHandler, 
-  HttpEvent, 
-  HttpInterceptor, 
+import {
+  HttpRequest,
+  HttpHandler,
+  HttpEvent,
+  HttpInterceptor,
   HttpErrorResponse,
-  HttpContextToken 
+  HttpContextToken
 } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { Router } from '@angular/router';
-import { AutenticacionService } from '../servicios/autenticacion.service';
 import { NotificacionesService } from '../servicios/notificaciones.service';
 
 export const MANEJO_LOCAL_ERRORES = new HttpContextToken<boolean>(() => false);
 
+const RUTAS_SIN_TRANSFORMAR = ['/auth/refresh'];
+const RUTAS_SIN_NOTIFICAR = ['/polling', '/heartbeat', '/status', '/entrenamiento/progreso', '/auth/refresh'];
+
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
 
-  constructor(
-    private router: Router,
-    private authService: AutenticacionService,
-    private notificaciones: NotificacionesService
-  ) {}
+  constructor(private notificaciones: NotificacionesService) {}
 
   intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     return next.handle(request).pipe(
-      catchError((error: HttpErrorResponse) => {
-        // Ignorar peticiones OPTIONS (CORS preflight)
+      catchError((error: unknown) => {
+        if (!(error instanceof HttpErrorResponse)) {
+          return throwError(() => error);
+        }
+
         if (request.method === 'OPTIONS') {
-          return throwError(error);
+          return throwError(() => error);
         }
 
-        const manejoLocal = request.context.get(MANEJO_LOCAL_ERRORES);
+        if (RUTAS_SIN_TRANSFORMAR.some(r => request.url.includes(r))) {
+          return throwError(() => error);
+        }
+
         const mensajeError = this.extraerMensaje(error);
-        
-        // Si tiene manejo local, solo transformar a string
-        if (manejoLocal) {
-          return throwError(mensajeError);
+
+        if (request.context.get(MANEJO_LOCAL_ERRORES)) {
+          return throwError(() => mensajeError);
         }
 
-        // Manejo global de errores
-        if (error.status === 401 && !request.url.includes('/login')) {
-          this.authService.logout();
-        } else if (this.debeNotificar(error, request)) {
+        if (error.status !== 401 && this.debeNotificar(error, request)) {
           this.notificaciones.mostrarError(mensajeError);
         }
-        
-        return throwError(mensajeError);
+
+        return throwError(() => mensajeError);
       })
     );
   }
 
-  private debeNotificar(error: HttpErrorResponse, request: HttpRequest<any>): boolean {
-    // No notificar errores de conexión durante la carga inicial
+  private debeNotificar(error: HttpErrorResponse, request: HttpRequest<unknown>): boolean {
     if (error.status === 0) {
-      // Solo notificar si es una acción explícita del usuario (POST, PUT, DELETE)
       const esAccionUsuario = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method);
       if (!esAccionUsuario) {
         return false;
       }
     }
-    
-    // No notificar errores de polling o heartbeat
-    if (request.url.includes('/polling') || 
-        request.url.includes('/heartbeat') ||
-        request.url.includes('/status')) {
+
+    if (RUTAS_SIN_NOTIFICAR.some(r => request.url.includes(r))) {
       return false;
     }
-    
-    // No notificar errores 404 en recursos opcionales
-    if (error.status === 404 && 
-        (request.url.includes('/favicon') || 
-         request.url.includes('/assets/'))) {
+
+    if (error.status === 404 &&
+        (request.url.includes('/favicon') || request.url.includes('/assets/'))) {
       return false;
     }
-    
+
     return true;
   }
 

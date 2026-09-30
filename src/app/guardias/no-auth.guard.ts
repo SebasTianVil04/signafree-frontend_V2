@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { CanActivate, Router } from '@angular/router';
+import { CanActivate, Router, UrlTree } from '@angular/router';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { AutenticacionService } from '../servicios/autenticacion.service';
 
 @Injectable({
@@ -12,11 +14,9 @@ export class NoAuthGuard implements CanActivate {
     private router: Router
   ) {}
 
-  canActivate(): boolean {
-    if (!this.autenticacionService.estaAutenticado()) {
-      return true;
-    }
-    this.router.navigate(['/inicio']);
-    return false;
+  canActivate(): Observable<boolean | UrlTree> {
+    return this.autenticacionService.cargarUsuarioSiEsNecesario().pipe(
+      map(usuario => usuario ? this.router.createUrlTree(['/inicio']) : true)
+    );
   }
 }

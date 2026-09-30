@@ -2,12 +2,18 @@ import {
   Component,
   ElementRef,
   ViewChild,
+  OnInit,
   OnDestroy,
   AfterViewInit,
   NgZone,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { TraductorService, ConfiguracionTraduccion, RespuestaAPI } from '../../servicios/traductor.service';
+import {
+  TraductorService,
+  ConfiguracionTraduccion,
+  RespuestaAPI,
+  ModeloActivoTraductor,
+} from '../../servicios/traductor.service';
 import { HandDetectionService } from '../../servicios/hand-detection.service';
 import { RecursosSenasService, RecursoSena } from '../../servicios/recursos-senas.service';
 import { ReconocimientoService } from '../../servicios/reconocimiento.service';
@@ -18,7 +24,7 @@ import { ReconocimientoService } from '../../servicios/reconocimiento.service';
   styleUrls: ['./traductor.component.scss'],
   standalone: false,
 })
-export class TraductorComponent implements OnDestroy, AfterViewInit {
+export class TraductorComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('videoElement', { static: false }) videoElement!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasElement', { static: false }) canvasElement!: ElementRef<HTMLCanvasElement>;
 
@@ -35,7 +41,13 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     activarAudio: true,
     confianza_minima: 0.25,
     velocidadReproduccion: 2000,
+    modelo_id: null,
   };
+
+  // Selección de modelo (null = automático: todos los activos)
+  modelosActivos: ModeloActivoTraductor[] = [];
+  modeloSeleccionadoId: number | null = null;
+  cargandoModelos = false;
 
   senasVisuales: RecursoSena[] = [];
   indiceActual = 0;
@@ -92,6 +104,12 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.configurarReconocimientoContinuo();
   }
 
+  ngOnInit(): void {
+    // Al entrar a la vista siempre se parte en modo automático
+    this.reconocimientoSvc.establecerModelo(null);
+    this.cargarModelosActivos();
+  }
+
   ngAfterViewInit(): void { }
 
   ngOnDestroy(): void {
@@ -99,9 +117,66 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
     this.detenerReproduccion();
     this.detenerReconocimientoContinuo();
     this.reconocimientoSvc.detenerReconocimiento();
+    // El servicio es singleton: no dejar el modelo elegido aquí "pegado" para otras vistas
+    this.reconocimientoSvc.establecerModelo(null);
     this.reconocimientoContinuoSubscription?.unsubscribe();
     this.detenerColaVoz();
   }
+
+  // ---------------------------------------------------------------------------
+  // Selección de modelo
+  // ---------------------------------------------------------------------------
+
+  cargarModelosActivos(): void {
+    this.cargandoModelos = true;
+
+    this.traductorSvc.obtenerModelosActivos().subscribe({
+      next: (res: RespuestaAPI) => {
+        this.modelosActivos = res.exito && Array.isArray(res.datos?.modelos)
+          ? res.datos.modelos
+          : [];
+
+        // Si el modelo elegido ya no está activo, volver a automático
+        if (
+          this.modeloSeleccionadoId !== null &&
+          !this.modelosActivos.some(m => m.id === this.modeloSeleccionadoId)
+        ) {
+          this.aplicarModelo(null);
+        }
+
+        this.cargandoModelos = false;
+      },
+      error: (err) => {
+        this.modelosActivos = [];
+        this.cargandoModelos = false;
+        this.error = err.message || 'No se pudieron cargar los modelos activos';
+      },
+    });
+  }
+
+  seleccionarModelo(valor: string): void {
+    const id = valor ? Number(valor) : null;
+    this.aplicarModelo(id !== null && !isNaN(id) ? id : null);
+  }
+
+  private aplicarModelo(id: number | null): void {
+    this.modeloSeleccionadoId = id;
+    this.configuracion = { ...this.configuracion, modelo_id: id };
+    this.reconocimientoSvc.establecerModelo(id);
+    this.resetearEstadoContinuo();
+  }
+
+  get modeloSeleccionado(): ModeloActivoTraductor | null {
+    if (this.modeloSeleccionadoId === null) return null;
+    return this.modelosActivos.find(m => m.id === this.modeloSeleccionadoId) ?? null;
+  }
+
+  etiquetaModelo(m: ModeloActivoTraductor): string {
+    const acc = Math.round((m.accuracy || 0) * 100);
+    return `${m.nombre} · ${acc}% · ${m.num_clases} clases`;
+  }
+
+  // ---------------------------------------------------------------------------
 
   cambiarModo(nuevo: 'voz-a-senas' | 'senas-a-texto'): void {
     this.modoActual = nuevo;
@@ -444,6 +519,7 @@ export class TraductorComponent implements OnDestroy, AfterViewInit {
       if (count >= MAX_FRAMES) {
         clearInterval(interval);
 
+        // this.configuracion ya lleva modelo_id (null = automático)
         this.traductorSvc.traducirSenasATextoConFrames(frames, framesLandmarks, this.configuracion).subscribe({
           next: (res: RespuestaAPI) => {
             this.procesarResultadoReconocimiento(res);

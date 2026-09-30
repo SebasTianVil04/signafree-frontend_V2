@@ -6,37 +6,33 @@ export interface RecursoSena {
   descripcion: string;
 }
 
+const LETRAS = 'abcdefghijklmnñopqrstuvwxyz';
+
+const PALABRAS_COMUNES = [
+  'hola', 'adios', 'gracias', 'por favor', 'si', 'no',
+  'buenos dias', 'buenas tardes', 'buenas noches',
+  'te quiero', 'familia', 'casa', 'escuela'
+];
+
+const MAX_PALABRAS_FRASE = Math.max(...PALABRAS_COMUNES.map(p => p.split(' ').length));
+
 @Injectable({
   providedIn: 'root'
 })
 export class RecursosSenasService {
-  
-  private mapaAlfabeto: Map<string, RecursoSena> = new Map();
-  private mapaNumeros: Map<string, RecursoSena> = new Map();
-  private mapaPalabras: Map<string, RecursoSena> = new Map();
+  private readonly mapaAlfabeto = new Map<string, RecursoSena>();
+  private readonly mapaNumeros = new Map<string, RecursoSena>();
+  private readonly mapaPalabras = new Map<string, RecursoSena>();
 
   constructor() {
-    this.inicializarRecursos();
-  }
-
-  private inicializarRecursos(): void {
-    // Mapeo del alfabeto (a-z en minúscula)
-    const letras = 'abcdefghijklmnñopqrstuvwxyz'.split('');
-    letras.forEach(letra => {
-      this.mapaAlfabeto.set(letra.toLowerCase(), {
+    for (const letra of LETRAS) {
+      this.mapaAlfabeto.set(letra, {
         tipo: 'imagen',
-        url: `assets/alfabeto-senas/${letra.toLowerCase()}.png`,
+        url: `assets/alfabeto-senas/${encodeURIComponent(letra)}.png`,
         descripcion: `Seña de la letra ${letra.toUpperCase()}`
       });
-      // También mapear mayúsculas a las mismas minúsculas
-      this.mapaAlfabeto.set(letra.toUpperCase(), {
-        tipo: 'imagen',
-        url: `assets/alfabeto-senas/${letra.toLowerCase()}.png`,
-        descripcion: `Seña de la letra ${letra.toUpperCase()}`
-      });
-    });
+    }
 
-    // Mapeo de números (0-9)
     for (let i = 0; i <= 9; i++) {
       this.mapaNumeros.set(i.toString(), {
         tipo: 'imagen',
@@ -45,67 +41,70 @@ export class RecursosSenasService {
       });
     }
 
-    // Mapeo de palabras comunes
-    const palabrasComunes = [
-      'hola', 'adios', 'gracias', 'por favor', 'si', 'no',
-      'buenos dias', 'buenas tardes', 'buenas noches',
-      'te quiero', 'familia', 'casa', 'escuela'
-    ];
-
-    palabrasComunes.forEach(palabra => {
-      this.mapaPalabras.set(palabra.toLowerCase(), {
+    for (const palabra of PALABRAS_COMUNES) {
+      this.mapaPalabras.set(palabra, {
         tipo: 'video',
         url: `assets/videos/${palabra.replace(/\s+/g, '-')}.mp4`,
         descripcion: `Seña de "${palabra}"`
       });
-    });
+    }
   }
 
-  /**
-   * Convierte texto a una secuencia de señas - OPTIMIZADO
-   */
-  public textoASenas(texto: string): RecursoSena[] {
+  textoASenas(texto: string): RecursoSena[] {
     if (!texto) return [];
 
-    const inicio = performance.now();
-    const textoLimpio = texto.toLowerCase().trim();
+    const palabras = this.normalizar(texto).split(/\s+/).filter(Boolean);
     const senas: RecursoSena[] = [];
+    let i = 0;
 
-    const palabras = textoLimpio.split(/\s+/).filter(p => p.length > 0);
-    
-    palabras.forEach((palabra) => {
-      if (this.mapaPalabras.has(palabra)) {
-        const recurso = this.mapaPalabras.get(palabra);
-        if (recurso) senas.push(recurso);
-      } else {
-        const caracteres = palabra.split('');
-        caracteres.forEach(char => {
-          if (this.mapaAlfabeto.has(char)) {
-            const recurso = this.mapaAlfabeto.get(char);
-            if (recurso) senas.push(recurso);
-          } else if (this.mapaNumeros.has(char)) {
-            const recurso = this.mapaNumeros.get(char);
-            if (recurso) senas.push(recurso);
-          }
-        });
+    while (i < palabras.length) {
+      const frase = this.buscarFrase(palabras, i);
+
+      if (frase) {
+        senas.push(frase.recurso);
+        i += frase.palabras;
+        continue;
       }
-    });
 
-    const fin = performance.now();
-    console.log(`✅ Texto convertido en ${(fin - inicio).toFixed(2)}ms - ${senas.length} señas generadas`);
+      for (const caracter of palabras[i]) {
+        const recurso = this.mapaAlfabeto.get(caracter) ?? this.mapaNumeros.get(caracter);
+        if (recurso) senas.push(recurso);
+      }
+      i++;
+    }
 
     return senas;
   }
 
-  public obtenerLetra(letra: string): RecursoSena | null {
-    return this.mapaAlfabeto.get(letra.toLowerCase()) || null;
+  obtenerLetra(letra: string): RecursoSena | null {
+    return this.mapaAlfabeto.get(letra.toLowerCase()) ?? null;
   }
 
-  public obtenerNumero(numero: string): RecursoSena | null {
-    return this.mapaNumeros.get(numero) || null;
+  obtenerNumero(numero: string): RecursoSena | null {
+    return this.mapaNumeros.get(numero) ?? null;
   }
 
-  public obtenerPalabra(palabra: string): RecursoSena | null {
-    return this.mapaPalabras.get(palabra.toLowerCase()) || null;
+  obtenerPalabra(palabra: string): RecursoSena | null {
+    return this.mapaPalabras.get(this.normalizar(palabra)) ?? null;
+  }
+
+  private buscarFrase(palabras: string[], inicio: number): { recurso: RecursoSena; palabras: number } | null {
+    const maximo = Math.min(MAX_PALABRAS_FRASE, palabras.length - inicio);
+
+    for (let n = maximo; n >= 1; n--) {
+      const recurso = this.mapaPalabras.get(palabras.slice(inicio, inicio + n).join(' '));
+      if (recurso) return { recurso, palabras: n };
+    }
+    return null;
+  }
+
+  private normalizar(texto: string): string {
+    return texto
+      .toLowerCase()
+      .trim()
+      .replace(/ñ/g, '\u0001')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\u0001/g, 'ñ');
   }
 }

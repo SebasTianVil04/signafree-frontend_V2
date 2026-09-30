@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, effect } from '@angular/core';
 import { injectQuery, injectQueryClient } from '@tanstack/angular-query-experimental';
 import { AdminService, ModeloIA, ConfiguracionEnsemble } from '../../../servicios/admin.service';
-import { Subscription, of, firstValueFrom } from 'rxjs';
+import { of, firstValueFrom } from 'rxjs';
 import { catchError, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { Categoria, CategoriaService } from '../../../servicios/categoria.service';
@@ -9,6 +9,12 @@ import { CategoriaDataset, DatasetService, EstadisticasDataset, ResultadoValidac
 import { EntrenamientoEstadoService } from '../../../servicios/entrenamiento-estado.service';
 
 export type SeccionEntrenamiento = 'resumen' | 'subir' | 'cargar-modelo' | 'entrenar' | 'asignaciones' | 'modelos';
+
+export interface ModeloEnsembleVista {
+  nombre: string;
+  peso: number;
+  accuracy: number;
+}
 
 const QK_CATEGORIAS = ['categorias'] as const;
 const QK_ESTADISTICAS = ['estadisticas'] as const;
@@ -173,6 +179,7 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
       const res = this.modelosQuery.data();
       if (res?.exito && res.datos) {
         this.modelos = this.mapearModelos(res.datos);
+        this.modelosDisponibles = [...this.modelos];
       }
     });
 
@@ -368,18 +375,19 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
   toggleModoEnsemble(): void {
     this.modoEnsemble = !this.modoEnsemble;
 
-    setTimeout(() => {
-      if (!this.modoEnsemble) {
-        const modelosActivos = this.modelos.filter(m => m.activo);
-        this.modelosSeleccionadosEnsemble = modelosActivos.length > 0
-          ? [modelosActivos[0].nombre]
-          : [];
-        this.pesosEnsemble = {};
-      } else {
-        this.modelosSeleccionadosEnsemble = [];
-        this.pesosEnsemble = {};
+    if (!this.modoEnsemble) {
+      const modelosActivos = this.modelos.filter(m => m.activo);
+      this.modelosSeleccionadosEnsemble = modelosActivos.length > 0
+        ? [modelosActivos[0].nombre]
+        : [];
+      this.pesosEnsemble = {};
+      if (this.modelosSeleccionadosEnsemble.length > 0) {
+        this.pesosEnsemble[this.modelosSeleccionadosEnsemble[0]] = 1.0;
       }
-    }, 0);
+    } else {
+      this.modelosSeleccionadosEnsemble = [];
+      this.pesosEnsemble = {};
+    }
   }
 
   toggleModeloEnsemble(nombreModelo: string): void {
@@ -406,15 +414,14 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
 
     if (this.configurandoEnsemble) return;
 
-    const sumaPesos = Object.values(this.pesosEnsemble).reduce((a, b) => a + b, 0);
-    const pesosNormalizados: { [key: string]: number } = {};
-    Object.keys(this.pesosEnsemble).forEach(nombre => {
-      pesosNormalizados[nombre] = this.pesosEnsemble[nombre] / sumaPesos;
-    });
+    const pesosEnOrden = this.modelosSeleccionadosEnsemble.map(
+      n => this.pesosEnsemble[n] ?? 1.0
+    );
+    const sumaPesos = pesosEnOrden.reduce((a, b) => a + b, 0) || 1;
 
     const mensaje = `Activar ensemble con ${this.modelosSeleccionadosEnsemble.length} modelos:\n\n` +
-      this.modelosSeleccionadosEnsemble.map(nombre =>
-        `${nombre}: peso ${pesosNormalizados[nombre].toFixed(2)}`
+      this.modelosSeleccionadosEnsemble.map((nombre, i) =>
+        `${nombre}: peso ${(pesosEnOrden[i] / sumaPesos).toFixed(2)}`
       ).join('\n');
 
     const confirmar = await this.confirmarAccion('Configurar Ensemble', mensaje);
@@ -425,7 +432,7 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
 
     this.adminService.activarMultiplesModelos(
       this.modelosSeleccionadosEnsemble,
-      Object.values(this.pesosEnsemble)
+      pesosEnOrden
     ).subscribe({
       next: (response) => {
         this.configurandoEnsemble = false;
@@ -471,19 +478,7 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
   }
 
   cargarModelosParaAsignacion(): void {
-    this.adminService.listarModelos().pipe(
-      timeout(this.TIMEOUT_MS),
-      catchError(() => of({ exito: false, datos: [], mensaje: 'Error' }))
-    ).subscribe({
-      next: (response) => {
-        if (response.exito && response.datos) {
-          this.modelosDisponibles = [...response.datos];
-        }
-      },
-      error: (err) => {
-        console.error('Error cargando modelos:', err);
-      }
-    });
+    this.modelosDisponibles = [...this.modelos];
   }
 
   abrirModalAsignacion(): void {
@@ -996,6 +991,21 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
     return 'Necesita Mejora';
   }
 
+  etiquetaOrigen(origen?: string | null): string {
+    const valor = (origen || '').toLowerCase();
+    if (valor.includes('local')) return 'Local';
+    if (valor.includes('cargado')) return 'Cargado';
+    if (valor.includes('transfer')) return 'Transfer';
+    return origen || 'N/A';
+  }
+
+  claseOrigen(origen?: string | null): string {
+    const valor = (origen || '').toLowerCase();
+    if (valor.includes('local')) return 'bg-info';
+    if (valor.includes('cargado')) return 'bg-warning text-dark';
+    return 'bg-secondary';
+  }
+
   obtenerColorEstado(): string {
     if (!this.estadisticas) return 'secondary';
     const total = this.estadisticas.videos_aprobados;
@@ -1010,6 +1020,28 @@ export class EntrenamientoModeloComponent implements OnInit, OnDestroy {
     if (total >= 20) return 'Dataset listo';
     if (total >= 10) return 'Dataset mínimo';
     return 'Insuficiente';
+  }
+
+  get ensembleActivo(): ModeloEnsembleVista[] {
+    const activos = this.modelos.filter(m => m.activo);
+    if (activos.length === 0) return [];
+
+    const configurados = ((this.configuracionEnsemble as any)?.modelos ?? []) as any[];
+
+    return activos.map((modelo, i) => {
+      const config = configurados.find(c =>
+        (c?.nombre ?? c?.nombre_modelo ?? c?.name) === modelo.nombre
+      ) ?? configurados[i];
+
+      const pesoConfigurado = Number(config?.peso ?? config?.weight ?? config?.peso_normalizado);
+      const peso = config && Number.isFinite(pesoConfigurado) ? pesoConfigurado : 1 / activos.length;
+
+      return {
+        nombre: modelo.nombre,
+        peso,
+        accuracy: Number(modelo.accuracy) || 0
+      };
+    });
   }
 
   get totalVideosAprobados(): number {

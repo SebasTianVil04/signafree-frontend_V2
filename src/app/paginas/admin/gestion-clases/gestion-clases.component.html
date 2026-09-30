@@ -1,6 +1,5 @@
 <div class="gestion-clases-container">
 
-  <!-- Header -->
   <div class="header">
     <div class="header-info">
       <button class="btn-volver" (click)="volver()">
@@ -25,7 +24,6 @@
     </button>
   </div>
 
-  <!-- Alertas -->
   <div *ngIf="mensaje" class="alert alert-success">
     <i class="bi bi-check-circle-fill"></i>
     <span>{{ mensaje }}</span>
@@ -36,7 +34,6 @@
     <span>{{ error }}</span>
   </div>
 
-  <!-- Filtros -->
   <div class="filtros-section">
     <div class="filtros-grid">
       <div class="filtro-item busqueda">
@@ -67,13 +64,11 @@
     </div>
   </div>
 
-  <!-- Loading -->
   <div *ngIf="cargando" class="loading">
     <div class="spinner"></div>
     <p>Cargando clases...</p>
   </div>
 
-  <!-- Tabla -->
   <div *ngIf="!cargando" class="tabla-container">
     <div class="tabla-wrapper">
       <table class="tabla-clases">
@@ -108,7 +103,11 @@
               <span class="sin-dato" *ngIf="!clase.sena">-</span>
             </td>
             <td>
-              <span class="badge-video" [class.youtube]="clase.tipo_video === 'youtube'"
+              <span class="badge-video" *ngIf="tieneVideoLocal(clase)">
+                <i class="bi bi-file-earmark-play-fill"></i>
+                Archivo propio
+              </span>
+              <span class="badge-video" *ngIf="!tieneVideoLocal(clase)" [class.youtube]="clase.tipo_video === 'youtube'"
                 [class.drive]="clase.tipo_video === 'google_drive'" [class.vimeo]="clase.tipo_video === 'vimeo'">
                 <i class="bi" [class.bi-youtube]="clase.tipo_video === 'youtube'"
                   [class.bi-google]="clase.tipo_video === 'google_drive'"
@@ -192,7 +191,6 @@
     </div>
   </div>
 
-  <!-- Modal -->
   <div class="modal-overlay" *ngIf="mostrarModal" (click)="cerrarModal()">
     <div class="modal-contenido" (click)="$event.stopPropagation()">
 
@@ -201,14 +199,18 @@
           <i class="bi" [class.bi-plus-circle-fill]="!modoEdicion" [class.bi-pencil-square]="modoEdicion"></i>
           <h2>{{ modoEdicion ? 'Editar Clase' : 'Nueva Clase' }}</h2>
         </div>
-        <button class="btn-cerrar" (click)="cerrarModal()">
+        <button class="btn-cerrar" (click)="cerrarModal()" [disabled]="subiendoVideo">
           <i class="bi bi-x-lg"></i>
         </button>
       </div>
 
       <div class="modal-body">
 
-        <!-- Información Básica -->
+        <div *ngIf="error" class="alert alert-error">
+          <i class="bi bi-exclamation-circle-fill"></i>
+          <span>{{ error }}</span>
+        </div>
+
         <div class="seccion-form">
           <h3><i class="bi bi-info-circle-fill"></i> Información Básica</h3>
 
@@ -262,13 +264,44 @@
           </div>
         </div>
 
-        <!-- Video -->
         <div class="seccion-form">
           <h3><i class="bi bi-camera-video-fill"></i> Video de la Clase</h3>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Tipo de Video <span class="requerido">*</span></label>
+              <label>Subir video propio</label>
+              <input #inputVideo type="file" accept=".mp4,.webm,video/mp4,video/webm" class="form-control"
+                (change)="seleccionarVideo($event)" [disabled]="subiendoVideo || guardando">
+              <small><i class="bi bi-info-circle"></i> MP4 o WebM, máximo 300 MB. Tiene prioridad sobre el video externo.</small>
+
+              <div class="archivo-seleccionado" *ngIf="archivoVideo">
+                <i class="bi bi-file-earmark-play-fill"></i>
+                <span>{{ archivoVideo.name }} ({{ formatearTamano(archivoVideo.size) }})</span>
+                <button type="button" class="btn-icono btn-eliminar" (click)="quitarVideoSeleccionado(inputVideo)"
+                  [disabled]="subiendoVideo" title="Quitar archivo">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+
+              <div class="progreso-subida" *ngIf="subiendoVideo">
+                <progress max="100" [value]="progresoSubida"></progress>
+                <span>Subiendo video... {{ progresoSubida }}%</span>
+              </div>
+
+              <div class="video-actual" *ngIf="modoEdicion && tieneVideoLocal(claseSeleccionada)">
+                <i class="bi bi-check-circle-fill"></i>
+                <span>Esta clase ya tiene un video subido. Si subes otro, lo reemplazará.</span>
+                <button type="button" class="btn btn-secundario" (click)="eliminarVideoLocal()"
+                  [disabled]="eliminandoVideo || subiendoVideo">
+                  <i class="bi bi-trash3"></i> Eliminar video subido
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tipo de Video Externo</label>
               <select [(ngModel)]="formulario.tipo_video" name="tipo_video" class="form-control">
                 <option *ngFor="let tipo of tiposVideo" [value]="tipo.valor">
                   {{ tipo.etiqueta }}
@@ -279,7 +312,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>URL del Video</label>
+              <label>URL del Video Externo</label>
               <div class="input-con-boton">
                 <input type="text" [(ngModel)]="formulario.video_url" name="video_url"
                   placeholder="https://youtube.com/watch?v=..." class="form-control">
@@ -301,7 +334,6 @@
           </div>
         </div>
 
-        <!-- Recursos Adicionales -->
         <div class="seccion-form">
           <h3><i class="bi bi-images"></i> Recursos Adicionales</h3>
 
@@ -322,7 +354,6 @@
           </div>
         </div>
 
-        <!-- Tips -->
         <div class="seccion-form">
           <h3><i class="bi bi-lightbulb-fill"></i> Tips y Consejos</h3>
 
@@ -345,7 +376,6 @@
           </div>
         </div>
 
-        <!-- Práctica -->
         <div class="seccion-form">
           <h3><i class="bi bi-activity"></i> Configuración de Práctica</h3>
 
@@ -388,7 +418,6 @@
           </div>
         </div>
 
-        <!-- Estado -->
         <div class="seccion-form">
           <h3><i class="bi bi-toggle-on"></i> Estado</h3>
 
@@ -406,11 +435,12 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-secundario" (click)="cerrarModal()">
+        <button class="btn btn-secundario" (click)="cerrarModal()" [disabled]="subiendoVideo">
           <i class="bi bi-x-circle"></i> Cancelar
         </button>
-        <button class="btn btn-primario" (click)="guardarClase()">
-          <i class="bi bi-check-circle-fill"></i> {{ modoEdicion ? 'Actualizar' : 'Guardar' }}
+        <button class="btn btn-primario" (click)="guardarClase()" [disabled]="guardando || subiendoVideo">
+          <i class="bi bi-check-circle-fill"></i>
+          {{ subiendoVideo ? 'Subiendo...' : (guardando ? 'Guardando...' : (modoEdicion ? 'Actualizar' : 'Guardar')) }}
         </button>
       </div>
 

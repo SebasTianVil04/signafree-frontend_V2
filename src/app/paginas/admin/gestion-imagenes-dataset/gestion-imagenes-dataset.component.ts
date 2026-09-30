@@ -3,7 +3,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { injectQuery, injectQueryClient } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 import { DatasetService, VideoDataset, CategoriaDataset } from '../../../servicios/dataset.service';
-import { environment } from '../../../../environments/environment';
+import { ArchivosService } from '../../../servicios/archivos.service';
 
 const QK_CATEGORIAS = ['categoriasDataset'] as const;
 const QK_VIDEOS = ['todosLosVideosDataset'] as const;
@@ -30,6 +30,8 @@ export class GestionImagenesDatasetComponent implements OnInit {
   mensaje: string | null = null;
   videoSeleccionado: VideoDataset | null = null;
   mostrarModal: boolean = false;
+  urlVideoLocal: string | null = null;
+  cargandoVideo: boolean = false;
   private cacheUrlsSeguras = new Map<number, SafeResourceUrl>();
 
   opcionesEstado = [
@@ -54,7 +56,8 @@ export class GestionImagenesDatasetComponent implements OnInit {
   }));
 
   constructor(private datasetService: DatasetService,
-    private sanitizer: DomSanitizer) {
+    private sanitizer: DomSanitizer,
+    private archivosService: ArchivosService) {
     effect(() => {
       const res = this.categoriasQuery.data();
       if (res?.exito && res.datos) {
@@ -139,11 +142,33 @@ export class GestionImagenesDatasetComponent implements OnInit {
   verVideo(video: VideoDataset): void {
     this.videoSeleccionado = video;
     this.mostrarModal = true;
+    this.urlVideoLocal = null;
+
+    if (this.esVideoDeDrive(video)) {
+      this.cargandoVideo = false;
+      return;
+    }
+
+    this.cargandoVideo = true;
+    this.archivosService.urlVideoDataset(video.id).subscribe({
+      next: (respuesta) => {
+        if (this.videoSeleccionado?.id !== video.id) return;
+        this.urlVideoLocal = respuesta.url;
+        this.cargandoVideo = false;
+      },
+      error: () => {
+        if (this.videoSeleccionado?.id !== video.id) return;
+        this.urlVideoLocal = null;
+        this.cargandoVideo = false;
+      }
+    });
   }
 
   cerrarModal(): void {
     this.mostrarModal = false;
     this.videoSeleccionado = null;
+    this.urlVideoLocal = null;
+    this.cargandoVideo = false;
   }
 
   esVideoDeDrive(video: VideoDataset): boolean {
@@ -161,46 +186,6 @@ export class GestionImagenesDatasetComponent implements OnInit {
       }
     }
     return '';
-  }
-
-  obtenerRutaVideo(video: VideoDataset): string | null {
-    const posiblesPropiedades = [
-      'ruta_video', 'ruta', 'path', 'url', 'video_path',
-      'archivo', 'file', 'video_url', 'rutaVideo', 'video'
-    ];
-
-    for (const prop of posiblesPropiedades) {
-      if ((video as any)[prop]) {
-        return (video as any)[prop];
-      }
-    }
-    return null;
-  }
-
-  construirUrlCompleta(ruta: string): string {
-    if (!ruta) return '';
-    if (ruta.startsWith('http')) return ruta;
-
-    ruta = ruta.replace(/\\/g, '/');
-    const urlBase = environment.apiUrl.split('/api')[0];
-
-    if (ruta.startsWith('archivos_subidos/')) {
-      return `${urlBase}/${ruta}`;
-    }
-
-    return `${urlBase}/uploads/${ruta}`;
-  }
-
-  obtenerUrlVideo(video: VideoDataset): string {
-    if (this.esVideoDeDrive(video)) {
-      return '';
-    }
-    const ruta = this.obtenerRutaVideo(video);
-    return ruta ? this.construirUrlCompleta(ruta) : '';
-  }
-
-  tieneVideoDisponible(video: VideoDataset): boolean {
-    return this.esVideoDeDrive(video) || !!this.obtenerUrlVideo(video);
   }
 
   obtenerUrlEmbedDriveSegura(video: VideoDataset): SafeResourceUrl {

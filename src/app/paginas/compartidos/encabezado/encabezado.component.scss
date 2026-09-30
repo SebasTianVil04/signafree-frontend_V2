@@ -4,6 +4,10 @@
   position: relative;
   z-index: 1000;
 
+  // Alturas compartidas (el menú móvil se posiciona con estas variables)
+  --sf-topbar-h: 68px;
+  --sf-menubar-h: 58px;
+
   // ---- Paleta unificada (familia índigo/violeta) ----
   --sf-primary-600: #4f46e5;
   --sf-primary-700: #4338ca;
@@ -36,18 +40,21 @@
 .navbar-top {
   background: linear-gradient(135deg, var(--sf-primary-600) 0%, var(--sf-primary-700) 100%);
   width: 100%;
+  position: relative;
+  z-index: 1001; // por encima del overlay y del menú móvil
 }
 
 .navbar-top-container {
   max-width: 1600px;
   margin: 0 auto;
   padding: 0 24px;
-  height: 68px;
+  height: var(--sf-topbar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .logo {
@@ -90,6 +97,7 @@
   border-radius: 50px;
   cursor: pointer;
   transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover {
     background: rgba(255, 255, 255, 0.2);
@@ -159,6 +167,7 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
   border: 1px solid #f3f4f6;
   min-width: 230px;
+  max-width: calc(100vw - 32px);
   padding: 8px;
   opacity: 0;
   visibility: hidden;
@@ -204,6 +213,10 @@
 
 .navbar-toggle {
   display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
@@ -211,6 +224,7 @@
   padding: 10px;
   flex-shrink: 0;
   transition: background 0.2s;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover { background: rgba(255, 255, 255, 0.2); }
 
@@ -247,8 +261,9 @@
 .nav-links {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 58px;
+  padding: 6px 24px;
+  min-height: var(--sf-menubar-h);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -275,6 +290,7 @@
   font-weight: 500;
   white-space: nowrap;
   transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 
   .nav-icon {
     font-size: 18px;
@@ -373,29 +389,61 @@
   z-index: 998;
 }
 
+// ==========================================================
+// TABLET (901px - 1024px): sin scroll horizontal, los ítems
+// pasan a otra línea para que los submenús no queden recortados
+// ==========================================================
 @media (max-width: 1024px) {
   .user-menu .user-info { display: none; }
   .user-menu .dropdown-arrow { display: none; }
+  .user-menu { padding: 6px; }
+
   .nav-links {
-    justify-content: flex-start;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 2px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 6px 16px;
+    row-gap: 2px;
+    overflow: visible;
+  }
+
+  .nav-link {
+    padding: 9px 14px;
+    font-size: 14px;
+  }
+
+  // Los últimos submenús se abren hacia la izquierda para no salirse de la pantalla
+  .nav-links > li:nth-last-child(-n + 2) .submenu {
+    left: auto;
+    right: 0;
   }
 }
 
+// ==========================================================
+// MÓVIL (<= 900px): menú lateral a pantalla completa
+// ==========================================================
 @media (max-width: 900px) {
+
+  :host {
+    --sf-topbar-h: 64px;
+    position: sticky; // el menú fijo siempre queda alineado con el header
+    top: 0;
+  }
 
   .navbar-top-container {
     padding: 0 16px;
-    height: 64px;
   }
 
-  .navbar-toggle { display: block; }
+  // En móvil el usuario vive dentro del menú; se oculta el avatar de la barra
+  .navbar-user { display: none; }
+
+  .navbar-toggle {
+    display: flex;
+    margin-left: auto;
+  }
 
   .navbar-menu {
     position: fixed;
-    top: 64px;
+    top: var(--sf-topbar-h);
     left: 0;
     right: 0;
     bottom: 0;
@@ -405,15 +453,19 @@
     transform: translateX(100%);
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
     transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
     overflow-y: auto;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 999;
 
     &.active {
       transform: translateX(0);
       opacity: 1;
       visibility: visible;
+      pointer-events: auto;
     }
   }
 
@@ -465,8 +517,8 @@
       background: rgba(255, 255, 255, 0.15);
       border: none;
       color: #ffffff;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       font-size: 16px;
       cursor: pointer;
@@ -481,23 +533,29 @@
 
   .nav-links {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
     justify-content: flex-start;
     width: 100%;
+    min-height: 0;
     height: auto;
     gap: 3px;
     padding: 12px;
-    flex: 1;
+    margin: 0;
+    flex: 0 0 auto;
     overflow: visible;
   }
 
   .nav-links > li {
     width: 100%;
     position: static;
+    flex-shrink: 0;
   }
 
   .nav-link {
     width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
     padding: 14px 16px;
     justify-content: flex-start;
     font-size: 16px;
@@ -526,9 +584,11 @@
 
     .submenu-link {
       color: rgba(255, 255, 255, 0.9);
+      min-height: 46px;
       padding: 12px 16px;
       border-radius: 8px;
       font-size: 15px;
+      white-space: normal;
 
       .submenu-icon { font-size: 18px; }
 
@@ -537,11 +597,18 @@
     }
   }
 
+  // Se anula la regla de tablet para que los submenús no se desplacen a la derecha
+  .nav-links > li:nth-last-child(-n + 2) .submenu {
+    left: auto;
+    right: auto;
+  }
+
   .mobile-user-actions {
     display: flex;
     flex-direction: column;
     padding: 12px;
     gap: 6px;
+    margin-top: auto;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
 
@@ -549,6 +616,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      min-height: 48px;
       padding: 14px 16px;
       color: rgba(255, 255, 255, 0.9);
       cursor: pointer;
@@ -569,4 +637,10 @@
       .action-icon { font-size: 20px; }
     }
   }
+}
+
+// Celulares pequeños
+@media (max-width: 480px) {
+  .logo .logo-text { font-size: 20px; }
+  .logo .logo-icon { font-size: 28px; }
 }

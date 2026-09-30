@@ -21,8 +21,6 @@ export function esUsuarioAdmin(usuario: Usuario | null | undefined): boolean {
 }
 
 export interface AuthResponse {
-  access_token: string;
-  token_type: string;
   usuario: Usuario;
 }
 
@@ -47,9 +45,9 @@ export interface RespuestaRecuperacion {
 }
 
 export interface VerificarTokenResponse {
-  mensaje: string;
+  valido: boolean;
   email: string;
-  expira_en: string;
+  mensaje: string;
 }
 
 export interface ConfirmarRecuperacion {
@@ -65,17 +63,6 @@ export interface FormularioRestablecerPassword {
 export interface CambiarPassword {
   password_actual: string;
   password_nueva: string;
-}
-
-export interface VerificarEmailRequest {
-  email: string;
-}
-
-export interface VerificarEmailResponse {
-  existe: boolean;
-  activo?: boolean;
-  mensaje: string;
-  emailNoExiste?: boolean;
 }
 
 export interface ValidacionPassword {
@@ -106,7 +93,7 @@ export interface EstadoRecuperacion extends EstadoFormulario {
 
 export type TipoError =
   | 'email_no_valido'
-  | 'email_no_existe'
+  | 'credenciales_incorrectas'
   | 'usuario_desactivado'
   | 'token_invalido'
   | 'token_expirado'
@@ -130,7 +117,7 @@ export interface ErrorPersonalizado {
 
 export const MENSAJES_ERROR = {
   email_no_valido: 'El formato del correo electrónico no es válido',
-  email_no_existe: 'Este correo no está registrado en nuestro sistema',
+  credenciales_incorrectas: 'Correo o contraseña incorrectos',
   usuario_desactivado: 'La cuenta está desactivada. Contacta al administrador',
   token_invalido: 'El enlace de recuperación no es válido',
   token_expirado: 'El enlace de recuperación ha expirado. Solicita uno nuevo',
@@ -242,10 +229,7 @@ export function esUsuarioValido(obj: any): obj is Usuario {
 }
 
 export function esAuthResponse(obj: any): obj is AuthResponse {
-  return obj &&
-    typeof obj.access_token === 'string' &&
-    typeof obj.token_type === 'string' &&
-    esUsuarioValido(obj.usuario);
+  return obj && esUsuarioValido(obj.usuario);
 }
 
 export function esErrorPersonalizado(obj: any): obj is ErrorPersonalizado {
@@ -258,7 +242,6 @@ export const CONFIG_APP = {
   API_TIMEOUT: 30000,
   DEBOUNCE_TIME: 500,
   REDIRECT_DELAY: 3000,
-  TOKEN_REFRESH_MARGIN: 300000,
   MAX_FILE_SIZE: 5242880,
   FORMATOS_IMAGEN_PERMITIDOS: ['image/jpeg', 'image/png', 'image/webp']
 } as const;

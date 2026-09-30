@@ -11,8 +11,8 @@ import { Examen } from '../../../modelos/examen.model';
 const QK_EXAMENES = ['listaExamenes'] as const;
 const QK_RESUMEN_PROGRESO = ['resumenProgresoExamenes'] as const;
 
-const STALE_EXAMENES = 30 * 1000;
-const STALE_RESUMEN_PROGRESO = 20 * 1000;
+const STALE_EXAMENES = 60 * 1000;
+const STALE_RESUMEN_PROGRESO = 30 * 1000;
 
 @Component({
   selector: 'app-lista-examenes',
@@ -25,6 +25,7 @@ export class ListaExamenesComponent implements OnInit {
   examenesFiltrados: Examen[] = [];
   clasesCompletadasCount: number = 0;
   leccionesProgreso: any = {};
+  skeletons = [1, 2, 3, 4, 5, 6];
 
   filtros = {
     tipo: '',
@@ -37,13 +38,17 @@ export class ListaExamenesComponent implements OnInit {
   private examenesQuery = injectQuery(() => ({
     queryKey: QK_EXAMENES,
     queryFn: () => firstValueFrom(this.examenService.listarExamenes()),
-    staleTime: STALE_EXAMENES
+    staleTime: STALE_EXAMENES,
+    retry: 1,
+    refetchOnWindowFocus: false
   }));
 
   private resumenProgresoQuery = injectQuery(() => ({
     queryKey: QK_RESUMEN_PROGRESO,
     queryFn: () => firstValueFrom(this.progresoService.obtenerResumenUsuario()),
-    staleTime: STALE_RESUMEN_PROGRESO
+    staleTime: STALE_RESUMEN_PROGRESO,
+    retry: 1,
+    refetchOnWindowFocus: false
   }));
 
   constructor(
@@ -73,7 +78,6 @@ export class ListaExamenesComponent implements OnInit {
     effect(() => {
       if (this.examenesQuery.isError()) {
         console.error('Error al cargar exámenes:', this.examenesQuery.error());
-        Swal.fire('Error', 'No se pudieron cargar los exámenes', 'error');
       }
     });
 
@@ -85,7 +89,15 @@ export class ListaExamenesComponent implements OnInit {
   }
 
   get cargando(): boolean {
-    return this.examenesQuery.isPending() || this.resumenProgresoQuery.isPending();
+    return this.examenesQuery.isPending();
+  }
+
+  get verificandoProgreso(): boolean {
+    return this.resumenProgresoQuery.isPending();
+  }
+
+  get errorExamenes(): boolean {
+    return this.examenesQuery.isError();
   }
 
   ngOnInit(): void {
@@ -98,12 +110,16 @@ export class ListaExamenesComponent implements OnInit {
 
   procesarProgresoLecciones(resumen: any): void {
     if (resumen.progresos && Array.isArray(resumen.progresos)) {
+      const progresoPorLeccion: any = {};
+
       resumen.progresos.forEach((progreso: any) => {
-        this.leccionesProgreso[progreso.leccion_id] = {
+        progresoPorLeccion[progreso.leccion_id] = {
           clases_completadas: progreso.clases_completadas || 0,
           total_clases: progreso.total_clases || 0
         };
       });
+
+      this.leccionesProgreso = progresoPorLeccion;
 
       this.clasesCompletadasCount = resumen.progresos.reduce((total: number, progreso: any) => {
         return total + (progreso.clases_completadas || 0);

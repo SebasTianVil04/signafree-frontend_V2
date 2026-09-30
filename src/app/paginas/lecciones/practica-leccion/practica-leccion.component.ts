@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 
 import { LeccionesService } from '../../../servicios/lecciones.service';
+import { ClasesService } from '../../../servicios/clase.service';
 import { PracticaService } from '../../../servicios/practica.service';
 import { ProgresoService } from '../../../servicios/progreso.service';
 import { convertirLeccionServicio, Leccion } from '../../../modelos/leccion.model';
@@ -27,6 +28,9 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
   intervaloTiempo: any;
 
   videoUrl: SafeResourceUrl | null = null;
+  videoLocalUrl: string | null = null;
+  videoTipo: 'local' | 'externo' | null = null;
+  cargandoVideo = false;
   practicaEnCurso: boolean = false;
   mostrarRespuesta = false;
   respuestaCorrecta = false;
@@ -41,11 +45,14 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
   respuestasCorrectas = 0;
   respuestasIncorrectas = 0;
 
+  private reintentoVideo = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private sanitizer: DomSanitizer,
     private leccionesService: LeccionesService,
+    private clasesService: ClasesService,
     private practicaService: PracticaService,
     private progresoService: ProgresoService,
     private queryClient: QueryClient
@@ -104,7 +111,7 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
 
         if (this.clases.length > 0) {
           this.claseActual = this.clases[0];
-          this.generarUrlVideo();
+          this.cargarVideo();
           this.iniciarTemporizador();
         } else {
           this.error = 'Esta lección no tiene clases para practicar.';
@@ -114,6 +121,67 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
     }).catch(err => {
       this.error = err.error?.detail || 'Error al cargar las clases';
       this.cargando = false;
+    });
+  }
+
+  async cargarVideo(): Promise<void> {
+    const clase = this.claseActual;
+    if (!clase?.id) {
+      this.limpiarVideo();
+      return;
+    }
+
+    const claseId = clase.id;
+
+    this.cargandoVideo = true;
+    this.limpiarVideo();
+
+    try {
+      const respuesta = await firstValueFrom(this.clasesService.obtenerVideoClase(claseId));
+
+      if (this.claseActual?.id !== claseId) {
+        return;
+      }
+
+      const video = respuesta.datos;
+
+      if (respuesta.exito && video?.url) {
+        if (video.tipo === 'local') {
+          this.videoLocalUrl = this.clasesService.construirUrlAbsoluta(video.url);
+          this.videoTipo = 'local';
+        } else {
+          this.videoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(video.url);
+          this.videoTipo = 'externo';
+        }
+      } else {
+        this.generarUrlVideo();
+      }
+    } catch {
+      if (this.claseActual?.id === claseId) {
+        this.generarUrlVideo();
+      }
+    } finally {
+      if (this.claseActual?.id === claseId) {
+        this.cargandoVideo = false;
+      }
+    }
+  }
+
+  private limpiarVideo(): void {
+    this.videoUrl = null;
+    this.videoLocalUrl = null;
+    this.videoTipo = null;
+    this.reintentoVideo = false;
+  }
+
+  alErrorVideoLocal(): void {
+    if (this.videoTipo !== 'local' || this.reintentoVideo) {
+      return;
+    }
+    this.reintentoVideo = true;
+    const reintento = this.reintentoVideo;
+    this.cargarVideo().then(() => {
+      this.reintentoVideo = reintento;
     });
   }
 
@@ -131,12 +199,17 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
 
     if (url) {
       this.videoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      this.videoTipo = 'externo';
     } else {
       this.videoUrl = null;
+      this.videoTipo = null;
     }
   }
 
   iniciarTemporizador(): void {
+    if (this.intervaloTiempo) {
+      clearInterval(this.intervaloTiempo);
+    }
     this.tiempoInicio = Date.now();
     this.intervaloTiempo = setInterval(() => {
       this.tiempoTranscurrido = Math.floor((Date.now() - this.tiempoInicio) / 1000);
@@ -319,7 +392,7 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
 
     if (this.indiceActual < this.clases.length) {
       this.claseActual = this.clases[this.indiceActual];
-      this.generarUrlVideo();
+      this.cargarVideo();
     } else {
       this.completarPractica();
     }
@@ -338,7 +411,7 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
     this.respuestasCorrectas = 0;
     this.respuestasIncorrectas = 0;
     this.claseActual = this.clases[0];
-    this.generarUrlVideo();
+    this.cargarVideo();
     this.practicaEnCurso = false;
     this.mostrarRespuesta = false;
     this.practicaCompletada = false;
@@ -346,6 +419,7 @@ export class PracticaLeccionComponent implements OnInit, OnDestroy {
     this.ultimaPrecision = 0;
     this.ultimaSenaDetectada = '';
     this.mensajeFeedback = '';
+    this.tiempoTranscurrido = 0;
     this.iniciarTemporizador();
   }
 

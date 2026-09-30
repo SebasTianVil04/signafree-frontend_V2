@@ -20,12 +20,29 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
   @Input() senaObjetivo: string = '';
   @Input() modo: 'video' = 'video';
-  @Input() categoriaId?: number;
   @Input() tipoContenido?: 'letras' | 'numeros' | 'colores' | 'comunes';
   @Input() nivelDificultad: NivelDificultad = 1;
   @Input() modoContinuo: boolean = false;
   @Input() activarAudio: boolean = true;
   @Output() resultadoEmitido = new EventEmitter<any>();
+
+  private _categoriaId?: number;
+
+  @Input()
+  set categoriaId(valor: number | undefined) {
+    const anterior = this._categoriaId;
+    this._categoriaId = valor;
+    if (valor !== undefined && valor !== null && valor !== anterior) {
+      this.reconocimientoService?.establecerCategoria(valor);
+      if (this.categoriasDisponibles.length > 0) {
+        this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === valor);
+      }
+    }
+  }
+
+  get categoriaId(): number | undefined {
+    return this._categoriaId;
+  }
 
   procesando: boolean = false;
   camaraActiva: boolean = false;
@@ -73,7 +90,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   estaProcesando: boolean = false;
 
   private ultimoFrameEnviado: number = 0;
-  private minIntervaloEntreFrames: number = 80;
+  private minIntervaloEntreFrames: number = 55;
 
   private inicializacionEnProgreso: boolean = false;
 
@@ -97,6 +114,8 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private colaVoz: string[] = [];
   private hablandoVoz: boolean = false;
   private emitPendiente: any = null;
+
+  private readonly LETRAS_DINAMICAS_LSP = ['J', 'Ñ', 'Z'];
 
   constructor(
     private http: HttpClient,
@@ -150,16 +169,20 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   private configurarCategoriaAutomatica(): void {
-    if (this.categoriaId && this.categoriaId > 0) {
-      this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this.categoriaId);
+    if (this._categoriaId && this._categoriaId > 0) {
+      this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this._categoriaId);
     } else if (this.tipoContenido) {
-      this.categoriaId = this.obtenerCategoriaPorTipo();
+      this._categoriaId = this.obtenerCategoriaPorTipo();
     } else if (this.senaObjetivo) {
       this.tipoContenido = this.detectarTipoContenido(this.senaObjetivo);
-      this.categoriaId = this.obtenerCategoriaPorTipo();
+      this._categoriaId = this.obtenerCategoriaPorTipo();
     } else if (this.categoriasDisponibles.length > 0) {
-      this.categoriaId = this.categoriasDisponibles[0].id;
+      this._categoriaId = this.categoriasDisponibles[0].id;
       this.categoriaSeleccionada = this.categoriasDisponibles[0];
+    }
+
+    if (this._categoriaId && this._categoriaId > 0) {
+      this.reconocimientoService.establecerCategoria(this._categoriaId);
     }
   }
 
@@ -209,8 +232,8 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     }).then(response => {
       if (response.exito) {
         this.categoriasDisponibles = response.datos.filter(cat => cat.activa && cat.tiene_modelo && cat.modelo_activo);
-        if (this.categoriaId) {
-          this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this.categoriaId);
+        if (this._categoriaId) {
+          this.categoriaSeleccionada = this.categoriasDisponibles.find(cat => cat.id === this._categoriaId);
         }
       }
       this.cargandoCategorias = false;
@@ -228,6 +251,15 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     const colores = ['ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'BLANCO', 'NEGRO', 'MORADO', 'NARANJA'];
     if (colores.includes(senaUpper)) return 'colores';
     return 'comunes';
+  }
+
+  private esSenaDinamica(sena: string): boolean {
+    const s = (sena || '').toUpperCase().trim();
+    if (!s) return true;
+    if (s.length === 1 && /^[A-ZÑ0-9]$/.test(s)) {
+      return this.LETRAS_DINAMICAS_LSP.includes(s);
+    }
+    return true;
   }
 
   private obtenerCategoriaPorTipo(): number {
@@ -411,10 +443,14 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     const ahora = Date.now();
     if (ahora - this.ultimoFrameEnviado < this.minIntervaloEntreFrames) return;
 
-    const frameBase64 = this.capturarFrameDesdeVideo();
-    if (!frameBase64) return;
-
     const landmarksSimplificados = this.handDetectionService.convertirSlotsASimplificados(this.ultimosSlotsMP);
+
+    let frameBase64 = '';
+    if (!landmarksSimplificados || landmarksSimplificados.length === 0) {
+      const capturado = this.capturarFrameDesdeVideo();
+      if (!capturado) return;
+      frameBase64 = capturado;
+    }
 
     this.reconocimientoService.agregarFrame(frameBase64, landmarksSimplificados);
     this.ultimoFrameEnviado = ahora;
@@ -450,6 +486,15 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       if (!this.camaraActiva || !this.camaraInicializada) throw new Error('Cámara no activa');
 
       await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (this._categoriaId && this._categoriaId > 0) {
+        this.reconocimientoService.establecerCategoria(this._categoriaId);
+      }
+
+      this.reconocimientoService.establecerSenaEsperada(this.senaObjetivo || null);
+
+      const tipoInicial = this.esSenaDinamica(this.senaObjetivo) ? 'DINAMICA' : 'ESTATICA';
+      this.reconocimientoService.establecerTipoSenaInicial(tipoInicial);
 
       this.reconocimientoService.iniciarReconocimiento();
       this.reconocimientoActivo = true;
@@ -568,7 +613,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       intentos: this.intentos,
       mensaje: 'Letra detectada',
       modo: 'continuo',
-      categoria_id: this.categoriaId,
+      categoria_id: this._categoriaId,
       tipo_contenido: this.tipoContenido,
       categoria_nombre: this.categoriaSeleccionada?.nombre
     });
@@ -645,7 +690,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       intentos: this.intentos,
       mensaje: 'Reconocimiento exitoso',
       modo: 'video',
-      categoria_id: this.categoriaId,
+      categoria_id: this._categoriaId,
       tipo_contenido: this.tipoContenido,
       categoria_nombre: this.categoriaSeleccionada?.nombre
     };
@@ -684,7 +729,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         mensaje: 'Tiempo agotado',
         modo: 'video',
         manosDetectadas: this.manosDetectadas,
-        categoria_id: this.categoriaId,
+        categoria_id: this._categoriaId,
         tipo_contenido: this.tipoContenido,
         categoria_nombre: this.categoriaSeleccionada?.nombre
       });
@@ -846,7 +891,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       modo: 'video',
       manosDetectadas: this.manosDetectadas,
       consistencia: 0,
-      categoria_id: this.categoriaId,
+      categoria_id: this._categoriaId,
       tipo_contenido: this.tipoContenido,
       categoria_nombre: this.categoriaSeleccionada?.nombre
     });

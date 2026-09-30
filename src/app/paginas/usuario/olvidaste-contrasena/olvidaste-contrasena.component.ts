@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { NotificacionesService } from '../../../servicios/notificaciones.service';
 import { AutenticacionService } from '../../../servicios/autenticacion.service';
 
-
 @Component({
   selector: 'app-olvidaste-contrasena',
   templateUrl: './olvidaste-contrasena.component.html',
@@ -13,7 +12,7 @@ import { AutenticacionService } from '../../../servicios/autenticacion.service';
 })
 export class OlvidasteContrasenaComponent implements OnInit {
   formularioRecuperacion!: FormGroup;
-  
+
   cargando = false;
   enviado = false;
   error: string | null = null;
@@ -28,9 +27,9 @@ export class OlvidasteContrasenaComponent implements OnInit {
 
   ngOnInit(): void {
     this.inicializarFormulario();
-    
+
     if (this.autenticacionService.estaAutenticado()) {
-      this.router.navigate(['/dashboard']);
+      this.router.navigate(['/inicio']);
     }
   }
 
@@ -51,32 +50,35 @@ export class OlvidasteContrasenaComponent implements OnInit {
     }
 
     const email = this.formularioRecuperacion.value.email.trim().toLowerCase();
-    
+
     this.cargando = true;
     this.error = null;
 
-    this.autenticacionService.verificarEmailExiste(email).subscribe({
-      next: (respuesta) => {
-        if (!respuesta.existe) {
-          this.cargando = false;
-          this.error = 'El correo electrónico no está registrado en nuestro sistema';
-          this.notificaciones.mostrarError(this.error);
-          return;
-        }
-
-        if (respuesta.activo === false) {
-          this.cargando = false;
-          this.error = 'La cuenta está desactivada. Contacta al administrador';
-          this.notificaciones.mostrarError(this.error);
-          return;
-        }
-
-        this.solicitarRecuperacion(email);
-      },
-      error: () => {
+    this.autenticacionService.solicitarRecuperacion({ email }).subscribe({
+      next: () => {
         this.cargando = false;
-        this.error = 'Error al verificar el correo electrónico';
-        this.notificaciones.mostrarError(this.error);
+        this.emailEnviado = email;
+        this.enviado = true;
+        this.formularioRecuperacion.reset();
+        this.notificaciones.mostrarExito('Si el email está registrado, recibirás un enlace en unos minutos');
+      },
+      error: (error) => {
+        this.cargando = false;
+        const status = error?.status ?? error?.error?.status ?? null;
+
+        if (status === 0) {
+          this.error = 'No se pudo conectar con el servidor. Verifica tu conexión.';
+        } else if (status === 429) {
+          this.error = 'Demasiadas solicitudes. Espera unos minutos antes de reintentar.';
+        } else if (status && status >= 500) {
+          this.error = 'Error del servidor. Inténtalo más tarde.';
+        } else if (status === 400) {
+          this.error = 'El correo ingresado no es válido.';
+        } else {
+          this.error = 'No se pudo enviar la solicitud. Inténtalo nuevamente.';
+        }
+
+        this.notificaciones.mostrarError(this.error!);
       }
     });
   }
@@ -87,24 +89,6 @@ export class OlvidasteContrasenaComponent implements OnInit {
     });
   }
 
-  private solicitarRecuperacion(email: string): void {
-    this.autenticacionService.solicitarRecuperacion({ email }).subscribe({
-      next: (respuesta) => {
-        this.emailEnviado = email;
-        this.enviado = true;
-        this.cargando = false;
-        this.formularioRecuperacion.reset();
-        
-        this.notificaciones.mostrarExito('Email de recuperación enviado');
-      },
-      error: (mensajeError: string) => {
-        this.cargando = false;
-        this.error = mensajeError;
-        this.notificaciones.mostrarError(mensajeError);
-      }
-    });
-  }
-
   tieneErrorCampo(nombreCampo: string): boolean {
     const campo = this.formularioRecuperacion.get(nombreCampo);
     return !!(campo?.invalid && (campo?.dirty || campo?.touched));
@@ -112,16 +96,12 @@ export class OlvidasteContrasenaComponent implements OnInit {
 
   obtenerErrorCampo(nombreCampo: string): string {
     const campo = this.formularioRecuperacion.get(nombreCampo);
-    
+
     if (campo?.errors) {
-      if (campo.errors['required']) {
-        return 'Este campo es obligatorio';
-      }
-      if (campo.errors['email']) {
-        return 'Ingresa un email válido';
-      }
+      if (campo.errors['required']) return 'Este campo es obligatorio';
+      if (campo.errors['email']) return 'Ingresa un email válido';
     }
-    
+
     return '';
   }
 

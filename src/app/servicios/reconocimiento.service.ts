@@ -60,23 +60,35 @@ export class ReconocimientoService {
   private apiUrl = `${environment.apiUrl}/reconocimiento-video`;
 
   private framesBuffer: FrameProcesado[] = [];
-  private readonly MAX_FRAMES_BUFFER = 24;
-  private readonly MIN_FRAMES_PROCESAMIENTO = 12;
-  private readonly FRAMES_OPTIMOS = 16;
-  private readonly FRAMES_OVERLAP = 6;
-  private readonly VENTANA_MAX_FRAME_MS = 2000;
+  private readonly MAX_FRAMES_BUFFER = 20;
+  private readonly MIN_FRAMES_PROCESAMIENTO = 8;
+  private readonly FRAMES_OPTIMOS = 12;
+  private readonly FRAMES_OVERLAP = 4;
+  private readonly VENTANA_MAX_FRAME_MS = 1500;
 
   private reconocimientoActivo = false;
   private procesando = false;
   private ultimoProcesamiento = 0;
-  private readonly MIN_INTERVALO_PROCESAMIENTO = 500;
+  private readonly MIN_INTERVALO_PROCESAMIENTO = 250;
   private readonly TIMEOUT_RECONOCIMIENTO = 6000;
 
-  private readonly TAMANO_VENTANA_VOTING = 2;
-  private readonly MIN_CONSENSO = 2;
+  private readonly TAMANO_VENTANA_VOTING_ESTATICA = 1;
+  private readonly MIN_CONSENSO_ESTATICA = 1;
+  private readonly TAMANO_VENTANA_VOTING_DINAMICA = 3;
+  private readonly MIN_CONSENSO_DINAMICA = 2;
+
   private historialPredicciones: PrediccionBuffer[] = [];
 
+  private readonly MODO_RAPIDO = true;
+
   private ultimaSenaCruda: string = '';
+  private tipoSenaActual: string = '';
+
+  private categoriaActualId: number | null = null;
+  private senaEsperadaActual: string | null = null;
+
+  // null = automático (el backend usa los modelos activos / ensemble)
+  private modeloActualId: number | null = null;
 
   private resultadoSubject = new Subject<ResultadoReconocimientoVideo>();
   public resultado$ = this.resultadoSubject.asObservable();
@@ -113,22 +125,63 @@ export class ReconocimientoService {
     return headers;
   }
 
-  establecerCategoria(_categoriaId: number): void {
+  establecerCategoria(categoriaId: number): void {
+    this.categoriaActualId = categoriaId;
   }
 
   obtenerCategoriaActual(): number | null {
-    return null;
+    return this.categoriaActualId;
+  }
+
+  /**
+   * Fija el modelo con el que se reconocerá. null = automático.
+   * Al cambiar de modelo se descarta todo lo acumulado del modelo anterior.
+   */
+  establecerModelo(modeloId: number | null): void {
+    if (this.modeloActualId === modeloId) {
+      return;
+    }
+
+    this.modeloActualId = modeloId;
+    this.limpiarBuffer();
+    this.tipoSenaActual = '';
+  }
+
+  obtenerModeloActual(): number | null {
+    return this.modeloActualId;
+  }
+
+  establecerSenaEsperada(sena: string | null): void {
+    this.senaEsperadaActual = sena ? sena.trim() : null;
+  }
+
+  establecerTipoSenaInicial(tipo: string | null): void {
+    this.tipoSenaActual = (tipo || '').toUpperCase();
   }
 
   actualizarConfiguracion(config: Partial<ConfiguracionReconocimiento>): void {
     this.configuracion = { ...this.configuracion, ...config };
   }
 
-  procesarSecuenciaFrames(frames: FrameProcesado[], _categoriaId?: number): Observable<any> {
-    const solicitud = {
+  procesarSecuenciaFrames(frames: FrameProcesado[], categoriaId?: number): Observable<any> {
+    const catId = categoriaId ?? this.categoriaActualId;
+
+    const solicitud: any = {
       frames: frames,
       configuracion: this.configuracion
     };
+
+    if (catId !== null && catId !== undefined) {
+      solicitud.categoria_id = catId;
+    }
+
+    if (this.modeloActualId !== null) {
+      solicitud.modelo_id = this.modeloActualId;
+    }
+
+    if (this.senaEsperadaActual) {
+      solicitud.sena_esperada = this.senaEsperadaActual;
+    }
 
     return this.http.post<any>(
       `${this.apiUrl}/secuencia`,
@@ -213,14 +266,22 @@ export class ReconocimientoService {
     this.ultimoProcesamiento = Date.now();
 
     const framesParaProcesar = this.seleccionarFramesOptimos();
+    const catId = this.categoriaActualId;
+    const modeloAlEnviar = this.modeloActualId;
 
-    this.solicitudActual = this.procesarSecuenciaFrames(framesParaProcesar).subscribe({
+    this.solicitudActual = this.procesarSecuenciaFrames(framesParaProcesar, catId ?? undefined).subscribe({
       next: (response) => {
         this.procesando = false;
         this.requestInFlight = false;
         this.solicitudActual = null;
 
         if (!this.reconocimientoActivo) {
+          return;
+        }
+
+        // Si el usuario cambió de modelo mientras la petición estaba en vuelo,
+        // la respuesta pertenece al modelo anterior y se descarta.
+        if (modeloAlEnviar !== this.modeloActualId) {
           return;
         }
 
@@ -241,6 +302,11 @@ export class ReconocimientoService {
             confianza = confianza / 100;
           }
 
+          const tipoRespuesta = ((datos.modo || '') as string).toUpperCase();
+          if (tipoRespuesta === 'ESTATICA' || tipoRespuesta === 'DINAMICA') {
+            this.tipoSenaActual = tipoRespuesta;
+          }
+
           const senaCruda = (datos.sena_detectada || '').trim();
 
           const huboCambioDeSena = !!senaCruda &&
@@ -255,11 +321,10 @@ export class ReconocimientoService {
             this.historialPredicciones = [];
           }
 
-          const resultadoConsenso = this.aplicarConsenso({
-            sena: senaCruda,
-            confianza: confianza,
-            timestamp: Date.now()
-          });
+          const resultadoConsenso = this.aplicarConsenso(
+            { sena: senaCruda, confianza, timestamp: Date.now() },
+            tipoRespuesta
+          );
 
           if (!resultadoConsenso) {
             if (huboCambioDeSena) {
@@ -282,6 +347,8 @@ export class ReconocimientoService {
           };
 
           this.resultadoSubject.next(resultadoCompleto);
+
+          this.historialPredicciones = [];
 
           if (huboCambioDeSena) {
             this.framesBuffer = [];
@@ -313,14 +380,32 @@ export class ReconocimientoService {
     });
   }
 
-  private aplicarConsenso(nuevaPrediccion: PrediccionBuffer): { sena: string; confianza: number } | null {
+  private aplicarConsenso(
+    nuevaPrediccion: PrediccionBuffer,
+    tipoSena: string
+  ): { sena: string; confianza: number } | null {
     if (!nuevaPrediccion.sena || nuevaPrediccion.confianza === 0) {
       return null;
     }
 
+    const tipo = (tipoSena || this.tipoSenaActual || '').toUpperCase();
+    const esEstatica = tipo === 'ESTATICA';
+
+    if (this.MODO_RAPIDO && esEstatica) {
+      return { sena: nuevaPrediccion.sena, confianza: nuevaPrediccion.confianza };
+    }
+
     this.historialPredicciones.push(nuevaPrediccion);
 
-    if (this.historialPredicciones.length > this.TAMANO_VENTANA_VOTING) {
+    const tamanoVentana = esEstatica
+      ? this.TAMANO_VENTANA_VOTING_ESTATICA
+      : this.TAMANO_VENTANA_VOTING_DINAMICA;
+
+    const minConsenso = esEstatica
+      ? this.MIN_CONSENSO_ESTATICA
+      : this.MIN_CONSENSO_DINAMICA;
+
+    if (this.historialPredicciones.length > tamanoVentana) {
       this.historialPredicciones.shift();
     }
 
@@ -341,7 +426,7 @@ export class ReconocimientoService {
       }
     }
 
-    if (votos[senaGanadora] < this.MIN_CONSENSO) {
+    if (!senaGanadora || votos[senaGanadora] < minConsenso) {
       return null;
     }
 

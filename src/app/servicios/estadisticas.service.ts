@@ -35,24 +35,28 @@ export interface EstadisticasResponse {
   lecciones_populares: LeccionPopular[];
 }
 
+const COLORES_POPULARIDAD: Record<string, string> = {
+  alta: 'success',
+  media: 'warning',
+  baja: 'secondary'
+};
+
 @Injectable({
   providedIn: 'root'
 })
 export class EstadisticasService {
-  private apiUrl = `${environment.apiUrl}/estadisticas`;
+  private readonly apiUrl = `${environment.apiUrl}/estadisticas`;
 
   constructor(private http: HttpClient) { }
 
+  private redondear(valor: number): number {
+    return valor ? Math.round(valor * 100) / 100 : 0;
+  }
+
   obtenerEstadisticas(fechaInicio?: string, fechaFin?: string): Observable<EstadisticasResponse> {
     let params = new HttpParams();
-    
-    if (fechaInicio) {
-      params = params.set('fecha_inicio', fechaInicio);
-    }
-    
-    if (fechaFin) {
-      params = params.set('fecha_fin', fechaFin);
-    }
+    if (fechaInicio) params = params.set('fecha_inicio', fechaInicio);
+    if (fechaFin) params = params.set('fecha_fin', fechaFin);
 
     return this.http.get<EstadisticasResponse>(`${this.apiUrl}/`, { params });
   }
@@ -66,78 +70,49 @@ export class EstadisticasService {
   }
 
   formatearTiempo(segundos: number): string {
-    if (!segundos || segundos === 0) return '0m';
-    
+    if (!segundos) return '0m';
+
     const minutos = Math.floor(segundos / 60);
     const horas = Math.floor(minutos / 60);
-    
+
     if (horas > 0) {
       const minutosRestantes = minutos % 60;
       return minutosRestantes > 0 ? `${horas}h ${minutosRestantes}m` : `${horas}h`;
     }
-    
+
     if (minutos > 0) {
       const segundosRestantes = segundos % 60;
       return segundosRestantes > 0 ? `${minutos}m ${segundosRestantes}s` : `${minutos}m`;
     }
-    
+
     return `${segundos}s`;
   }
 
   formatearTiempoDesdeMinutos(minutos: number): string {
-    if (!minutos || minutos === 0) return '0m';
-    
-    if (minutos < 1) {
-      const segundos = Math.round(minutos * 60);
-      return `${segundos}s`;
-    } else if (minutos < 60) {
-      const minutosEnteros = Math.floor(minutos);
-      const segundos = Math.round((minutos - minutosEnteros) * 60);
-      return segundos > 0 ? `${minutosEnteros}m ${segundos}s` : `${minutosEnteros}m`;
-    } else {
-      const horas = Math.floor(minutos / 60);
-      const minutosRestantes = Math.round(minutos % 60);
-      return minutosRestantes > 0 ? `${horas}h ${minutosRestantes}m` : `${horas}h`;
-    }
+    if (!minutos) return '0m';
+    return this.formatearTiempo(Math.round(minutos * 60));
   }
 
   formatearFechaParaDisplay(fecha: string): string {
     if (!fecha) return '';
-    
-    try {
-      const [year, month, day] = fecha.split('-');
-      if (year && month && day) {
-        return `${day}/${month}/${year}`;
-      }
-      return fecha;
-    } catch (error) {
-      console.error('Error formateando fecha:', error);
-      return fecha;
-    }
+
+    const [year, month, day] = fecha.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : fecha;
   }
 
   calcularPorcentajeCompletadas(totalSesiones: number, sesionesCompletadas: number): number {
-    if (!totalSesiones || totalSesiones === 0) return 0;
-    return Math.round((sesionesCompletadas / totalSesiones) * 100);
+    return totalSesiones ? Math.round((sesionesCompletadas / totalSesiones) * 100) : 0;
   }
 
   obtenerColorPopularidad(popularidad: string): string {
-    switch (popularidad?.toLowerCase()) {
-      case 'alta': return 'success';
-      case 'media': return 'warning';
-      case 'baja': return 'secondary';
-      default: return 'light';
-    }
+    return COLORES_POPULARIDAD[popularidad?.toLowerCase()] ?? 'light';
   }
 
   redondearTiempoPromedio(tiempoSegundos: number): number {
-    if (!tiempoSegundos || tiempoSegundos === 0) return 0;
-    return Math.round(tiempoSegundos * 100) / 100;
+    return this.redondear(tiempoSegundos);
   }
 
-
   redondearMinutos(minutos: number): number {
-    if (!minutos || minutos === 0) return 0;
-    return Math.round(minutos * 100) / 100;
+    return this.redondear(minutos);
   }
 }

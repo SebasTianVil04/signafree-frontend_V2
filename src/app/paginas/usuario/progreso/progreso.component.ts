@@ -64,7 +64,8 @@ export class ProgresoComponent implements OnInit {
         })
       )
     ),
-    staleTime: STALE_RESUMEN
+    staleTime: STALE_RESUMEN,
+    refetchOnWindowFocus: false
   }));
 
   private estadisticasGamificacionQuery = injectQuery(() => ({
@@ -96,7 +97,8 @@ export class ProgresoComponent implements OnInit {
         })
       )
     ),
-    staleTime: STALE_ESTADISTICAS_GAMIFICACION
+    staleTime: STALE_ESTADISTICAS_GAMIFICACION,
+    refetchOnWindowFocus: false
   }));
 
   private rankingQuery = injectQuery(() => ({
@@ -109,19 +111,23 @@ export class ProgresoComponent implements OnInit {
         })
       )
     ),
-    staleTime: STALE_RANKING
+    staleTime: STALE_RANKING,
+    refetchOnWindowFocus: false
   }));
 
   constructor(private progresoService: ProgresoService) { }
 
-  effectProcesarDatos = effect(() => {
+  effectProcesarEstadisticas = effect(() => {
     const resumen = this.resumenQuery.data();
     const estadisticas = this.estadisticasGamificacionQuery.data();
-    const ranking = this.rankingQuery.data();
 
-    if (resumen && estadisticas && ranking !== undefined) {
-      this.procesarDatosGamificacion({ resumen, estadisticas, ranking });
+    if (resumen && estadisticas) {
+      this.procesarDatosGamificacion({ resumen, estadisticas });
     }
+  });
+
+  effectProcesarRanking = effect(() => {
+    this.procesarRanking(this.rankingQuery.data());
   });
 
   effectError = effect(() => {
@@ -138,8 +144,19 @@ export class ProgresoComponent implements OnInit {
 
   get cargando(): boolean {
     return this.resumenQuery.isPending()
-      || this.estadisticasGamificacionQuery.isPending()
-      || this.rankingQuery.isPending();
+      || this.estadisticasGamificacionQuery.isPending();
+  }
+
+  get cargandoRanking(): boolean {
+    return this.rankingQuery.isPending();
+  }
+
+  get actualizando(): boolean {
+    return !this.cargando && (
+      this.resumenQuery.isFetching()
+      || this.estadisticasGamificacionQuery.isFetching()
+      || this.rankingQuery.isFetching()
+    );
   }
 
   ngOnInit(): void {
@@ -155,7 +172,6 @@ export class ProgresoComponent implements OnInit {
   private procesarDatosGamificacion(results: any): void {
     const resumen = results.resumen;
     const estadisticas = results.estadisticas;
-    const ranking = results.ranking;
     const clasesCompletadas = resumen.estadisticas_clases?.clases_completadas || 0;
     const totalClases = resumen.estadisticas_clases?.total_clases || 0;
     const porcentajeGeneral = resumen.estadisticas_clases?.porcentaje_clases || 0;
@@ -213,7 +229,9 @@ export class ProgresoComponent implements OnInit {
     }
 
     this.generarLogrosDesbloqueados();
+  }
 
+  private procesarRanking(ranking: any): void {
     if (ranking && Array.isArray(ranking)) {
       this.ranking = ranking.map((usuario: any, index: number) => ({
         ...usuario,

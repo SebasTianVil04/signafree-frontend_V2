@@ -1,8 +1,11 @@
 import { Component, OnInit } from '@angular/core';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LeccionesService } from '../../../servicios/lecciones.service';
 import { Clase, ClaseActualizar, ClaseCrear, ClasesService } from '../../../servicios/clase.service';
 
+const EXTENSIONES_VIDEO_PERMITIDAS = ['mp4', 'webm'];
+const TAMANO_MAXIMO_VIDEO = 300 * 1024 * 1024;
 
 @Component({
   selector: 'app-gestion-clases',
@@ -22,6 +25,12 @@ export class GestionClasesComponent implements OnInit {
   mostrarModal = false;
   modoEdicion = false;
   claseSeleccionada: Clase | null = null;
+
+  guardando = false;
+  archivoVideo: File | null = null;
+  subiendoVideo = false;
+  progresoSubida = 0;
+  eliminandoVideo = false;
 
   filtros = {
     busqueda: '',
@@ -96,7 +105,7 @@ export class GestionClasesComponent implements OnInit {
         this.cargando = false;
         if (response.exito && response.datos) {
           this.clases = response.datos.sort((a, b) => a.orden - b.orden);
-          this.clasesFiltradas = [...this.clases];
+          this.aplicarFiltros();
         } else {
           this.error = response.mensaje || 'Error al cargar clases';
           this.clases = [];
@@ -149,6 +158,9 @@ export class GestionClasesComponent implements OnInit {
   }
 
   cerrarModal(): void {
+    if (this.subiendoVideo) {
+      return;
+    }
     this.mostrarModal = false;
     this.resetearFormulario();
     this.claseSeleccionada = null;
@@ -156,6 +168,10 @@ export class GestionClasesComponent implements OnInit {
   }
 
   resetearFormulario(): void {
+    this.archivoVideo = null;
+    this.subiendoVideo = false;
+    this.progresoSubida = 0;
+    this.guardando = false;
     this.formulario = {
       leccion_id: this.leccionId,
       titulo: '',
@@ -179,6 +195,10 @@ export class GestionClasesComponent implements OnInit {
   }
 
   cargarDatosFormulario(clase: Clase): void {
+    this.archivoVideo = null;
+    this.subiendoVideo = false;
+    this.progresoSubida = 0;
+    this.guardando = false;
     this.formulario = {
       leccion_id: this.leccionId,
       titulo: clase.titulo,
@@ -204,22 +224,18 @@ export class GestionClasesComponent implements OnInit {
   validarFormulario(): boolean {
     this.error = '';
 
-    // Validar título
     if (!this.formulario.titulo || this.formulario.titulo.trim().length < 3) {
       this.error = 'El título debe tener al menos 3 caracteres';
       return false;
     }
 
-    // Validar seña si requiere práctica
     if (this.formulario.requiere_practica) {
-      // Verificar que la seña no sea null, undefined o string vacío
       if (!this.formulario.sena || this.formulario.sena.trim().length === 0) {
         this.error = 'La seña es obligatoria cuando se requiere práctica';
         return false;
       }
     }
 
-    // Validar orden
     if (!this.formulario.orden || this.formulario.orden < 1) {
       this.error = 'El orden debe ser mayor a 0';
       return false;
@@ -228,15 +244,61 @@ export class GestionClasesComponent implements OnInit {
     return true;
   }
 
-  guardarClase(): void {
-    if (!this.validarFormulario()) {
+  tieneVideoLocal(clase: Clase | null): boolean {
+    if (!clase) {
+      return false;
+    }
+    return !!(clase as Clase & { video_archivo?: string | null }).video_archivo;
+  }
+
+  seleccionarVideo(evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    const archivo = input.files?.[0] ?? null;
+
+    if (!archivo) {
+      this.archivoVideo = null;
       return;
     }
 
-    // Preparar datos para enviar
+    const extension = archivo.name.split('.').pop()?.toLowerCase() ?? '';
+
+    if (!EXTENSIONES_VIDEO_PERMITIDAS.includes(extension)) {
+      this.error = 'Formato de video no permitido. Usa MP4 o WebM';
+      this.archivoVideo = null;
+      input.value = '';
+      return;
+    }
+
+    if (archivo.size > TAMANO_MAXIMO_VIDEO) {
+      this.error = 'El video supera el tamaño máximo de 300 MB';
+      this.archivoVideo = null;
+      input.value = '';
+      return;
+    }
+
+    this.error = '';
+    this.archivoVideo = archivo;
+  }
+
+  quitarVideoSeleccionado(input: HTMLInputElement): void {
+    input.value = '';
+    this.archivoVideo = null;
+  }
+
+  formatearTamano(bytes: number): string {
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  guardarClase(): void {
+    if (this.guardando || this.subiendoVideo || !this.validarFormulario()) {
+      return;
+    }
+
     const datosParaEnviar = { ...this.formulario };
 
-    // CRÍTICO: Asegurar que los campos vacíos sean null en lugar de strings vacíos
     const camposOpcionales = [
       'descripcion', 'contenido_texto', 'sena', 'video_url', 'video_id',
       'imagen_referencia', 'gif_demostracion', 'tips', 'errores_comunes'
@@ -249,37 +311,109 @@ export class GestionClasesComponent implements OnInit {
       }
     });
 
-    console.log('Datos del formulario ANTES de limpiar:', this.formulario);
-    console.log('Datos del formulario DESPUÉS de limpiar:', datosParaEnviar);
-    console.log('Requiere práctica:', datosParaEnviar.requiere_practica);
-    console.log('Seña:', datosParaEnviar.sena);
-    console.log('Seña type:', typeof datosParaEnviar.sena);
-    console.log('Seña === null:', datosParaEnviar.sena === null);
-    console.log('Seña === "":', datosParaEnviar.sena === '');
-
     const operacion = this.modoEdicion && this.claseSeleccionada?.id
       ? this.clasesService.actualizarClase(this.claseSeleccionada.id, datosParaEnviar as ClaseActualizar)
       : this.clasesService.crearClase(datosParaEnviar);
 
+    this.guardando = true;
+
     operacion.subscribe({
       next: (response) => {
+        if (!response.exito) {
+          this.guardando = false;
+          this.error = response.mensaje || 'Error al guardar clase';
+          return;
+        }
+
+        const mensajeBase = response.mensaje || (this.modoEdicion ? 'Clase actualizada exitosamente' : 'Clase creada exitosamente');
+        const guardada = response.datos ?? this.claseSeleccionada;
+
+        if (this.archivoVideo && guardada?.id) {
+          this.subirVideo(guardada, mensajeBase);
+        } else {
+          this.guardando = false;
+          this.finalizarGuardado(mensajeBase);
+        }
+      },
+      error: (err) => {
+        this.guardando = false;
+        console.error('Error al guardar clase:', err);
+        this.error = err.error?.detail || err.error?.mensaje || 'Error al guardar clase';
+      }
+    });
+  }
+
+  private subirVideo(clase: Clase, mensajeBase: string): void {
+    if (!this.archivoVideo || !clase.id) {
+      return;
+    }
+
+    this.subiendoVideo = true;
+    this.progresoSubida = 0;
+
+    this.clasesService.subirVideoClase(clase.id, this.archivoVideo).subscribe({
+      next: (evento) => {
+        if (evento.type === HttpEventType.UploadProgress && evento.total) {
+          this.progresoSubida = Math.round((evento.loaded / evento.total) * 100);
+        } else if (evento.type === HttpEventType.Response) {
+          this.subiendoVideo = false;
+          this.guardando = false;
+          this.finalizarGuardado(`${mensajeBase}. Video subido exitosamente`);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.subiendoVideo = false;
+        this.guardando = false;
+        this.progresoSubida = 0;
+        this.modoEdicion = true;
+        this.claseSeleccionada = clase;
+        this.cargarClases();
+        this.error = `La clase se guardó, pero no se pudo subir el video: ${err.error?.detail || err.error?.mensaje || 'error desconocido'}`;
+      }
+    });
+  }
+
+  private finalizarGuardado(mensaje: string): void {
+    this.mensaje = mensaje;
+    this.cerrarModal();
+    this.cargarClases();
+
+    setTimeout(() => {
+      this.mensaje = '';
+    }, 3000);
+  }
+
+  eliminarVideoLocal(): void {
+    const clase = this.claseSeleccionada;
+
+    if (!clase?.id || this.eliminandoVideo || this.subiendoVideo) {
+      return;
+    }
+
+    if (!confirm('¿Eliminar el video subido de esta clase? Se usará el video externo si existe.')) {
+      return;
+    }
+
+    this.eliminandoVideo = true;
+
+    this.clasesService.eliminarVideoClase(clase.id).subscribe({
+      next: (response) => {
+        this.eliminandoVideo = false;
         if (response.exito) {
-          this.mensaje = response.mensaje || (this.modoEdicion ? 'Clase actualizada exitosamente' : 'Clase creada exitosamente');
-          this.cerrarModal();
+          this.claseSeleccionada = { ...clase, video_archivo: null } as Clase;
+          this.mensaje = 'Video eliminado exitosamente';
           this.cargarClases();
 
           setTimeout(() => {
             this.mensaje = '';
           }, 3000);
         } else {
-          this.error = response.mensaje || 'Error al guardar clase';
+          this.error = response.mensaje || 'Error al eliminar el video';
         }
       },
       error: (err) => {
-        console.error('Error completo:', err);
-        console.error('Error detail:', err.error);
-        console.error('Error mensaje:', err.error?.mensaje);
-        this.error = err.error?.detail || err.error?.mensaje || 'Error al guardar clase';
+        this.eliminandoVideo = false;
+        this.error = err.error?.detail || err.error?.mensaje || 'Error al eliminar el video';
       }
     });
   }
@@ -344,7 +478,7 @@ export class GestionClasesComponent implements OnInit {
       return;
     }
 
-    const videoId = this.clasesService.extraerVideoId(url, this.formulario.tipo_video);
+    const videoId = this.clasesService.extraerVideoId(url, this.formulario.tipo_video ?? 'youtube');
 
     if (videoId) {
       this.formulario.video_id = videoId;

@@ -123,6 +123,7 @@
 }
 
 .video-panel {
+  width: 100%;
   border-radius: 18px;
   overflow: hidden;
   background: #0f172a;
@@ -132,6 +133,7 @@
 .video-container {
   position: relative;
   width: 100%;
+  min-height: 220px;
   aspect-ratio: 16 / 9;
   background: #0f172a;
   overflow: hidden;
@@ -552,13 +554,42 @@
   margin-top: 8px;
 }
 
+// ==========================================================
+// Tablet y celular: las columnas se apilan.
+// IMPORTANTE: align-items debe ser "stretch"; con "flex-start"
+// la columna del video quedaba con ancho 0 (todo su contenido
+// es position:absolute) y el cuadro de la cámara desaparecía.
+// ==========================================================
 @media (max-width: 1000px) {
   .contenido-principal {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .columna-video {
+    flex: none;
+    width: 100%;
   }
 
   .columna-info {
-    max-width: 100%;
+    flex: none;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .reconocimiento-contenedor {
+    padding: 8px;
+  }
+
+  .video-container {
+    aspect-ratio: 4 / 3;
+    min-height: 240px;
+  }
+
+  .feedback-overlay {
+    max-width: calc(100% - 24px);
   }
 }

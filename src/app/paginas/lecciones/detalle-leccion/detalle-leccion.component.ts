@@ -1,10 +1,34 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, DestroyRef, OnInit, ChangeDetectorRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
-import { forkJoin, firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { Clase, LeccionesService } from '../../../servicios/lecciones.service';
 import { ProgresoService } from '../../../servicios/progreso.service';
 import { CategoriaDB, Leccion } from '../../../modelos/leccion.model';
+
+type TabLeccion = 'info' | 'clases' | 'progreso';
+
+const STALE_LECCION_MS = 60 * 1000;
+
+const COLORES_NIVEL: Record<number, string> = {
+  1: '#4CAF50',
+  2: '#FF9800',
+  3: '#F44336'
+};
+
+const GRADIENTES_NIVEL: Record<number, string> = {
+  1: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  2: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  3: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+};
+
+const ETIQUETAS_NIVEL: Record<number, string> = {
+  1: 'Principiante',
+  2: 'Intermedio',
+  3: 'Avanzado'
+};
 
 @Component({
   selector: 'app-detalle-leccion',
@@ -17,11 +41,12 @@ export class DetalleLeccionComponent implements OnInit {
   clases: Clase[] = [];
 
   cargando = true;
+  cargandoClases = true;
   error: string | null = null;
-  leccionAnteriorCompleta: boolean = false;
-  verificandoProgreso: boolean = true;
+  leccionAnteriorCompleta = false;
+  verificandoProgreso = true;
 
-  tabActiva: 'info' | 'clases' | 'progreso' = 'clases';
+  tabActiva: TabLeccion = 'clases';
 
   categoriasQuery = injectQuery(() => ({
     queryKey: ['categorias'],
@@ -29,10 +54,7 @@ export class DetalleLeccionComponent implements OnInit {
     staleTime: Infinity,
   }));
 
-  get categorias(): CategoriaDB[] {
-    const res = this.categoriasQuery.data();
-    return res?.exito && res.datos ? res.datos : [];
-  }
+  private cargaActual = 0;
 
   constructor(
     private route: ActivatedRoute,
@@ -40,145 +62,144 @@ export class DetalleLeccionComponent implements OnInit {
     private leccionesService: LeccionesService,
     private progresoService: ProgresoService,
     private cdr: ChangeDetectorRef,
-    private queryClient: QueryClient
-  ) {}
+    private queryClient: QueryClient,
+    private destroyRef: DestroyRef
+  ) {
+    this.destroyRef.onDestroy(() => {
+      this.cargaActual++;
+    });
+  }
+
+  get categorias(): CategoriaDB[] {
+    const res = this.categoriasQuery.data();
+    return res?.exito && res.datos ? res.datos : [];
+  }
 
   ngOnInit(): void {
-    this.route.params.subscribe(params => {
-      const id = +params['id'];
-      if (id) {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const id = Number(params.get('id'));
+
+      if (Number.isInteger(id) && id > 0) {
         this.cargarLeccion(id);
       } else {
+        this.cargaActual++;
         this.error = 'ID de lección inválido';
-        this.cargando = false;
-        this.verificandoProgreso = false;
+        this.finalizarCarga();
       }
     });
   }
 
-  cargarLeccion(id: number): void {
-    this.cargando = true;
-    this.verificandoProgreso = true;
+  async cargarLeccion(id: number): Promise<void> {
+    const carga = ++this.cargaActual;
+    const mismaLeccion = this.leccion?.id === id;
+
     this.error = null;
 
-    this.queryClient.fetchQuery({
+    if (!mismaLeccion) {
+      this.cargando = true;
+      this.cargandoClases = true;
+      this.verificandoProgreso = true;
+      this.leccion = null;
+      this.clases = [];
+      this.leccionAnteriorCompleta = false;
+    }
+
+    const pLeccion = this.queryClient.fetchQuery({
       queryKey: ['leccion', id],
       queryFn: () => firstValueFrom(this.leccionesService.obtenerLeccion(id)),
-      staleTime: Infinity
-    }).then(response => {
-      if (response.exito && response.datos) {
-        this.leccion = { ...response.datos };
-        this.verificarProgresoLeccionAnterior(this.leccion);
-      } else {
-        this.error = response.mensaje || 'Error al cargar la lección';
-        this.cargando = false;
-        this.verificandoProgreso = false;
-      }
-    }).catch(err => {
-      this.error = err.error?.detail || 'Error al cargar la lección.';
-      this.cargando = false;
-      this.verificandoProgreso = false;
+      staleTime: STALE_LECCION_MS
     });
+
+    const pClases = this.queryClient.fetchQuery({
+      queryKey: ['clases-leccion', id],
+      queryFn: () => firstValueFrom(this.leccionesService.obtenerClasesDeLeccion(id)),
+      staleTime: STALE_LECCION_MS
+    }).catch(() => null);
+
+    const pProgreso = firstValueFrom(
+      this.leccionesService.obtenerProgresoClases(id).pipe(catchError(() => of(null)))
+    );
+
+    try {
+      const respLeccion = await pLeccion;
+      if (carga !== this.cargaActual) return;
+
+      if (!respLeccion.exito || !respLeccion.datos) {
+        this.error = respLeccion.mensaje || 'Error al cargar la lección';
+        this.finalizarCarga();
+        return;
+      }
+
+      const leccion = { ...respLeccion.datos } as Leccion;
+      const pBloqueo = this.resolverBloqueo(leccion);
+
+      if (!mismaLeccion) {
+        this.leccion = leccion;
+        this.cargando = false;
+        this.cdr.detectChanges();
+      }
+
+      const [respClases, respProgreso] = await Promise.all([pClases, pProgreso, pBloqueo]);
+      if (carga !== this.cargaActual) return;
+
+      const clases = respClases?.exito && respClases.datos
+        ? respClases.datos
+            .filter(clase => clase.activa)
+            .sort((a, b) => a.orden - b.orden)
+            .map(clase => ({ ...clase }))
+        : [];
+
+      const completadas = new Set(
+        (respProgreso?.datos?.clases ?? [])
+          .filter(item => item.completada)
+          .map(item => item.clase_id)
+      );
+
+      clases.forEach((clase, index) => {
+        if (leccion.bloqueada) {
+          clase.bloqueada = true;
+          clase.completada = false;
+        } else {
+          clase.completada = completadas.has(clase.id!);
+          clase.bloqueada = index > 0 && !clases[index - 1].completada;
+        }
+      });
+
+      this.leccion = leccion;
+      this.clases = clases;
+      this.finalizarCarga();
+    } catch (err: any) {
+      if (carga !== this.cargaActual) return;
+
+      const detalle = err?.error?.detail;
+      this.error = typeof detalle === 'string' ? detalle : 'Error al cargar la lección.';
+      this.finalizarCarga();
+    }
   }
 
-  verificarProgresoLeccionAnterior(leccion: Leccion): void {
+  private async resolverBloqueo(leccion: Leccion): Promise<void> {
     if (!leccion.leccion_previa_id) {
       this.leccionAnteriorCompleta = true;
       leccion.bloqueada = false;
-
-      this.cargarClases(leccion.id!);
       return;
     }
 
-    this.progresoService.obtenerProgresoLeccion(leccion.leccion_previa_id).subscribe({
-      next: (progreso) => {
-        this.leccionAnteriorCompleta = progreso.completada;
-        leccion.bloqueada = !progreso.completada;
-
-        this.cdr.detectChanges();
-        this.cargarClases(leccion.id!);
-      },
-      error: (err) => {
-        this.leccionAnteriorCompleta = false;
-        leccion.bloqueada = true;
-
-        this.cdr.detectChanges();
-        this.cargarClases(leccion.id!);
-      }
-    });
-  }
-
-  cargarClases(leccionId: number): void {
-    this.queryClient.fetchQuery({
-      queryKey: ['clases-leccion', leccionId],
-      queryFn: () => firstValueFrom(this.leccionesService.obtenerClasesDeLeccion(leccionId)),
-      staleTime: Infinity
-    }).then(response => {
-      if (response.exito && response.datos) {
-        this.clases = response.datos
-          .filter(clase => clase.activa)
-          .sort((a, b) => a.orden - b.orden)
-          .map(clase => ({ ...clase }));
-
-        this.cargarProgresoClases();
-      } else {
-        this.finalizarCarga();
-      }
-    }).catch(() => {
-      this.finalizarCarga();
-    });
-  }
-
-  cargarProgresoClases(): void {
-    if (this.leccion?.bloqueada) {
-      this.clases.forEach(clase => {
-        (clase as any).bloqueada = true;
-        (clase as any).completada = false;
-      });
-      this.finalizarCarga();
-      return;
+    try {
+      const progreso = await firstValueFrom(
+        this.progresoService.obtenerProgresoLeccion(leccion.leccion_previa_id)
+      );
+      this.leccionAnteriorCompleta = !!progreso.completada;
+      leccion.bloqueada = !progreso.completada;
+    } catch {
+      this.leccionAnteriorCompleta = false;
+      leccion.bloqueada = true;
     }
-
-    const totalClases = this.clases.length;
-
-    if (totalClases === 0) {
-      this.finalizarCarga();
-      return;
-    }
-
-    const observables = this.clases.map(clase =>
-      this.progresoService.obtenerProgresoClase(clase.id!)
-    );
-
-    forkJoin(observables).subscribe({
-      next: (progresos) => {
-        progresos.forEach((progreso, index) => {
-          (this.clases[index] as any).completada = progreso.completada;
-
-          if (index === 0) {
-            (this.clases[index] as any).bloqueada = this.leccion?.bloqueada || false;
-          } else {
-            (this.clases[index] as any).bloqueada = !(this.clases[index - 1] as any).completada;
-          }
-        });
-
-        this.finalizarCarga();
-      },
-      error: (err) => {
-        this.clases.forEach((clase, index) => {
-          (clase as any).completada = false;
-          (clase as any).bloqueada = index > 0;
-        });
-
-        this.finalizarCarga();
-      }
-    });
   }
 
   finalizarCarga(): void {
     this.cargando = false;
+    this.cargandoClases = false;
     this.verificandoProgreso = false;
-
     this.cdr.detectChanges();
   }
 
@@ -187,40 +208,23 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   obtenerColorNivel(nivel: number): string {
-    const colores: Record<number, string> = {
-      1: '#4CAF50',
-      2: '#FF9800',
-      3: '#F44336'
-    };
-    return colores[nivel] || '#757575';
+    return COLORES_NIVEL[nivel] || '#757575';
   }
 
   obtenerGradienteNivel(nivel: number): string {
-    const gradientes: Record<number, string> = {
-      1: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      2: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      3: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-    };
-    return gradientes[nivel] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    return GRADIENTES_NIVEL[nivel] || GRADIENTES_NIVEL[1];
   }
 
   obtenerEtiquetaNivel(nivel: number): string {
-    const mapeo: Record<number, string> = {
-      1: 'Principiante',
-      2: 'Intermedio',
-      3: 'Avanzado'
-    };
-    return mapeo[nivel] || 'Desconocido';
+    return ETIQUETAS_NIVEL[nivel] || 'Desconocido';
   }
 
-  cambiarTab(tab: 'info' | 'clases' | 'progreso'): void {
+  cambiarTab(tab: TabLeccion): void {
     this.tabActiva = tab;
   }
 
   iniciarLeccion(): void {
-    if (!this.leccion?.id) {
-      return;
-    }
+    if (!this.leccion?.id) return;
 
     if (!this.leccion.activa) {
       alert('Esta lección no está activa actualmente');
@@ -232,8 +236,8 @@ export class DetalleLeccionComponent implements OnInit {
       return;
     }
 
-    if (this.clases.length > 0) {
-      const primeraClase = this.clases[0];
+    const primeraClase = this.clases[0];
+    if (primeraClase?.id) {
       this.router.navigate(['/lecciones', this.leccion.id, 'clase', primeraClase.id]);
     } else {
       this.router.navigate(['/lecciones', this.leccion.id, 'practica']);
@@ -241,9 +245,7 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   comenzarClase(clase: Clase): void {
-    const claseBloqueada = (clase as any).bloqueada;
-
-    if (claseBloqueada) {
+    if (clase.bloqueada) {
       if (this.leccion?.bloqueada) {
         this.mostrarMensajeBloqueo();
       } else {
@@ -252,19 +254,17 @@ export class DetalleLeccionComponent implements OnInit {
       return;
     }
 
-    if (!this.leccion?.id || !clase.id) {
-      return;
-    }
+    if (!this.leccion?.id || !clase.id) return;
 
     this.router.navigate(['/lecciones', this.leccion.id, 'clase', clase.id]);
   }
 
   mostrarMensajeBloqueo(): void {
-    if (this.leccion?.leccion_previa_id) {
-      alert(`Debes completar la lección anterior antes de acceder a esta lección.`);
-    } else {
-      alert('Esta lección está bloqueada. Completa los requisitos necesarios.');
-    }
+    alert(
+      this.leccion?.leccion_previa_id
+        ? 'Debes completar la lección anterior antes de acceder a esta lección.'
+        : 'Esta lección está bloqueada. Completa los requisitos necesarios.'
+    );
   }
 
   verClase(clase: Clase): void {
@@ -272,13 +272,11 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   obtenerPorcentajeProgreso(): number {
-    if (!this.leccion?.progreso) return 0;
-    return this.leccion.progreso.mejor_precision * 100;
+    return (this.leccion?.progreso?.mejor_precision ?? 0) * 100;
   }
 
   porcentajeClasesCompletadas(): number {
-    if (!this.leccion?.progreso) return 0;
-    return this.leccion.progreso.porcentaje_completado || 0;
+    return this.leccion?.progreso?.porcentaje_completado || 0;
   }
 
   obtenerColorProgreso(): string {
@@ -297,6 +295,7 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   obtenerTextoBoton(): string {
+    if (this.verificandoProgreso) return 'Verificando...';
     if (this.leccion?.bloqueada) return 'Bloqueada';
     if (!this.leccion?.activa) return 'No disponible';
     if (this.esCompletada()) return 'Repasar lección';
@@ -308,9 +307,9 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   get categoriaNombre(): string {
-    if (!this.leccion?.categoria_id) return 'Sin categoría';
-    const categoria = this.categorias.find(c => c.id === this.leccion!.categoria_id);
-    return categoria?.nombre || 'Sin categoría';
+    const categoriaId = this.leccion?.categoria_id;
+    if (!categoriaId) return 'Sin categoría';
+    return this.categorias.find(c => c.id === categoriaId)?.nombre || 'Sin categoría';
   }
 
   get totalClases(): number {
@@ -318,24 +317,21 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   get duracionTotal(): number {
-    return this.clases.reduce((total, clase) => total + (clase.duracion || 0), 0);
+    return this.clases.reduce((total, clase) => total + (clase.duracion_estimada || 0), 0);
   }
 
   get clasesCompletadas(): number {
-    if (!this.leccion?.progreso) return 0;
-    return this.leccion.progreso.clases_completadas;
+    return this.leccion?.progreso?.clases_completadas ?? 0;
   }
 
   get estrellasObtenidas(): number {
-    if (!this.leccion?.progreso) return 0;
-    return this.leccion.progreso.estrellas;
+    return this.leccion?.progreso?.estrellas ?? 0;
   }
 
   get mensajeBloqueo(): string {
-    if (this.leccion?.bloqueada && this.leccion.leccion_previa_id) {
-      return `Completa la lección anterior para desbloquear esta lección.`;
-    }
-    return 'Esta lección está bloqueada. Completa los requisitos necesarios.';
+    return this.leccion?.bloqueada && this.leccion.leccion_previa_id
+      ? 'Completa la lección anterior para desbloquear esta lección.'
+      : 'Esta lección está bloqueada. Completa los requisitos necesarios.';
   }
 
   get mostrarAlertaBloqueo(): boolean {
@@ -343,8 +339,11 @@ export class DetalleLeccionComponent implements OnInit {
   }
 
   actualizarEstado(): void {
-    if (this.leccion?.id) {
-      this.cargarLeccion(this.leccion.id);
-    }
+    const id = this.leccion?.id;
+    if (!id) return;
+
+    this.queryClient.invalidateQueries({ queryKey: ['leccion', id] });
+    this.queryClient.invalidateQueries({ queryKey: ['clases-leccion', id] });
+    this.cargarLeccion(id);
   }
 }

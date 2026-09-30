@@ -49,8 +49,13 @@
     </div>
   </div>
 
+  <!-- Skeleton: estadísticas -->
+  <div class="stats-grid" *ngIf="cargando" aria-busy="true" aria-label="Cargando estadísticas">
+    <div class="skeleton skeleton-stat" *ngFor="let n of [1, 2, 3, 4]"></div>
+  </div>
+
   <!-- Estadísticas Rápidas -->
-  <div class="stats-grid" *ngIf="examenes.length > 0">
+  <div class="stats-grid" *ngIf="!cargando && examenes.length > 0">
     <div class="stat-card">
       <div class="stat-icono total">
         <i class="bi bi-clipboard-check"></i>
@@ -92,29 +97,43 @@
     </div>
   </div>
 
-  <!-- Cargando -->
-  <div class="cargando-container" *ngIf="cargando">
-    <div class="spinner"></div>
-    <p>Cargando autoevaluaciones...</p>
+  <!-- Skeleton: tarjetas -->
+  <div class="examenes-grid" *ngIf="cargando" aria-busy="true" aria-label="Cargando autoevaluaciones">
+    <div class="skeleton skeleton-leccion" *ngFor="let n of skeletons"></div>
+  </div>
+
+  <!-- Error -->
+  <div class="sin-resultados" *ngIf="!cargando && errorExamenes">
+    <i class="bi bi-exclamation-triangle"></i>
+    <h3>No se pudieron cargar las autoevaluaciones</h3>
+    <p>Revisa tu conexión e inténtalo de nuevo.</p>
+    <button class="btn btn-primario" (click)="cargarExamenes()">
+      <i class="bi bi-arrow-clockwise"></i> Reintentar
+    </button>
   </div>
 
   <!-- Lista de Autoevaluaciones -->
-  <div class="examenes-grid" *ngIf="!cargando && examenesFiltrados.length > 0">
+  <div class="examenes-grid" *ngIf="!cargando && !errorExamenes && examenesFiltrados.length > 0">
     <div 
       *ngFor="let examen of examenesFiltrados"
       class="examen-card"
       [class.completado]="examen.ultimo_resultado?.aprobado"
       [class.pendiente]="!examen.ultimo_resultado?.realizado"
-      [class.bloqueado]="!examen.disponible && !examen.ultimo_resultado?.realizado">
+      [class.bloqueado]="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
       
       <div class="examen-header">
         <div class="tipo-badge" [class.tipo-nivel]="examen.tipo === 'nivel'" 
              [class.tipo-final]="examen.tipo === 'final'">
           {{ examen.tipo === 'nivel' ? 'Nivel ' + examen.nivel : 'Final' }}
         </div>
+
+        <!-- Verificando requisitos -->
+        <div class="estado-badge pendiente" *ngIf="verificandoProgreso && !examen.ultimo_resultado?.realizado">
+          <i class="bi bi-hourglass-split"></i> Verificando...
+        </div>
         
         <!-- Indicador de Bloqueado -->
-        <div class="estado-badge bloqueado" *ngIf="!examen.disponible && !examen.ultimo_resultado?.realizado">
+        <div class="estado-badge bloqueado" *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-lock-fill"></i> Bloqueado
         </div>
         
@@ -126,7 +145,7 @@
           {{ examen.ultimo_resultado.aprobado ? 'Aprobado' : 'No Aprobado' }}
         </div>
         
-        <div class="estado-badge pendiente" *ngIf="examen.disponible && !examen.ultimo_resultado?.realizado">
+        <div class="estado-badge pendiente" *ngIf="!verificandoProgreso && examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-clock"></i> Disponible
         </div>
       </div>
@@ -136,7 +155,7 @@
         <p class="descripcion">{{ examen.descripcion }}</p>
 
         <!-- Información de Requisitos -->
-        <div class="requisitos-info" *ngIf="!examen.disponible && !examen.ultimo_resultado?.realizado">
+        <div class="requisitos-info" *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-info-circle"></i>
           <span>{{ obtenerMensajeRequisitos(examen) }}</span>
         </div>
@@ -172,11 +191,19 @@
       </div>
 
       <div class="examen-footer">
+        <!-- Botón mientras se verifica el progreso -->
+        <button 
+          class="btn btn-secundario btn-block"
+          disabled
+          *ngIf="verificandoProgreso && !examen.ultimo_resultado?.realizado">
+          <i class="bi bi-hourglass-split"></i> Verificando requisitos...
+        </button>
+
         <!-- Botón para exámenes disponibles -->
         <button 
           class="btn btn-primario btn-block"
           (click)="iniciarExamen(examen)"
-          *ngIf="examen.disponible && !examen.ultimo_resultado?.realizado">
+          *ngIf="!verificandoProgreso && examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-play-fill"></i> Iniciar Autoevaluación
         </button>
 
@@ -184,7 +211,7 @@
         <button 
           class="btn btn-bloqueado btn-block"
           (click)="mostrarMensajeRequisitosNoCumplidos(examen)"
-          *ngIf="!examen.disponible && !examen.ultimo_resultado?.realizado">
+          *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-lock-fill"></i> Autoevaluación Bloqueada
         </button>
 
@@ -207,7 +234,7 @@
   </div>
 
   <!-- Sin Resultados -->
-  <div class="sin-resultados" *ngIf="!cargando && examenesFiltrados.length === 0">
+  <div class="sin-resultados" *ngIf="!cargando && !errorExamenes && examenesFiltrados.length === 0">
     <i class="bi bi-clipboard-x"></i>
     <h3>No hay autoevaluaciones disponibles</h3>
     <p *ngIf="examenes.length === 0">Completa las lecciones para desbloquear autoevaluaciones</p>

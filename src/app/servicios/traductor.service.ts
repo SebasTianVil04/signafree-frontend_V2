@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError, timeout, retry } from 'rxjs/operators';
+import { catchError, retry, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface RespuestaAPI {
@@ -11,50 +11,45 @@ export interface RespuestaAPI {
   errores?: string[];
 }
 
+export interface ModeloActivoTraductor {
+  id: number;
+  nombre: string;
+  accuracy: number;
+  num_clases: number;
+  arquitectura?: string | null;
+  tipo?: string | null;
+  fecha_activacion?: string | null;
+}
+
 export interface ConfiguracionTraduccion {
   confianza_minima?: number;
   activarAudio?: boolean;
   velocidadReproduccion?: number;
   usar_multiples_modelos?: boolean;
   categoria_id?: number;
+  modelo_id?: number | null;
 }
+
+const PREFIJO_JPEG = 'data:image/jpeg;base64,';
 
 @Injectable({
   providedIn: 'root'
 })
 export class TraductorService {
-  private apiUrl = `${environment.apiUrl}/traductor`;
+  private readonly apiUrl = `${environment.apiUrl}/traductor`;
+  private readonly reconocimientoUrl = `${environment.apiUrl}/reconocimiento-video`;
 
   constructor(private http: HttpClient) { }
-
-  private getHeaders(): HttpHeaders {
-    const token = localStorage.getItem('token');
-    let headers = new HttpHeaders({
-      'Content-Type': 'application/json'
-    });
-
-    if (token) {
-      headers = headers.set('Authorization', `Bearer ${token}`);
-    }
-
-    return headers;
-  }
 
   traducirVozASenas(texto: string): Observable<RespuestaAPI> {
     if (!texto.trim()) {
       return throwError(() => new Error('Texto vacío'));
     }
 
-    const solicitud = { texto };
-
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/voz-a-senas`,
-      solicitud,
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.post<RespuestaAPI>(`${this.apiUrl}/voz-a-senas`, { texto }).pipe(
       timeout(10000),
       retry(1),
-      catchError(error => this.handleError('traducirVozASenas', error))
+      catchError(error => this.handleError(error))
     );
   }
 
@@ -66,23 +61,13 @@ export class TraductorService {
       return throwError(() => new Error('Imagen vacía'));
     }
 
-    const solicitud = {
-      imagen_base64: `data:image/jpeg;base64,${imagenBase64}`,
-      configuracion: {
-        confianza_minima: configuracion.confianza_minima || 0.25,
-        usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
-        categoria_id: configuracion.categoria_id
-      }
-    };
-
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/senas-a-texto`,
-      solicitud,
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.post<RespuestaAPI>(`${this.apiUrl}/senas-a-texto`, {
+      imagen_base64: `${PREFIJO_JPEG}${imagenBase64}`,
+      configuracion: this.armarConfiguracion(configuracion)
+    }).pipe(
       timeout(15000),
       retry(1),
-      catchError(error => this.handleError('traducirSenasATexto', error))
+      catchError(error => this.handleError(error))
     );
   }
 
@@ -91,93 +76,66 @@ export class TraductorService {
     framesLandmarks: any[][] = [],
     configuracion: ConfiguracionTraduccion = {}
   ): Observable<RespuestaAPI> {
-    if (!framesBase64 || framesBase64.length === 0) {
+    if (!framesBase64?.length) {
       return throwError(() => new Error('Frames vacíos'));
     }
 
-    const solicitud = {
-      frames_base64: framesBase64.map(frame => `data:image/jpeg;base64,${frame}`),
+    return this.http.post<RespuestaAPI>(`${this.apiUrl}/senas-a-texto`, {
+      frames_base64: framesBase64.map(frame => `${PREFIJO_JPEG}${frame}`),
       frames_landmarks: framesLandmarks,
-      configuracion: {
-        confianza_minima: configuracion.confianza_minima || 0.25,
-        usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
-        categoria_id: configuracion.categoria_id
-      }
-    };
-
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/senas-a-texto`,
-      solicitud,
-      { headers: this.getHeaders() }
-    ).pipe(
+      configuracion: this.armarConfiguracion(configuracion)
+    }).pipe(
       timeout(20000),
       retry(1),
-      catchError(error => this.handleError('traducirSenasATextoVideo', error))
+      catchError(error => this.handleError(error))
     );
   }
 
+  traducirSenasATextoConFrames(
+    frames: string[],
+    landmarks: any[][] = [],
+    configuracion: ConfiguracionTraduccion = {}
+  ): Observable<RespuestaAPI> {
+    return this.traducirSenasATextoVideo(frames, landmarks, configuracion);
+  }
+
+  /**
+   * Lista los modelos activos disponibles para traducir.
+   * Respuesta: { exito, datos: { total, es_ensemble, modelos: ModeloActivoTraductor[] } }
+   */
   obtenerModelosActivos(): Observable<RespuestaAPI> {
-    return this.http.get<RespuestaAPI>(
-      `${this.apiUrl}/modelos-activos`,
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.get<RespuestaAPI>(`${this.reconocimientoUrl}/modelos-activos`).pipe(
       timeout(5000),
-      catchError(error => this.handleError('obtenerModelosActivos', error))
+      catchError(error => this.handleError(error))
     );
   }
 
   probarTodosModelos(framesBase64: string[]): Observable<RespuestaAPI> {
-    const solicitud = { frames_base64: framesBase64 };
-
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/probar-todos-modelos`,
-      solicitud,
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.post<RespuestaAPI>(`${this.apiUrl}/probar-todos-modelos`, { frames_base64: framesBase64 }).pipe(
       timeout(15000),
-      catchError(error => this.handleError('probarTodosModelos', error))
+      catchError(error => this.handleError(error))
     );
   }
 
   limpiarCacheReconocedor(): Observable<RespuestaAPI> {
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/limpiar-cache`,
-      {},
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.post<RespuestaAPI>(`${this.apiUrl}/limpiar-cache`, {}).pipe(
       timeout(5000),
-      catchError(error => this.handleError('limpiarCacheReconocedor', error))
+      catchError(error => this.handleError(error))
     );
   }
 
   obtenerDiccionarioSenas(): Observable<RespuestaAPI> {
-    return this.http.get<RespuestaAPI>(
-      `${this.apiUrl}/diccionario`,
-      { headers: this.getHeaders() }
-    ).pipe(
+    return this.http.get<RespuestaAPI>(`${this.apiUrl}/diccionario`).pipe(
       timeout(5000),
-      catchError(error => this.handleError('obtenerDiccionarioSenas', error))
+      catchError(error => this.handleError(error))
     );
   }
 
-  private handleError(operation: string, error: any): Observable<never> {
-    let errorMsg = 'Error desconocido';
-
-    if (error.status === 422) {
-      errorMsg = 'Error de validación en los datos';
-    } else if (error.status === 500) {
-      errorMsg = 'Error del servidor';
-    } else if (error.status === 0) {
-      errorMsg = 'Sin conexión al servidor';
-    } else if (error.name === 'TimeoutError') {
-      errorMsg = 'Tiempo de espera agotado';
-    } else if (error.error?.detail) {
-      errorMsg = error.error.detail;
-    } else {
-      errorMsg = error.message || errorMsg;
-    }
-
-    return throwError(() => new Error(errorMsg));
+  obtenerEstadoReconocedor(): Observable<any> {
+    return this.http.get<any>(`${this.reconocimientoUrl}/estado`).pipe(
+      timeout(5000),
+      catchError(error => this.handleError(error))
+    );
   }
 
   validarSoporteNavegador(): { voz: boolean; sintesis: boolean; camara: boolean } {
@@ -186,14 +144,12 @@ export class TraductorService {
     return {
       voz: !!(w.SpeechRecognition || w.webkitSpeechRecognition),
       sintesis: !!w.speechSynthesis,
-      camara: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+      camara: !!navigator.mediaDevices?.getUserMedia
     };
   }
 
   sintetizarVoz(texto: string, config: { velocidad?: number; tono?: number } = {}): void {
-    if (!window.speechSynthesis) {
-      return;
-    }
+    if (!window.speechSynthesis) return;
 
     window.speechSynthesis.cancel();
 
@@ -207,48 +163,34 @@ export class TraductorService {
   }
 
   detenerSintesisVoz(): void {
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    window.speechSynthesis?.cancel();
   }
 
-  obtenerEstadoReconocedor(): Observable<any> {
-    return this.http.get<any>(
-      `${environment.apiUrl}/reconocimiento-video/estado`,
-      { headers: this.getHeaders() }
-    ).pipe(
-      timeout(5000),
-      catchError(error => this.handleError('obtenerEstadoReconocedor', error))
-    );
-  }
-
-  traducirSenasATextoConFrames(
-    frames: string[],
-    landmarks: any[][] = [],
-    configuracion: ConfiguracionTraduccion = {}
-  ): Observable<RespuestaAPI> {
-    if (!frames || frames.length === 0) {
-      return throwError(() => new Error('Frames vacíos'));
-    }
-
-    const solicitud = {
-      frames_base64: frames.map(frame => `data:image/jpeg;base64,${frame}`),
-      frames_landmarks: landmarks,
-      configuracion: {
-        confianza_minima: configuracion.confianza_minima || 0.25,
-        usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
-        categoria_id: configuracion.categoria_id
-      }
+  private armarConfiguracion(configuracion: ConfiguracionTraduccion) {
+    return {
+      confianza_minima: configuracion.confianza_minima || 0.25,
+      usar_multiples_modelos: configuracion.usar_multiples_modelos !== false,
+      categoria_id: configuracion.categoria_id,
+      modelo_id: configuracion.modelo_id ?? undefined
     };
+  }
 
-    return this.http.post<RespuestaAPI>(
-      `${this.apiUrl}/senas-a-texto`,
-      solicitud,
-      { headers: this.getHeaders() }
-    ).pipe(
-      timeout(20000),
-      retry(1),
-      catchError(error => this.handleError('traducirSenasATextoConFrames', error))
-    );
+  private handleError(error: any): Observable<never> {
+    const detalle = typeof error?.error?.detail === 'string' ? error.error.detail : null;
+    let mensaje: string;
+
+    if (error?.name === 'TimeoutError') {
+      mensaje = 'Tiempo de espera agotado';
+    } else if (error?.status === 0) {
+      mensaje = 'Sin conexión al servidor';
+    } else if (error?.status === 500) {
+      mensaje = 'Error del servidor';
+    } else if (error?.status === 422) {
+      mensaje = 'Error de validación en los datos';
+    } else {
+      mensaje = detalle || error?.message || 'Error desconocido';
+    }
+
+    return throwError(() => new Error(mensaje));
   }
 }

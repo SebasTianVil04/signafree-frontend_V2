@@ -79,14 +79,14 @@ const routes: Routes = [
   {
     path: 'perfil',
     component: PerfilComponent,
-    canActivate: [AuthGuard, PermisoGuard],
-    data: { title: 'Mi Perfil', permiso: 'usuarios.ver_perfil' }
+    canActivate: [AuthGuard],
+    data: { title: 'Mi Perfil' }
   },
   {
     path: 'progreso',
     component: ProgresoComponent,
     canActivate: [AuthGuard, PermisoGuard],
-    data: { title: 'Mi Progreso', permiso: 'usuarios.ver_progreso' }
+    data: { title: 'Mi Progreso', permiso: 'progreso.ver' }
   },
 
   {
@@ -191,7 +191,7 @@ const routes: Routes = [
         path: 'imagenes',
         component: GestionImagenesDatasetComponent,
         canActivate: [PermisoGuard],
-        data: { title: 'Gestión de Imágenes', permiso: 'dataset.gestionar' }
+        data: { title: 'Gestión de Imágenes', permiso: 'dataset.videos.gestionar' }
       },
       {
         path: 'entrenamiento',

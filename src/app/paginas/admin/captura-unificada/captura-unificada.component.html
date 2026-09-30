@@ -261,7 +261,10 @@
             <div class="progress-bar progress-bar-striped progress-bar-animated"
               [class.bg-success]="!getMetaAlcanzada()" [class.bg-warning]="getMetaAlcanzada()" role="progressbar"
               [style.width.%]="getPorcentajeCompletado()">
-              <strong class="fs-6">{{ videosCapturados }} / {{ metaVideos }}</strong>
+              <strong class="fs-6">
+                {{ videosCapturados }} / {{ metaVideos }}
+                <span *ngIf="pendientesSubida > 0" class="small">(+{{ pendientesSubida }} subiendo)</span>
+              </strong>
             </div>
           </div>
 
@@ -296,13 +299,17 @@
 
           <div *ngIf="tieneReferencia()" class="position-relative">
 
-            <video *ngIf="esVideoReferencia()" [src]="obtenerRutaReferencia()" controls
+            <div *ngIf="cargandoReferencia" class="text-center py-4">
+              <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+            </div>
+
+            <video *ngIf="esVideoReferencia() && urlReferencia" [src]="urlReferencia" controls
               class="img-fluid rounded shadow-sm"
               style="max-height: 200px; background: white; padding: 10px;"
               (error)="onImageError($event)" (loadeddata)="onImageLoad($event)">
             </video>
 
-            <img *ngIf="esImagenReferencia()" [src]="obtenerRutaReferencia()" [alt]="'Seña de ' + senaActual.nombre"
+            <img *ngIf="esImagenReferencia() && urlReferencia" [src]="urlReferencia" [alt]="'Seña de ' + senaActual.nombre"
               class="img-fluid rounded shadow-sm"
               style="max-height: 200px; background: white; padding: 10px;"
               (error)="onImageError($event)" (load)="onImageLoad($event)">

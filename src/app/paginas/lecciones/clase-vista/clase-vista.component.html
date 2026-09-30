@@ -152,7 +152,7 @@
       </div>
     </aside>
 
-    <main class="area-principal">
+    <main class="area-principal" [class.cambiando]="cambiandoClase">
       <div class="pestanas-modo">
         <button class="pestaña" [class.activa]="modoActual === 'aprender'" (click)="cambiarModo('aprender')">
           <i class="fas fa-play-circle"></i>
@@ -167,11 +167,21 @@
 
       <div class="modo-aprender" *ngIf="modoActual === 'aprender'">
         <div class="video-contenedor">
-          <iframe *ngIf="videoUrl" [src]="videoUrl" frameborder="0"
+          <video *ngIf="videoTipo === 'local' && videoLocalUrl" class="video-local" [src]="videoLocalUrl" controls
+            controlsList="nodownload" preload="metadata" playsinline (error)="alErrorVideoLocal()">
+          </video>
+
+          <iframe *ngIf="videoTipo === 'externo' && videoUrl" [src]="videoUrl" frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen>
           </iframe>
-          <div class="sin-video" *ngIf="!videoUrl">
+
+          <div class="sin-video" *ngIf="cargandoVideo">
+            <div class="spinner"></div>
+            <p>Cargando video...</p>
+          </div>
+
+          <div class="sin-video" *ngIf="!cargandoVideo && !videoTipo">
             <i class="fas fa-video-slash"></i>
             <p>No hay video disponible para esta clase</p>
           </div>

@@ -43,33 +43,38 @@ export interface RespuestaLista<T = any> {
 
 @Injectable({ providedIn: 'root' })
 export class SenaCategoriaService {
-  private baseUrl = `${environment.apiUrl}/categorias`;
+  private readonly baseUrl = `${environment.apiUrl}/categorias`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
+
+  private url(categoriaId: number, senaId?: number, sufijo: string = ''): string {
+    const base = `${this.baseUrl}/${categoriaId}/senas`;
+    return senaId === undefined ? base : `${base}/${senaId}${sufijo}`;
+  }
 
   listarSenas(categoriaId: number): Observable<RespuestaLista<SenaCategoria>> {
-    return this.http.get<RespuestaLista<SenaCategoria>>(`${this.baseUrl}/${categoriaId}/senas`);
+    return this.http.get<RespuestaLista<SenaCategoria>>(this.url(categoriaId));
   }
 
   crearSena(categoriaId: number, sena: SenaCategoriaCrear): Observable<RespuestaAPI<SenaCategoria>> {
-    return this.http.post<RespuestaAPI<SenaCategoria>>(`${this.baseUrl}/${categoriaId}/senas`, sena);
+    return this.http.post<RespuestaAPI<SenaCategoria>>(this.url(categoriaId), sena);
   }
 
   actualizarSena(categoriaId: number, senaId: number, datos: SenaCategoriaActualizar): Observable<RespuestaAPI<SenaCategoria>> {
-    return this.http.put<RespuestaAPI<SenaCategoria>>(`${this.baseUrl}/${categoriaId}/senas/${senaId}`, datos);
+    return this.http.put<RespuestaAPI<SenaCategoria>>(this.url(categoriaId, senaId), datos);
   }
 
   eliminarSena(categoriaId: number, senaId: number): Observable<RespuestaAPI> {
-    return this.http.delete<RespuestaAPI>(`${this.baseUrl}/${categoriaId}/senas/${senaId}`);
+    return this.http.delete<RespuestaAPI>(this.url(categoriaId, senaId));
   }
 
   subirArchivoReferencia(categoriaId: number, senaId: number, archivo: File): Observable<RespuestaAPI<SenaCategoria>> {
     const formData = new FormData();
     formData.append('archivo', archivo);
-    return this.http.post<RespuestaAPI<SenaCategoria>>(`${this.baseUrl}/${categoriaId}/senas/${senaId}/referencia`, formData);
+    return this.http.post<RespuestaAPI<SenaCategoria>>(this.url(categoriaId, senaId, '/referencia'), formData);
   }
 
   eliminarArchivoReferencia(categoriaId: number, senaId: number): Observable<RespuestaAPI<SenaCategoria>> {
-    return this.http.delete<RespuestaAPI<SenaCategoria>>(`${this.baseUrl}/${categoriaId}/senas/${senaId}/referencia`);
+    return this.http.delete<RespuestaAPI<SenaCategoria>>(this.url(categoriaId, senaId, '/referencia'));
   }
 }

@@ -15,6 +15,57 @@
     <button type="button" class="btn-close" (click)="error = null"></button>
   </div>
 
+  <!-- Selector de modelo -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+      <div class="row g-3 align-items-center">
+        <div class="col-12 col-md-auto">
+          <label for="selectorModelo" class="form-label fw-bold fs-5 mb-0">
+            <i class="bi bi-cpu me-2"></i> Modelo de traducción:
+          </label>
+        </div>
+
+        <div class="col-12 col-md">
+          <select id="selectorModelo" class="form-select form-select-lg"
+            [disabled]="cargandoModelos || modelosActivos.length === 0"
+            (change)="seleccionarModelo($any($event.target).value)">
+            <option value="" [selected]="modeloSeleccionadoId === null">
+              Automático (modelo de la categoría o el activo más reciente)
+            </option>
+            <option *ngFor="let m of modelosActivos" [value]="m.id" [selected]="m.id === modeloSeleccionadoId">
+              {{ etiquetaModelo(m) }}
+            </option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-auto">
+          <button class="btn btn-outline-primary btn-lg w-100" [disabled]="cargandoModelos"
+            (click)="cargarModelosActivos()" title="Recargar modelos activos">
+            <span *ngIf="cargandoModelos" class="spinner-border spinner-border-sm me-2"></span>
+            <i *ngIf="!cargandoModelos" class="bi bi-arrow-clockwise me-2"></i>
+            Actualizar
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-2 small text-muted">
+        <span *ngIf="!cargandoModelos && modelosActivos.length === 0">
+          <i class="bi bi-exclamation-circle me-1"></i> No hay modelos activos disponibles.
+        </span>
+        <span *ngIf="modeloSeleccionado as sel">
+          <i class="bi bi-info-circle me-1"></i>
+          Usando solo <strong>{{ sel.nombre }}</strong>
+          <ng-container *ngIf="sel.arquitectura"> ({{ sel.arquitectura }})</ng-container>
+          — precisión {{ (sel.accuracy || 0) * 100 | number:'1.0-1' }}%, {{ sel.num_clases }} clases.
+        </span>
+        <span *ngIf="!modeloSeleccionado && modelosActivos.length > 0">
+          <i class="bi bi-info-circle me-1"></i>
+          Modo automático: se usa el modelo de la categoría o, si no tiene, el activo más reciente.
+        </span>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-4">
     <div class="col-12 col-xl-9">
       <div class="card shadow-lg h-100">

@@ -242,26 +242,34 @@
             </iframe>
 
             <ng-template #playerLocal>
-              <video
-                *ngIf="obtenerUrlVideo(videoSeleccionado); else sinVideoModal"
-                [src]="obtenerUrlVideo(videoSeleccionado)"
-                controls
-                autoplay
-                class="w-100"
-                style="max-height: 500px; object-fit: contain;"
-                (error)="manejarErrorVideo($event, videoSeleccionado)">
-                Tu navegador no soporta el elemento video.
-              </video>
-              <ng-template #sinVideoModal>
-                <div class="bg-light d-flex align-items-center justify-content-center text-muted"
-                  style="height: 300px;">
-                  <div class="text-center">
-                    <i class="bi bi-exclamation-triangle-fill fs-1"></i>
-                    <p class="mt-2 small">Video no disponible</p>
-                    <small>ID: {{videoSeleccionado.id}}</small>
-                  </div>
+              <div *ngIf="cargandoVideo" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Cargando video...</span>
                 </div>
-              </ng-template>
+              </div>
+
+              <ng-container *ngIf="!cargandoVideo">
+                <video
+                  *ngIf="urlVideoLocal; else sinVideoModal"
+                  [src]="urlVideoLocal"
+                  controls
+                  autoplay
+                  class="w-100"
+                  style="max-height: 500px; object-fit: contain;"
+                  (error)="manejarErrorVideo($event, videoSeleccionado)">
+                  Tu navegador no soporta el elemento video.
+                </video>
+                <ng-template #sinVideoModal>
+                  <div class="bg-light d-flex align-items-center justify-content-center text-muted"
+                    style="height: 300px;">
+                    <div class="text-center">
+                      <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+                      <p class="mt-2 small">Video no disponible</p>
+                      <small>ID: {{videoSeleccionado.id}}</small>
+                    </div>
+                  </div>
+                </ng-template>
+              </ng-container>
             </ng-template>
           </div>
 

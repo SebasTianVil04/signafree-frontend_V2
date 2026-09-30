@@ -4,6 +4,12 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Categoria } from './categoria.service';
 
+import { obtenerUrlVideoEmbebida } from '../modelos/clase.model';
+import type { Clase, ClaseActualizar, ClaseCrear } from '../modelos/clase.model';
+import { ClasesService } from './clase.service';
+
+export type { Clase, ClaseActualizar, ClaseCrear };
+
 export interface Leccion {
   id: number;
   categoria_id: number;
@@ -15,7 +21,7 @@ export interface Leccion {
   leccion_previa_id?: number | null;
   puntos_base: number;
   puntos_perfecto: number;
-  requiere_examen_nivel?: boolean; 
+  requiere_examen_nivel?: boolean;
   numero_examen?: number;
   imagen_miniatura?: string;
   color_tema: string;
@@ -25,7 +31,7 @@ export interface Leccion {
   total_preguntas_examen?: number;
   total_examenes?: number;
   nivel_dificultad_texto: string;
-   categoria_nombre?: string; 
+  categoria_nombre?: string;
   fecha_creacion?: string;
   fecha_actualizacion?: string | null;
 }
@@ -48,94 +54,7 @@ export interface LeccionCrear {
   bloqueada?: boolean;
 }
 
-export interface LeccionActualizar {
-  categoria_id?: number;
-  titulo?: string;
-  descripcion?: string;
-  sena?: string;
-  nivel_dificultad?: number;
-  orden?: number;
-  leccion_previa_id?: number | null;
-  puntos_base?: number;
-  puntos_perfecto?: number;
-  requiere_examen_nivel?: boolean;
-  numero_examen?: number;
-  imagen_miniatura?: string;
-  color_tema?: string;
-  activa?: boolean;
-  bloqueada?: boolean;
-}
-
-export interface Clase {
-  id?: number;
-  leccion_id: number;
-  titulo: string;
-  descripcion?: string;
-  contenido?: string;
-  contenido_texto?: string;
-  sena?: string;
-  orden: number;
-  video_id?: string;
-  tipo_video?: string;
-  video_url?: string;
-  duracion?: number;
-  duracion_estimada?: number;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica: boolean;
-  intentos_minimos: number;
-  precision_minima: number;
-  activa: boolean;
-  fecha_creacion?: string;
-  fecha_actualizacion?: string;
-}
-
-export interface ClaseCrear {
-  leccion_id: number;
-  titulo: string;
-  descripcion?: string;
-  contenido?: string;
-  contenido_texto?: string;
-  sena?: string;
-  orden: number;
-  video_id?: string;
-  tipo_video?: string;
-  video_url?: string;
-  duracion?: number;
-  duracion_estimada?: number;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica?: boolean;
-  intentos_minimos?: number;
-  precision_minima?: number;
-  activa?: boolean;
-}
-
-export interface ClaseActualizar {
-  titulo?: string;
-  descripcion?: string;
-  contenido?: string;
-  contenido_texto?: string;
-  sena?: string;
-  orden?: number;
-  video_id?: string;
-  tipo_video?: string;
-  video_url?: string;
-  duracion?: number;
-  duracion_estimada?: number;
-  imagen_referencia?: string;
-  gif_demostracion?: string;
-  tips?: string;
-  errores_comunes?: string;
-  requiere_practica?: boolean;
-  intentos_minimos?: number;
-  precision_minima?: number;
-  activa?: boolean;
-}
+export type LeccionActualizar = Partial<LeccionCrear>;
 
 export interface Examen {
   id: number;
@@ -165,6 +84,18 @@ export interface ProgresoExamen {
   ultimo_intento?: string;
 }
 
+export interface ProgresoClaseItem {
+  clase_id: number;
+  completada: boolean;
+}
+
+export interface ProgresoClasesLeccion {
+  leccion_id: number;
+  total_clases: number;
+  clases_completadas: number;
+  clases: ProgresoClaseItem[];
+}
+
 export interface RespuestaLista<T = any> {
   exito: boolean;
   mensaje: string;
@@ -180,42 +111,64 @@ export interface RespuestaAPI<T = any> {
   datos?: T;
 }
 
+export interface FiltrosLecciones {
+  categoria?: number | string;
+  activa?: boolean;
+  [clave: string]: unknown;
+}
+
+export interface NivelLogro {
+  nivel: string;
+  descripcion: string;
+  color: string;
+}
+
+const NIVELES_DIFICULTAD: ReadonlyArray<{ valor: number; etiqueta: string }> = [
+  { valor: 1, etiqueta: 'Principiante' },
+  { valor: 2, etiqueta: 'Intermedio' },
+  { valor: 3, etiqueta: 'Avanzado' }
+];
+
+const NIVELES_LOGRO: ReadonlyArray<{ minimo: number } & NivelLogro> = [
+  { minimo: 0.95, nivel: 'Perfecto', descripcion: 'Dominio completo de la seña', color: '#ffd700' },
+  { minimo: 0.85, nivel: 'Excelente', descripcion: 'Muy buen dominio de la seña', color: '#4caf50' },
+  { minimo: 0.75, nivel: 'Bueno', descripcion: 'Buen dominio de la seña', color: '#8bc34a' },
+  { minimo: 0.65, nivel: 'Aceptable', descripcion: 'Dominio aceptable de la seña', color: '#ff9800' }
+];
+
+const NIVEL_LOGRO_MINIMO: NivelLogro = {
+  nivel: 'Necesita mejorar',
+  descripcion: 'Requiere más práctica',
+  color: '#f44336'
+};
+
 @Injectable({
   providedIn: 'root'
 })
 export class LeccionesService {
-  private apiUrl = `${environment.apiUrl}/lecciones`;
-  private clasesUrl = `${environment.apiUrl}/clases`;
-  private examenesUrl = `${environment.apiUrl}/examenes`;
-  private categoriasUrl = `${environment.apiUrl}/categorias`;
+  private readonly apiUrl = `${environment.apiUrl}/lecciones`;
+  private readonly examenesUrl = `${environment.apiUrl}/examenes`;
+  private readonly categoriasUrl = `${environment.apiUrl}/categorias`;
 
-  constructor(private http: HttpClient) { }
+  constructor(
+    private http: HttpClient,
+    private clases: ClasesService
+  ) { }
 
-  obtenerLecciones(filtros?: any): Observable<RespuestaAPI<Leccion[]>> {
+  private paramsLecciones(categoriaId?: number | string, activa?: boolean): HttpParams {
     let params = new HttpParams();
+    if (categoriaId) params = params.set('categoria_id', categoriaId.toString());
+    if (activa !== undefined) params = params.set('activa', activa.toString());
+    return params;
+  }
 
-    if (filtros?.categoria) {
-      params = params.set('categoria_id', filtros.categoria.toString());
-    }
-
-    if (filtros?.activa !== undefined) {
-      params = params.set('activa', filtros.activa.toString());
-    }
-
+  obtenerLecciones(filtros?: FiltrosLecciones): Observable<RespuestaAPI<Leccion[]>> {
+    const params = this.paramsLecciones(filtros?.categoria, filtros?.activa);
     return this.http.get<RespuestaAPI<Leccion[]>>(this.apiUrl, { params });
   }
 
   listarLecciones(categoriaId?: number, activa?: boolean): Observable<RespuestaLista<Leccion>> {
-    let params = new HttpParams();
-
-    if (categoriaId) {
-      params = params.set('categoria_id', categoriaId.toString());
-    }
-
-    if (activa !== undefined) {
-      params = params.set('activa', activa.toString());
-    }
-
+    const params = this.paramsLecciones(categoriaId, activa);
     return this.http.get<RespuestaLista<Leccion>>(this.apiUrl, { params });
   }
 
@@ -235,32 +188,40 @@ export class LeccionesService {
     return this.http.delete<RespuestaAPI>(`${this.apiUrl}/${id}`);
   }
 
+  obtenerProgresoClases(leccionId: number): Observable<RespuestaAPI<ProgresoClasesLeccion>> {
+    return this.http.get<RespuestaAPI<ProgresoClasesLeccion>>(`${this.apiUrl}/${leccionId}/progreso-clases`);
+  }
+
   obtenerClasesDeLeccion(leccionId: number): Observable<RespuestaAPI<Clase[]>> {
-    return this.http.get<RespuestaAPI<Clase[]>>(`${this.clasesUrl}/leccion/${leccionId}`);
+    return this.clases.obtenerClasesDeLeccion(leccionId);
   }
 
   listarClasesDeLeccion(leccionId: number): Observable<RespuestaLista<Clase>> {
-    return this.http.get<RespuestaLista<Clase>>(`${this.clasesUrl}/leccion/${leccionId}`);
+    return this.clases.obtenerClasesDeLeccion(leccionId);
   }
 
   obtenerClase(id: number): Observable<RespuestaAPI<Clase>> {
-    return this.http.get<RespuestaAPI<Clase>>(`${this.clasesUrl}/${id}`);
+    return this.clases.obtenerClase(id);
   }
 
   crearClase(clase: ClaseCrear): Observable<RespuestaAPI<Clase>> {
-    return this.http.post<RespuestaAPI<Clase>>(this.clasesUrl, clase);
+    return this.clases.crearClase(clase);
   }
 
   actualizarClase(id: number, clase: ClaseActualizar): Observable<RespuestaAPI<Clase>> {
-    return this.http.put<RespuestaAPI<Clase>>(`${this.clasesUrl}/${id}`, clase);
+    return this.clases.actualizarClase(id, clase);
   }
 
   eliminarClase(id: number): Observable<RespuestaAPI> {
-    return this.http.delete<RespuestaAPI>(`${this.clasesUrl}/${id}`);
+    return this.clases.eliminarClase(id);
   }
 
   listarExamenesDeLeccion(leccionId: number): Observable<RespuestaLista<Examen>> {
     return this.http.get<RespuestaLista<Examen>>(`${this.apiUrl}/${leccionId}/examenes`);
+  }
+
+  obtenerExamenesDeLeccion(leccionId: number): Observable<RespuestaAPI<Examen[]>> {
+    return this.http.get<RespuestaAPI<Examen[]>>(`${this.apiUrl}/${leccionId}/examenes`);
   }
 
   obtenerExamen(id: number): Observable<RespuestaAPI<Examen>> {
@@ -275,146 +236,66 @@ export class LeccionesService {
     return this.http.get<RespuestaAPI<ProgresoExamen[]>>(`${this.examenesUrl}/leccion/${leccionId}/progreso`);
   }
 
-  obtenerExamenesDeLeccion(leccionId: number): Observable<RespuestaAPI<Examen[]>> {
-    return this.http.get<RespuestaAPI<Examen[]>>(`${this.apiUrl}/${leccionId}/examenes`);
-  }
-
   obtenerExamenesPorNivel(nivel: number): Observable<RespuestaAPI<Examen[]>> {
     return this.http.get<RespuestaAPI<Examen[]>>(`${this.examenesUrl}/nivel/${nivel}`);
   }
 
-  verificarDisponibilidadExamen(
-    examen: Examen,
-    clasesCompletadas: number,
-    totalClases: number
-  ): boolean {
-    if (!examen.activo) {
-      return false;
-    }
+  obtenerCategorias(activasSolo: boolean = true): Observable<RespuestaLista<Categoria>> {
+    const params = new HttpParams().set('activas_solo', activasSolo.toString());
+    return this.http.get<RespuestaLista<Categoria>>(this.categoriasUrl, { params });
+  }
 
-    if (examen.requiere_todas_clases) {
-      return clasesCompletadas >= totalClases;
-    }
-
-    if (examen.clases_requeridas > 0) {
-      return clasesCompletadas >= examen.clases_requeridas;
-    }
-
+  verificarDisponibilidadExamen(examen: Examen, clasesCompletadas: number, totalClases: number): boolean {
+    if (!examen.activo) return false;
+    if (examen.requiere_todas_clases) return clasesCompletadas >= totalClases;
+    if (examen.clases_requeridas > 0) return clasesCompletadas >= examen.clases_requeridas;
     return true;
   }
 
-  obtenerMensajeRequisitoExamen(
-    examen: Examen,
-    clasesCompletadas: number,
-    totalClases: number
-  ): string {
+  obtenerMensajeRequisitoExamen(examen: Examen, clasesCompletadas: number, totalClases: number): string {
     if (examen.requiere_todas_clases) {
       return `Completa todas las clases (${clasesCompletadas}/${totalClases})`;
     }
 
-    if (examen.clases_requeridas > 0) {
-      const faltantes = Math.max(0, examen.clases_requeridas - clasesCompletadas);
-      if (faltantes > 0) {
-        return `Completa ${faltantes} clase${faltantes > 1 ? 's' : ''} más`;
-      }
-      return 'Disponible';
+    const faltantes = Math.max(0, examen.clases_requeridas - clasesCompletadas);
+    if (examen.clases_requeridas > 0 && faltantes > 0) {
+      return `Completa ${faltantes} clase${faltantes > 1 ? 's' : ''} más`;
     }
 
     return 'Disponible';
   }
 
   generarUrlVideoEmbebida(clase: Clase): string | null {
-    if (!clase.video_id) return null;
-
-    switch (clase.tipo_video) {
-      case 'youtube':
-        return `https://www.youtube.com/embed/${clase.video_id}`;
-      case 'google_drive':
-        return `https://drive.google.com/file/d/${clase.video_id}/preview`;
-      case 'vimeo':
-        return `https://player.vimeo.com/video/${clase.video_id}`;
-      default:
-        return null;
-    }
+    return obtenerUrlVideoEmbebida(clase);
   }
 
-  obtenerNivelesDificultad(): Array<{ valor: number, etiqueta: string }> {
-    return [
-      { valor: 1, etiqueta: 'Principiante' },
-      { valor: 2, etiqueta: 'Intermedio' },
-      { valor: 3, etiqueta: 'Avanzado' }
-    ];
+  obtenerNivelesDificultad(): Array<{ valor: number; etiqueta: string }> {
+    return NIVELES_DIFICULTAD.map(nivel => ({ ...nivel }));
   }
 
   obtenerEtiquetaNivel(nivel: number): string {
-    const niveles = this.obtenerNivelesDificultad();
-    const nivelEncontrado = niveles.find(n => n.valor === nivel);
-    return nivelEncontrado?.etiqueta || `Nivel ${nivel}`;
+    return NIVELES_DIFICULTAD.find(n => n.valor === nivel)?.etiqueta ?? `Nivel ${nivel}`;
   }
 
-  obtenerCategorias(activasSolo: boolean = true): Observable<RespuestaLista<Categoria>> {
-    let params = new HttpParams();
-    params = params.set('activas_solo', activasSolo.toString());
-    return this.http.get<RespuestaLista<Categoria>>(this.categoriasUrl, { params });
-  }
-
-  calcularPuntosObtenidos(
-    leccion: Leccion,
-    precision: number,
-    completada: boolean
-  ): number {
-    if (!completada) {
-      return 0;
-    }
+  calcularPuntosObtenidos(leccion: Leccion, precision: number, completada: boolean): number {
+    if (!completada) return 0;
 
     const puntosBase = leccion.puntos_base || 10;
     const puntosPerfecto = leccion.puntos_perfecto || 20;
 
-    const puntosAdicionales = (puntosPerfecto - puntosBase) * precision;
-    return Math.round(puntosBase + puntosAdicionales);
+    return Math.round(puntosBase + (puntosPerfecto - puntosBase) * precision);
   }
 
   calcularPorcentajePuntos(puntosObtenidos: number, leccion: Leccion): number {
     const puntosPerfecto = leccion.puntos_perfecto || 20;
-    if (puntosPerfecto === 0) return 0;
     return Math.round((puntosObtenidos / puntosPerfecto) * 100);
   }
 
-  obtenerNivelLogro(precision: number): {
-    nivel: string;
-    descripcion: string;
-    color: string;
-  } {
-    if (precision >= 0.95) {
-      return {
-        nivel: 'Perfecto',
-        descripcion: 'Dominio completo de la seña',
-        color: '#ffd700'
-      };
-    } else if (precision >= 0.85) {
-      return {
-        nivel: 'Excelente',
-        descripcion: 'Muy buen dominio de la seña',
-        color: '#4caf50'
-      };
-    } else if (precision >= 0.75) {
-      return {
-        nivel: 'Bueno',
-        descripcion: 'Buen dominio de la seña',
-        color: '#8bc34a'
-      };
-    } else if (precision >= 0.65) {
-      return {
-        nivel: 'Aceptable',
-        descripcion: 'Dominio aceptable de la seña',
-        color: '#ff9800'
-      };
-    } else {
-      return {
-        nivel: 'Necesita mejorar',
-        descripcion: 'Requiere más práctica',
-        color: '#f44336'
-      };
-    }
+  obtenerNivelLogro(precision: number): NivelLogro {
+    const encontrado = NIVELES_LOGRO.find(n => precision >= n.minimo);
+    if (!encontrado) return { ...NIVEL_LOGRO_MINIMO };
+
+    const { nivel, descripcion, color } = encontrado;
+    return { nivel, descripcion, color };
   }
 }

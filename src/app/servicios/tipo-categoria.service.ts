@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-
 
 export interface TipoCategoria {
   id: number;
@@ -38,14 +37,13 @@ export interface RespuestaAPI<T = any> {
   providedIn: 'root'
 })
 export class TipoCategoriaService {
-  private apiUrl = `${environment.apiUrl}/tipos-categoria`;
+  private readonly apiUrl = `${environment.apiUrl}/tipos-categoria`;
 
   constructor(private http: HttpClient) { }
 
   listarTipos(soloActivos: boolean = true): Observable<TipoCategoria[]> {
-    return this.http.get<TipoCategoria[]>(
-      `${this.apiUrl}?solo_activos=${soloActivos}`
-    );
+    const params = new HttpParams().set('solo_activos', soloActivos.toString());
+    return this.http.get<TipoCategoria[]>(this.apiUrl, { params });
   }
 
   obtenerTipo(id: number): Observable<RespuestaAPI<TipoCategoria>> {

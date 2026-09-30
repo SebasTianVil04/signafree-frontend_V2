@@ -40,7 +40,12 @@
           <div class="seccion-video">
             <h3><i class="fas fa-play-circle"></i> Video de Referencia</h3>
 
-            <div class="video-contenedor" *ngIf="videoUrl">
+            <div class="video-contenedor video-cargando" *ngIf="cargandoVideo">
+              <div class="spinner-video"></div>
+              <p>Cargando video...</p>
+            </div>
+
+            <div class="video-contenedor" *ngIf="!cargandoVideo && videoTipo === 'externo' && videoUrl">
               <iframe [src]="videoUrl"
                       frameborder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -48,18 +53,34 @@
               </iframe>
             </div>
 
-            <div class="imagen-referencia" *ngIf="!videoUrl && claseActual.imagen_referencia">
-              <img [src]="claseActual.imagen_referencia" [alt]="senaEsperada">
+            <div class="video-contenedor-local" *ngIf="!cargandoVideo && videoTipo === 'local' && videoLocalUrl">
+              <video class="video-local"
+                     [src]="videoLocalUrl"
+                     controls
+                     loop
+                     muted
+                     autoplay
+                     controlsList="nodownload"
+                     preload="metadata"
+                     playsinline
+                     (error)="alErrorVideoLocal()">
+              </video>
             </div>
 
-            <div class="gif-referencia" *ngIf="!videoUrl && !claseActual.imagen_referencia && claseActual.gif_demostracion">
-              <img [src]="claseActual.gif_demostracion" [alt]="senaEsperada">
-            </div>
+            <ng-container *ngIf="!cargandoVideo && !videoTipo">
+              <div class="imagen-referencia" *ngIf="claseActual.imagen_referencia">
+                <img [src]="claseActual.imagen_referencia" [alt]="senaEsperada">
+              </div>
 
-            <div class="sin-multimedia" *ngIf="!videoUrl && !claseActual.imagen_referencia && !claseActual.gif_demostracion">
-              <i class="fas fa-hand-paper"></i>
-              <p>Seña: <strong>{{ senaEsperada }}</strong></p>
-            </div>
+              <div class="gif-referencia" *ngIf="!claseActual.imagen_referencia && claseActual.gif_demostracion">
+                <img [src]="claseActual.gif_demostracion" [alt]="senaEsperada">
+              </div>
+
+              <div class="sin-multimedia" *ngIf="!claseActual.imagen_referencia && !claseActual.gif_demostracion">
+                <i class="fas fa-hand-paper"></i>
+                <p>Seña: <strong>{{ senaEsperada }}</strong></p>
+              </div>
+            </ng-container>
           </div>
 
           <div class="info-clase">

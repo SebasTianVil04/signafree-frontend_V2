@@ -64,7 +64,7 @@
     </button>
   </div>
 
-  <div class="info-resultados">
+  <div class="info-resultados" *ngIf="!cargando && !error">
     <p>
       <i class="bi bi-info-circle-fill me-2"></i>
       <strong>{{ leccionesFiltradas.length }}</strong>
@@ -75,12 +75,8 @@
     </p>
   </div>
 
-  <div *ngIf="cargando" class="loader">
-    <div class="spinner"></div>
-    <p>
-      <i class="bi bi-cloud-arrow-down-fill me-2"></i>
-      Cargando lecciones...
-    </p>
+  <div *ngIf="cargando" class="lecciones-grid" aria-busy="true" aria-label="Cargando lecciones">
+    <div class="skeleton skeleton-leccion" *ngFor="let n of skeletons"></div>
   </div>
 
   <div *ngIf="error && !cargando" class="error-mensaje">

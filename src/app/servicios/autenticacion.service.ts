@@ -1,7 +1,16 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpContext } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
+import { BehaviorSubject, EMPTY, Observable, Subscription, of, timer } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  finalize,
+  map,
+  shareReplay,
+  switchMap,
+  tap
+} from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { environment } from '../../environments/environment';
 import {
@@ -13,21 +22,30 @@ import {
   ConfirmarRecuperacion,
   RespuestaRecuperacion,
   CambiarPassword,
-  VerificarEmailResponse,
   ValidacionUtils,
   esUsuarioAdmin
 } from '../modelos/usuario.model';
 import { MANEJO_LOCAL_ERRORES } from '../interceptores/error.interceptor';
+import { SKIP_GLOBAL_LOADING } from '../interceptores/loading-context';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AutenticacionService {
-  private usuarioActualSubject: BehaviorSubject<Usuario | null>;
-  public usuarioActual: Observable<Usuario | null>;
-  private cargaUsuario$?: Observable<Usuario | null>;
+  private readonly apiUrl = environment.apiUrl;
+  private readonly usuarioActualSubject = new BehaviorSubject<Usuario | null>(null);
+  readonly usuarioActual: Observable<Usuario | null> = this.usuarioActualSubject.asObservable();
 
-  private readonly PERMISOS_ADMIN: string[] = [
+  private readonly INTERVALO_RENOVACION_MS = 10 * 60 * 1000;
+
+  private cargaUsuario$?: Observable<Usuario | null>;
+  private refresco$?: Observable<void>;
+  private renovacionSub?: Subscription;
+  private tokenRecuperacion: string | null = null;
+
+  private sesionCerradaExplicitamente = false;
+
+  private readonly PERMISOS_PANEL: readonly string[] = [
     'admin.dashboard.ver',
     'admin.usuarios.listar',
     'admin.usuarios.ver',
@@ -38,129 +56,176 @@ export class AutenticacionService {
     'admin.usuarios.ver_estadisticas',
     'admin.roles.gestionar',
     'admin.menu.gestionar',
-    'admin.examenes.gestionar',
     'admin.reportes.ver',
-    'admin.archivos.limpiar'
-  ];
-
-  private readonly PERMISOS_GESTION: string[] = [
-    'categorias.ver',
-    'categorias.crear',
-    'categorias.editar',
-    'categorias.eliminar',
+    'admin.archivos.limpiar',
+    'admin.categorias.gestionar',
+    'admin.lecciones.gestionar',
+    'admin.examenes.gestionar',
     'categorias.gestionar_senas',
-    'lecciones.ver',
-    'lecciones.crear',
-    'lecciones.editar',
-    'lecciones.eliminar',
-    'clases.ver',
     'clases.crear',
     'clases.editar',
     'clases.eliminar',
-    'dataset.gestionar',
+    'dataset.categorias.gestionar',
+    'dataset.videos.gestionar',
     'modelos.gestionar',
     'captura.gestionar',
-    'tipos_categoria.gestionar',
-    'examenes.ver'
+    'tipos_categoria.gestionar'
   ];
 
   constructor(
     private http: HttpClient,
     private router: Router
   ) {
-    const usuarioGuardado = localStorage.getItem('usuario');
-    const usuarioInicial = usuarioGuardado
-      ? this.normalizarUsuario(JSON.parse(usuarioGuardado))
-      : null;
-    this.usuarioActualSubject = new BehaviorSubject<Usuario | null>(usuarioInicial);
-    this.usuarioActual = this.usuarioActualSubject.asObservable();
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+
+    this.usuarioActualSubject.pipe(
+      map(usuario => !!usuario),
+      distinctUntilChanged()
+    ).subscribe(activo => {
+      if (activo) {
+        this.iniciarRenovacionAutomatica();
+      } else {
+        this.detenerRenovacionAutomatica();
+      }
+    });
+  }
+
+  private get contextoLocal(): HttpContext {
+    return new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
   }
 
   private normalizarUsuario(usuario: Usuario): Usuario {
-    return {
-      ...usuario,
-      es_admin: esUsuarioAdmin(usuario)
-    };
+    return { ...usuario, es_admin: esUsuarioAdmin(usuario) };
   }
 
-  public get usuarioActualValor(): Usuario | null {
+  private permisosUsuario(): string[] | null {
+    const usuario = this.usuarioActualValor;
+    if (!usuario) return null;
+    return usuario.permisos ?? [];
+  }
+
+  private iniciarRenovacionAutomatica(): void {
+    if (this.renovacionSub) return;
+
+    this.renovacionSub = timer(this.INTERVALO_RENOVACION_MS, this.INTERVALO_RENOVACION_MS).pipe(
+      filter(() => !!this.usuarioActualValor),
+      switchMap(() =>
+        this.refrescarSesion().pipe(
+          catchError((error: HttpErrorResponse) => {
+            this.manejarFalloRenovacion(error);
+            return EMPTY;
+          })
+        )
+      )
+    ).subscribe();
+  }
+
+  private detenerRenovacionAutomatica(): void {
+    this.renovacionSub?.unsubscribe();
+    this.renovacionSub = undefined;
+  }
+
+  private manejarFalloRenovacion(error: HttpErrorResponse): void {
+    if (error.status === 401 || error.status === 403) {
+      this.limpiarSesion();
+      this.router.navigate(['/login'], {
+        queryParams: { returnUrl: this.router.url, sesion: 'expirada' }
+      });
+    }
+  }
+
+  get usuarioActualValor(): Usuario | null {
     return this.usuarioActualSubject.value;
   }
 
   cargarUsuarioSiEsNecesario(): Observable<Usuario | null> {
-    const token = localStorage.getItem('token');
-    if (!token) return of(null);
-
     if (this.usuarioActualValor) return of(this.usuarioActualValor);
+
+    if (this.sesionCerradaExplicitamente) {
+      return of(null);
+    }
 
     if (!this.cargaUsuario$) {
       this.cargaUsuario$ = this.http.get<Usuario>(
-        `${environment.apiUrl}/usuarios/perfil`
+        `${this.apiUrl}/usuarios/perfil`,
+        { context: this.contextoLocal }
       ).pipe(
-        tap(usuario => {
-          const usuarioNormalizado = this.normalizarUsuario(usuario);
-          localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
-          this.usuarioActualSubject.next(usuarioNormalizado);
-          this.cargaUsuario$ = undefined;
-        }),
+        map(usuario => this.normalizarUsuario(usuario)),
+        tap(usuario => this.usuarioActualSubject.next(usuario)),
         catchError(() => {
-          this.cargaUsuario$ = undefined;
-          this.limpiarSesion();
+          this.usuarioActualSubject.next(null);
           return of(null);
-        })
+        }),
+        finalize(() => (this.cargaUsuario$ = undefined)),
+        shareReplay(1)
       );
     }
     return this.cargaUsuario$;
   }
 
+  refrescarSesion(): Observable<void> {
+    if (this.sesionCerradaExplicitamente) {
+      return EMPTY;
+    }
+
+    if (!this.refresco$) {
+      this.refresco$ = this.http.post<void>(
+        `${this.apiUrl}/auth/refresh`,
+        {},
+        { context: this.contextoLocal.set(SKIP_GLOBAL_LOADING, true) }
+      ).pipe(
+        finalize(() => (this.refresco$ = undefined)),
+        shareReplay(1)
+      );
+    }
+    return this.refresco$;
+  }
+
   login(credenciales: LoginRequest): Observable<AuthResponse> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.post<AuthResponse>(
-      `${environment.apiUrl}/auth/login`,
+      `${this.apiUrl}/auth/login`,
       credenciales,
-      { context }
+      { context: this.contextoLocal }
     ).pipe(
       tap(respuesta => {
-        const usuarioNormalizado = this.normalizarUsuario(respuesta.usuario);
-        localStorage.setItem('token', respuesta.access_token);
-        localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
-        this.usuarioActualSubject.next(usuarioNormalizado);
+        this.sesionCerradaExplicitamente = false;
+        this.usuarioActualSubject.next(this.normalizarUsuario(respuesta.usuario));
       })
     );
   }
 
   registro(datos: RegistroRequest): Observable<AuthResponse> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.post<AuthResponse>(
-      `${environment.apiUrl}/auth/registro`,
+      `${this.apiUrl}/auth/registro`,
       datos,
-      { context }
+      { context: this.contextoLocal }
     ).pipe(
       tap(respuesta => {
-        const usuarioNormalizado = this.normalizarUsuario(respuesta.usuario);
-        localStorage.setItem('token', respuesta.access_token);
-        localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
-        this.usuarioActualSubject.next(usuarioNormalizado);
+        this.sesionCerradaExplicitamente = false;
+        this.usuarioActualSubject.next(this.normalizarUsuario(respuesta.usuario));
       })
     );
   }
 
   cerrarSesion(): Observable<any> {
-    return this.http.post(`${environment.apiUrl}/auth/logout`, {}).pipe(
+    return this.http.post(
+      `${this.apiUrl}/auth/logout`,
+      {},
+      { context: this.contextoLocal }
+    ).pipe(
+      catchError(() => of(null)),
       tap(() => this.logout())
     );
   }
 
   logout(): void {
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
-    this.usuarioActualSubject.next(null);
-    this.cargaUsuario$ = undefined;
+    this.limpiarSesion();
     this.router.navigate(['/login']);
   }
 
   estaAutenticado(): boolean {
-    return !!localStorage.getItem('token');
+    return !!this.usuarioActualValor;
   }
 
   esAdmin(): boolean {
@@ -184,74 +249,47 @@ export class AutenticacionService {
   }
 
   tienePermiso(codigo: string): boolean {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return false;
-    if (this.esAdmin()) return true;
-    return (usuario.permisos ?? []).includes(codigo);
+    const permisos = this.permisosUsuario();
+    if (!permisos) return false;
+    return this.esAdmin() || permisos.includes(codigo);
   }
 
   tieneAlgunPermiso(...codigos: string[]): boolean {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return false;
-    if (this.esAdmin()) return true;
-    const permisos = usuario.permisos ?? [];
-    return codigos.some(codigo => permisos.includes(codigo));
+    const permisos = this.permisosUsuario();
+    if (!permisos) return false;
+    return this.esAdmin() || codigos.some(codigo => permisos.includes(codigo));
   }
 
   tieneTodosLosPermisos(...codigos: string[]): boolean {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return false;
-    if (this.esAdmin()) return true;
-    const permisos = usuario.permisos ?? [];
-    return codigos.every(codigo => permisos.includes(codigo));
+    const permisos = this.permisosUsuario();
+    if (!permisos) return false;
+    return this.esAdmin() || codigos.every(codigo => permisos.includes(codigo));
   }
 
   tieneAlgunPermisoDe(prefijo: string): boolean {
-    const usuario = this.usuarioActualValor;
-    if (!usuario) return false;
-    if (this.esAdmin()) return true;
-    const permisos = usuario.permisos ?? [];
-    return permisos.some(p => p.startsWith(prefijo));
+    const permisos = this.permisosUsuario();
+    if (!permisos) return false;
+    return this.esAdmin() || permisos.some(p => p.startsWith(prefijo));
   }
 
   esAdminOSuperior(): boolean {
-    if (this.esAdmin()) return true;
-    if (this.tieneAlgunPermiso(...this.PERMISOS_ADMIN)) return true;
-    if (this.tieneAlgunPermiso(...this.PERMISOS_GESTION)) return true;
-    return false;
-  }
-
-  obtenerToken(): string | null {
-    return localStorage.getItem('token');
+    return this.esAdmin() || this.tieneAlgunPermiso(...this.PERMISOS_PANEL);
   }
 
   obtenerUsuarioActual(): Usuario | null {
-    const usuarioStr = localStorage.getItem('usuario');
-    if (usuarioStr) {
-      try {
-        return this.normalizarUsuario(JSON.parse(usuarioStr));
-      } catch {
-        return null;
-      }
-    }
-    return null;
+    return this.usuarioActualValor;
   }
 
-  actualizarUsuarioLocal(usuario: any): void {
-    try {
-      const usuarioNormalizado = this.normalizarUsuario(usuario);
-      localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
-      this.usuarioActualSubject.next(usuarioNormalizado);
-    } catch (error) {
-      console.error('Error al actualizar usuario local:', error);
-    }
+  actualizarUsuarioLocal(usuario: Usuario): void {
+    this.usuarioActualSubject.next(this.normalizarUsuario(usuario));
   }
 
   limpiarSesion(): void {
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
+    this.sesionCerradaExplicitamente = true;
     this.usuarioActualSubject.next(null);
     this.cargaUsuario$ = undefined;
+    this.refresco$ = undefined;
+    this.tokenRecuperacion = null;
   }
 
   validarNombreUsuario(nombreUsuario: string): boolean {
@@ -270,86 +308,72 @@ export class AutenticacionService {
     return ValidacionUtils.passwordsCoinciden(password, confirmarPassword);
   }
 
-  verificarEmailExiste(email: string): Observable<VerificarEmailResponse> {
-    return this.http.post<VerificarEmailResponse>(
-      `${environment.apiUrl}/auth/verificar-email`,
-      { email: email.trim().toLowerCase() }
-    );
+  normalizarEmail(email: string): string {
+    return ValidacionUtils.normalizarEmail(email);
   }
 
   solicitarRecuperacion(datos: SolicitudRecuperacion): Observable<RespuestaRecuperacion> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.post<RespuestaRecuperacion>(
-      `${environment.apiUrl}/auth/solicitar-recuperacion`,
+      `${this.apiUrl}/auth/solicitar-recuperacion`,
       datos,
-      { context }
+      { context: this.contextoLocal }
     );
   }
 
   confirmarRecuperacion(datos: ConfirmarRecuperacion): Observable<RespuestaRecuperacion> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.post<RespuestaRecuperacion>(
-      `${environment.apiUrl}/auth/confirmar-recuperacion`,
+      `${this.apiUrl}/auth/confirmar-recuperacion`,
       datos,
-      { context }
+      { context: this.contextoLocal }
     );
   }
 
   cambiarPassword(datos: CambiarPassword): Observable<any> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.put(
-      `${environment.apiUrl}/auth/cambiar-password`,
+      `${this.apiUrl}/auth/cambiar-password`,
       datos,
-      { context }
+      { context: this.contextoLocal }
     );
   }
 
   verificarTokenRecuperacion(token: string): Observable<any> {
-    const context = new HttpContext().set(MANEJO_LOCAL_ERRORES, true);
     return this.http.get(
-      `${environment.apiUrl}/auth/verificar-token-recuperacion/${token}`,
-      { context }
+      `${this.apiUrl}/auth/verificar-token-recuperacion/${encodeURIComponent(token)}`,
+      { context: this.contextoLocal }
     );
   }
 
   extraerTokenDeUrl(url: string = window.location.href): string | null {
     try {
-      const urlObj = new URL(url);
-      return urlObj.searchParams.get('token');
+      return new URL(url).searchParams.get('token');
     } catch {
       return null;
     }
   }
 
   guardarTokenRecuperacion(token: string): void {
-    sessionStorage.setItem('tokenRecuperacion', token);
+    this.tokenRecuperacion = token;
   }
 
   obtenerTokenRecuperacion(): string | null {
-    return sessionStorage.getItem('tokenRecuperacion');
+    return this.tokenRecuperacion;
   }
 
   limpiarTokenRecuperacion(): void {
-    sessionStorage.removeItem('tokenRecuperacion');
+    this.tokenRecuperacion = null;
   }
 
   obtenerUsuario(): Observable<Usuario> {
-    return this.http.get<Usuario>(`${environment.apiUrl}/usuarios/perfil`);
+    return this.http.get<Usuario>(`${this.apiUrl}/usuarios/perfil`);
   }
 
   actualizarUsuario(datos: Partial<Usuario>): Observable<any> {
-    return this.http.put<any>(`${environment.apiUrl}/usuarios/perfil`, datos).pipe(
+    return this.http.put<any>(`${this.apiUrl}/usuarios/perfil`, datos).pipe(
       tap(respuesta => {
         if (respuesta.datos) {
-          const usuarioNormalizado = this.normalizarUsuario(respuesta.datos);
-          localStorage.setItem('usuario', JSON.stringify(usuarioNormalizado));
-          this.usuarioActualSubject.next(usuarioNormalizado);
+          this.usuarioActualSubject.next(this.normalizarUsuario(respuesta.datos));
         }
       })
     );
-  }
-
-  normalizarEmail(email: string): string {
-    return ValidacionUtils.normalizarEmail(email);
   }
 }

@@ -1,13 +1,13 @@
 <div class="olvidaste-contrasena-container">
   <div class="auth-card">
-    
+
     <!-- Header -->
     <div class="auth-header">
       <div class="logo">
         <span class="logo-icon">🤟</span>
         <span class="logo-text">SignaFree</span>
       </div>
-      
+
       <div class="header-content" *ngIf="!enviado">
         <h1>¿Olvidaste tu contraseña?</h1>
         <p>No te preocupes, te enviaremos un enlace para restablecerla</p>
@@ -16,28 +16,26 @@
       <div class="header-content" *ngIf="enviado">
         <div class="success-icon">✉️</div>
         <h1>¡Revisa tu email!</h1>
-        <p>Te hemos enviado un enlace de recuperación</p>
+        <p>Si el correo está registrado, recibirás un enlace de recuperación</p>
       </div>
     </div>
 
     <!-- Formulario de solicitud -->
     <div class="auth-content" *ngIf="!enviado">
-      
-      <!-- Mensaje de error general -->
+
       <div class="alert alert-error" *ngIf="error">
         <span class="alert-icon">⚠️</span>
         <span>{{ error }}</span>
       </div>
 
       <form [formGroup]="formularioRecuperacion" (ngSubmit)="onSubmit()" class="auth-form">
-        
-        <!-- Campo Email -->
+
         <div class="form-group">
           <label for="email" class="form-label">
             Email
             <span class="required">*</span>
           </label>
-          
+
           <div class="input-container">
             <input
               type="email"
@@ -52,15 +50,13 @@
             <span class="input-icon">📧</span>
           </div>
 
-          <!-- Error del campo -->
           <div class="error-message" *ngIf="tieneErrorCampo('email')">
             {{ obtenerErrorCampo('email') }}
           </div>
         </div>
 
-        <!-- Botón enviar -->
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           class="btn btn-primary btn-block"
           [disabled]="cargando || formularioRecuperacion.invalid"
           [class.loading]="cargando"
@@ -74,7 +70,6 @@
 
       </form>
 
-      <!-- Enlaces adicionales -->
       <div class="auth-footer">
         <button type="button" class="link-button" (click)="volverAlLogin()">
           ← Volver al inicio de sesión
@@ -85,10 +80,10 @@
 
     <!-- Estado de email enviado -->
     <div class="auth-content" *ngIf="enviado">
-      
+
       <div class="success-message">
         <div class="success-details">
-          <p><strong>Email enviado a:</strong></p>
+          <p><strong>Solicitud enviada para:</strong></p>
           <p class="email-sent">{{ emailEnviado }}</p>
         </div>
 
@@ -105,7 +100,8 @@
         <div class="help-note">
           <p><strong>💡 Nota:</strong></p>
           <ul>
-            <li>El enlace expira en <strong>15 minutos</strong></li>
+            <li>El enlace expira en <strong>30 minutos</strong></li>
+            <li>Por seguridad, no revelamos si el correo está registrado</li>
             <li>Revisa tu carpeta de spam si no lo encuentras</li>
             <li>Puedes solicitar un nuevo enlace si es necesario</li>
           </ul>
@@ -116,7 +112,7 @@
         <button type="button" class="btn btn-outline" (click)="reintentarEnvio()">
           Enviar a otro email
         </button>
-        
+
         <button type="button" class="btn btn-primary" (click)="volverAlLogin()">
           Volver al login
         </button>
@@ -126,7 +122,6 @@
 
   </div>
 
-  <!-- Información adicional -->
   <div class="additional-info" *ngIf="!enviado">
     <div class="info-card">
       <h3>¿Necesitas ayuda?</h3>

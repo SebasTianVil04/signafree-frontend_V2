@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { NotificacionesService } from './notificaciones.service';
 import { Usuario } from '../modelos/usuario.model';
@@ -35,7 +35,7 @@ export interface RespuestaAPI {
   providedIn: 'root'
 })
 export class UsuariosService {
-  private apiUrl = `${environment.apiUrl}/usuarios`;
+  private readonly apiUrl = `${environment.apiUrl}/usuarios`;
 
   constructor(
     private http: HttpClient,
@@ -44,62 +44,25 @@ export class UsuariosService {
 
   obtenerPerfil(): Observable<Usuario> {
     return this.http.get<Usuario>(`${this.apiUrl}/perfil`).pipe(
-      tap(usuario => {
-        console.log('Perfil obtenido del servidor:', usuario);
-      }),
-      catchError(error => {
-        console.error('Error al obtener perfil:', error);
-        const mensaje = this.obtenerMensajeError(error);
-        this.notificaciones.mostrarError(mensaje);
-        return throwError(error);
-      })
+      catchError(error => this.fallar(error))
     );
   }
 
   actualizarPerfil(datos: ActualizacionPerfilRequest): Observable<RespuestaAPI> {
-    console.log('Enviando datos al backend:', datos);
-
     return this.http.put<RespuestaAPI>(`${this.apiUrl}/perfil`, datos).pipe(
-      tap(respuesta => {
-        console.log('Respuesta del backend:', respuesta);
-      }),
-      catchError(error => {
-        console.error('Error del backend:', error);
-        console.error('Detalle del error:', error.error);
-
-        const mensaje = error.error?.detail || error.error?.mensaje || this.obtenerMensajeError(error);
-        this.notificaciones.mostrarError(mensaje);
-
-        return throwError(error);
-      })
+      catchError(error => this.fallar(error))
     );
   }
 
   cambiarPassword(datos: CambiarPasswordRequest): Observable<RespuestaAPI> {
     return this.http.put<RespuestaAPI>(`${this.apiUrl}/cambiar-password`, datos).pipe(
-      tap(respuesta => {
-        console.log('Contraseña actualizada');
-      }),
-      catchError(error => {
-        const mensaje = error.error?.detail || error.error?.mensaje || 'Error inesperado';
-        console.error('Error al cambiar contraseña:', error);
-        console.error('Detalle del error:', error.error);
-        this.notificaciones.mostrarError(mensaje);
-        return throwError(error);
-      })
+      catchError(error => this.fallar(error))
     );
   }
 
   obtenerProgreso(): Observable<ProgresoUsuario> {
     return this.http.get<ProgresoUsuario>(`${this.apiUrl}/mi-progreso`).pipe(
-      tap(progreso => {
-        console.log('Progreso obtenido:', progreso);
-      }),
-      catchError(error => {
-        const mensaje = this.obtenerMensajeError(error);
-        this.notificaciones.mostrarError(mensaje);
-        return throwError(error);
-      })
+      catchError(error => this.fallar(error))
     );
   }
 
@@ -119,34 +82,36 @@ export class UsuariosService {
     }
 
     return this.http.get(`${this.apiUrl}/mis-lecciones`, { params }).pipe(
-      tap(respuesta => {
-        console.log('Lecciones obtenidas:', respuesta);
-      }),
-      catchError(error => {
-        const mensaje = this.obtenerMensajeError(error);
-        this.notificaciones.mostrarError(mensaje);
-        return throwError(error);
-      })
+      catchError(error => this.fallar(error))
     );
   }
 
+  private fallar(error: any): Observable<never> {
+    this.notificaciones.mostrarError(this.obtenerMensajeError(error));
+    return throwError(() => error);
+  }
+
   private obtenerMensajeError(error: any): string {
-    if (error.status === 400) {
-      return error.error?.detail || error.error?.mensaje || 'Los datos proporcionados no son válidos';
-    } else if (error.status === 401) {
-      return 'No tienes autorización. Por favor inicia sesión nuevamente';
-    } else if (error.status === 403) {
-      return 'No tienes permisos para realizar esta acción';
-    } else if (error.status === 404) {
-      return 'El recurso solicitado no fue encontrado';
-    } else if (error.status === 422) {
-      return error.error?.detail || 'Error de validación en los datos enviados';
-    } else if (error.status === 500) {
-      return 'Error del servidor. Por favor intenta más tarde';
-    } else if (error.status === 0) {
-      return 'Sin conexión a internet. Verifica tu conexión';
-    } else {
-      return error.error?.detail || error.error?.mensaje || error.message || 'Error inesperado';
+    const detalle = typeof error?.error?.detail === 'string' ? error.error.detail : null;
+    const mensajeServidor = detalle || error?.error?.mensaje;
+
+    switch (error?.status) {
+      case 0:
+        return 'Sin conexión a internet. Verifica tu conexión';
+      case 500:
+        return 'Error del servidor. Por favor intenta más tarde';
+      case 400:
+        return mensajeServidor || 'Los datos proporcionados no son válidos';
+      case 401:
+        return mensajeServidor || 'No tienes autorización. Por favor inicia sesión nuevamente';
+      case 403:
+        return mensajeServidor || 'No tienes permisos para realizar esta acción';
+      case 404:
+        return mensajeServidor || 'El recurso solicitado no fue encontrado';
+      case 422:
+        return mensajeServidor || 'Error de validación en los datos enviados';
+      default:
+        return mensajeServidor || error?.message || 'Error inesperado';
     }
   }
 }

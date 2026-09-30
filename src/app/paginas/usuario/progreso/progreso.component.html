@@ -4,16 +4,18 @@
     <div class="page-header">
       <h1>Mi Progreso</h1>
       <p>Monitorea tu avance en el aprendizaje de LSP</p>
-      <button class="btn-actualizar" (click)="recargarDatos()" [disabled]="cargando">
-        <i class="bi bi-arrow-clockwise" [class.spinning]="cargando"></i>
-        {{ cargando ? 'Actualizando...' : 'Actualizar' }}
+      <button class="btn-actualizar" (click)="recargarDatos()" [disabled]="cargando || actualizando">
+        <i class="bi bi-arrow-clockwise" [class.spinning]="cargando || actualizando"></i>
+        {{ actualizando ? 'Actualizando...' : 'Actualizar' }}
       </button>
     </div>
 
-    <!-- Estado de carga -->
-    <div *ngIf="cargando" class="loading-spinner">
-      <div class="spinner"></div>
-      <p>Cargando estadísticas...</p>
+    <!-- Estado de carga (skeleton) -->
+    <div *ngIf="cargando" class="stats-container" aria-busy="true" aria-label="Cargando estadísticas">
+      <div class="skeleton skeleton-nivel"></div>
+      <div class="stats-grid">
+        <div class="skeleton skeleton-stat" *ngFor="let n of [1, 2, 3, 4]"></div>
+      </div>
     </div>
 
     <!-- Error -->
@@ -146,8 +148,13 @@
         </div>
       </div>
 
-      <!-- Ranking -->
-      <div class="ranking-section" *ngIf="ranking.length > 0">
+      <!-- Ranking (carga independiente) -->
+      <div class="ranking-section" *ngIf="cargandoRanking" aria-busy="true">
+        <h3>🏅 Ranking Global</h3>
+        <div class="skeleton skeleton-ranking" *ngFor="let n of [1, 2, 3]"></div>
+      </div>
+
+      <div class="ranking-section" *ngIf="!cargandoRanking && ranking.length > 0">
         <h3>🏅 Ranking Global</h3>
         <div class="ranking-list">
           <div *ngFor="let usuario of ranking; let i = index" class="ranking-item"

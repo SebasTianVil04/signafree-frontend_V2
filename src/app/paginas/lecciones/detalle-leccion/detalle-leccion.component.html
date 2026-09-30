@@ -1,8 +1,11 @@
 <div class="contenedor-detalle">
 
-  <div *ngIf="cargando" class="loader">
-    <div class="spinner"></div>
-    <p>Cargando lección...</p>
+  <div *ngIf="cargando" class="skeleton-pagina" aria-busy="true" aria-label="Cargando lección">
+    <div class="skeleton skeleton-hero"></div>
+    <div class="skeleton skeleton-tabs"></div>
+    <div class="skeleton-grid">
+      <div class="skeleton skeleton-card" *ngFor="let n of [1, 2, 3]"></div>
+    </div>
   </div>
 
   <div *ngIf="error" class="error-mensaje">
@@ -51,7 +54,7 @@
             <span class="badge-estrella" *ngIf="tieneEstrellaDorada()">
               <i class="bi bi-star-fill"></i> Perfecta
             </span>
-            <span class="badge-bloqueada" *ngIf="leccion.bloqueada">
+            <span class="badge-bloqueada" *ngIf="!verificandoProgreso && leccion.bloqueada">
               <i class="bi bi-lock-fill"></i> Bloqueada
             </span>
           </div>
@@ -65,11 +68,11 @@
           <div class="hero-stats">
             <div class="stat-item">
               <i class="bi bi-book-fill"></i>
-              <span>{{ totalClases }} clases</span>
+              <span>{{ cargandoClases ? '–' : totalClases }} clases</span>
             </div>
             <div class="stat-item">
               <i class="bi bi-hourglass-split"></i>
-              <span>{{ duracionTotal }} min</span>
+              <span>{{ cargandoClases ? '–' : duracionTotal }} min</span>
             </div>
             <div class="stat-item">
               <i class="bi bi-hand-index-thumb"></i>
@@ -82,20 +85,23 @@
           </div>
 
           <div class="hero-actions">
-            <button (click)="iniciarLeccion()" class="btn-iniciar-hero" [disabled]="!leccion.activa || leccion.bloqueada"
-              [class.bloqueada]="leccion.bloqueada">
-              <i class="bi" [class.bi-play-circle-fill]="leccion.activa && !leccion.bloqueada"
-                [class.bi-lock-fill]="leccion.bloqueada"></i>
+            <button (click)="iniciarLeccion()" class="btn-iniciar-hero"
+              [disabled]="verificandoProgreso || !leccion.activa || leccion.bloqueada"
+              [class.bloqueada]="!verificandoProgreso && leccion.bloqueada">
+              <i class="bi"
+                [class.bi-hourglass-split]="verificandoProgreso"
+                [class.bi-play-circle-fill]="!verificandoProgreso && leccion.activa && !leccion.bloqueada"
+                [class.bi-lock-fill]="!verificandoProgreso && leccion.bloqueada"></i>
               {{ obtenerTextoBoton() }}
             </button>
 
-            <button (click)="actualizarEstado()" class="btn-actualizar" *ngIf="leccion?.bloqueada">
+            <button (click)="actualizarEstado()" class="btn-actualizar" *ngIf="!verificandoProgreso && leccion?.bloqueada">
               <i class="bi bi-arrow-clockwise"></i>
               Actualizar Estado
             </button>
           </div>
 
-          <div *ngIf="leccion.bloqueada && leccion.leccion_previa_id" class="info-bloqueo">
+          <div *ngIf="!verificandoProgreso && leccion.bloqueada && leccion.leccion_previa_id" class="info-bloqueo">
             <p><i class="bi bi-info-circle-fill"></i> Completa la lección anterior para desbloquear esta lección.</p>
           </div>
         </div>
@@ -107,7 +113,7 @@
       <div class="tabs-navegacion">
         <button class="tab-btn" [class.activa]="tabActiva === 'clases'" (click)="cambiarTab('clases')">
           <i class="bi bi-list-ul"></i>
-          <span>Clases ({{ totalClases }})</span>
+          <span>Clases ({{ cargandoClases ? '…' : totalClases }})</span>
         </button>
         <button class="tab-btn" [class.activa]="tabActiva === 'info'" (click)="cambiarTab('info')">
           <i class="bi bi-info-circle-fill"></i>
@@ -125,7 +131,7 @@
         <div class="progreso-clases-header" *ngIf="leccion.progreso">
           <div class="progreso-info">
             <h3>Tu Progreso</h3>
-            <p>{{ clasesCompletadas }} de {{ totalClases }} clases completadas</p>
+            <p>{{ clasesCompletadas }} de {{ cargandoClases ? '–' : totalClases }} clases completadas</p>
           </div>
           <div class="progreso-barra">
             <div class="barra-fill" [style.width.%]="porcentajeClasesCompletadas()"></div>
@@ -133,7 +139,7 @@
           <span class="progreso-porcentaje">{{ porcentajeClasesCompletadas() }}%</span>
         </div>
 
-        <div *ngIf="leccion.bloqueada" class="mensaje-bloqueo-leccion">
+        <div *ngIf="!verificandoProgreso && leccion.bloqueada" class="mensaje-bloqueo-leccion">
           <div class="bloqueo-icono">
             <i class="bi bi-lock-fill"></i>
           </div>
@@ -150,12 +156,16 @@
           </div>
         </div>
 
-        <div *ngIf="clases.length === 0 && !leccion.bloqueada" class="sin-clases">
+        <div *ngIf="cargandoClases" class="clases-grid" aria-busy="true" aria-label="Cargando clases">
+          <div class="skeleton skeleton-card" *ngFor="let n of [1, 2, 3]"></div>
+        </div>
+
+        <div *ngIf="!cargandoClases && clases.length === 0 && !leccion.bloqueada" class="sin-clases">
           <i class="bi bi-inbox"></i>
           <p>No hay clases disponibles para esta lección.</p>
         </div>
 
-        <div *ngIf="clases.length > 0 && !leccion.bloqueada" class="clases-grid">
+        <div *ngIf="!cargandoClases && clases.length > 0 && !leccion.bloqueada" class="clases-grid">
           <div *ngFor="let clase of clases; let i = index" class="clase-card" [class.completada]="clase.completada"
             [class.bloqueada]="clase.bloqueada">
 

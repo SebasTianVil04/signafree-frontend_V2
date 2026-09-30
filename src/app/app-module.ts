@@ -145,9 +145,9 @@ import { GestionMenuComponent } from './paginas/admin/gestion-menu/gestion-menu.
     LeccionesService,
     NotificacionesService,
     RecursosSenasService,
-    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
-    { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: LoadingInterceptor, multi: true },
+    { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
+    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     AuthGuard,
     NoAuthGuard,
     provideTanStackQuery(new QueryClient({

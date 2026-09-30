@@ -17,7 +17,7 @@ import {
   providedIn: 'root'
 })
 export class RolesService {
-  private apiUrl = `${environment.apiUrl}/roles`;
+  private readonly apiUrl = `${environment.apiUrl}/roles`;
 
   constructor(
     private http: HttpClient,
@@ -38,13 +38,17 @@ export class RolesService {
 
   agruparPermisosPorModulo(permisos: Permiso[]): PermisosPorModulo[] {
     const grupos = new Map<string, Permiso[]>();
+
     for (const permiso of permisos) {
-      if (!grupos.has(permiso.modulo)) {
-        grupos.set(permiso.modulo, []);
+      const grupo = grupos.get(permiso.modulo);
+      if (grupo) {
+        grupo.push(permiso);
+      } else {
+        grupos.set(permiso.modulo, [permiso]);
       }
-      grupos.get(permiso.modulo)!.push(permiso);
     }
-    return Array.from(grupos.entries()).map(([modulo, permisos]) => ({ modulo, permisos }));
+
+    return Array.from(grupos, ([modulo, permisos]) => ({ modulo, permisos }));
   }
 
   crearRol(datos: RolCrear): Observable<Rol> {
@@ -71,9 +75,9 @@ export class RolesService {
     );
   }
 
-  private manejarError(error: any) {
-    const mensaje = error.error?.mensaje || error.error?.detail || 'Error inesperado';
-    this.notificaciones.mostrarError(mensaje);
-    return throwError(error);
+  private manejarError(error: any): Observable<never> {
+    const detalle = typeof error?.error?.detail === 'string' ? error.error.detail : null;
+    this.notificaciones.mostrarError(error?.error?.mensaje || detalle || 'Error inesperado');
+    return throwError(() => error);
   }
 }

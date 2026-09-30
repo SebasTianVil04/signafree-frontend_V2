@@ -1,12 +1,32 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { Subject, Subscription } from 'rxjs';
+import { finalize, takeUntil } from 'rxjs/operators';
 import { CapturaService } from '../../../servicios/captura.service';
 import { CategoriaService, Categoria } from '../../../servicios/categoria.service';
 import { SenaCategoriaService, SenaCategoria } from '../../../servicios/sena-categoria.service';
 import { HandDetectionService } from '../../../servicios/hand-detection.service';
 import { PrivacyFilterService } from '../../../servicios/privacy-filter.service';
+import { ArchivosService } from '../../../servicios/archivos.service';
 import { Results } from '@mediapipe/hands';
-import { environment } from '../../../../environments/environment';
+
+interface ItemSubida {
+  blob: Blob;
+  categoriaId: number;
+  senaId: number;
+  senaNombre: string;
+  nombreArchivo: string;
+  porcentajeMano: number;
+}
+
+interface ConfigCaptura {
+  metaVideos?: number;
+  categoriaId?: number;
+  modoAutomatico?: boolean;
+  filtroPrivacidadActivo?: boolean;
+}
+
+const CLAVE_CONFIG = 'configCapturaUnificada';
 
 @Component({
   selector: 'app-captura-unificada',
@@ -14,7 +34,7 @@ import { environment } from '../../../../environments/environment';
   styleUrls: ['./captura-unificada.component.scss'],
   standalone: false
 })
-export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewInit {
+export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement', { static: false }) videoElement!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasElement', { static: false }) canvasElement!: ElementRef<HTMLCanvasElement>;
   @ViewChild('inputImagenReferencia', { static: false }) inputImagenReferencia!: ElementRef<HTMLInputElement>;
@@ -39,7 +59,14 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
   videosCapturados: number = 0;
   metaVideos: number = 20;
-  opcionesMetaVideos: number[] = Array.from({ length: 20 }, (_, i) => (i + 1) * 10);
+  readonly metasDisponibles: number[] = [10, 20, 30, 50, 100, 150, 200];
+
+  pendientesSubida: number = 0;
+  private colaSubida: ItemSubida[] = [];
+  private enSubida: ItemSubida[] = [];
+  private enProceso: boolean = false;
+  private readonly MAX_PENDIENTES = 4;
+  private readonly MAX_SUBIDAS_SIMULTANEAS = 2;
 
   tiempoGrabacion: number = 0;
   maxTiempoGrabacion: number = 3;
@@ -49,14 +76,17 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   mediaRecorder: any = null;
   recordedChunks: Blob[] = [];
   streamCaptura: any = null;
-  renderFrameId: number | null = null;
   streamOriginal: MediaStream | null = null;
 
   videoPreviewUrl: SafeUrl | null = null;
+  private videoPreviewObjectUrl: string | null = null;
   mostrarReferencia: boolean = true;
   imagenCargada: boolean = false;
   imagenError: boolean = false;
   subiendoImagen: boolean = false;
+
+  urlReferencia: string = '';
+  cargandoReferencia: boolean = false;
 
   nuevaSenaTexto: string = '';
   mostrarInputSena: boolean = false;
@@ -72,9 +102,18 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   progresoEstabilidad: number = 0;
 
   cooldownActivo: boolean = false;
-  private readonly COOLDOWN_MS = 1500;
+  private readonly COOLDOWN_MS = 1000;
+  private temporizadorCooldown: ReturnType<typeof setTimeout> | null = null;
 
   private modoAutomaticoPrevioACapturaMasiva: boolean | null = null;
+
+  // Ciclo de vida / peticiones cancelables
+  private destruido = false;
+  private readonly destroy$ = new Subject<void>();
+  private senasSub?: Subscription;
+  private conteoSub?: Subscription;
+  private referenciaSub?: Subscription;
+  private configGuardada: ConfigCaptura | null = null;
 
   constructor(
     private capturaService: CapturaService,
@@ -82,19 +121,45 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     private senaCategoriaService: SenaCategoriaService,
     private handDetectionService: HandDetectionService,
     private privacyFilter: PrivacyFilterService,
+    private archivosService: ArchivosService,
     private sanitizer: DomSanitizer
   ) { }
 
   ngOnInit(): void {
-    this.cargarCategorias();
     this.cargarConfiguracion();
+    this.cargarCategorias();
   }
 
-  ngAfterViewInit(): void { }
-
   ngOnDestroy(): void {
+    this.destruido = true;
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.temporizadorCooldown) {
+      clearTimeout(this.temporizadorCooldown);
+      this.temporizadorCooldown = null;
+    }
+
     this.detenerCamara();
     this.limpiarRecursos();
+  }
+
+  /**
+   * Id que esperan los endpoints de captura/dataset: CategoriaDataset.id.
+   * GET /categorias lo devuelve como `dataset_id`. Si no viniera, se usa Categoria.id
+   * (comportamiento anterior, que solo funciona cuando ambos ids coinciden).
+   */
+  get categoriaDatasetId(): number | null {
+    const c = this.categoriaSeleccionada;
+    return c ? (c.dataset_id ?? c.id) : null;
+  }
+
+  trackByCategoria(_: number, categoria: Categoria): number {
+    return categoria.id;
+  }
+
+  trackBySena(_: number, sena: SenaCategoria): number {
+    return sena.id;
   }
 
   obtenerClaseIcono(icono?: string | null): string {
@@ -118,61 +183,71 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Configuración local
+  // ---------------------------------------------------------------------------
+
+  private leerConfiguracion(): ConfigCaptura | null {
+    try {
+      const raw = localStorage.getItem(CLAVE_CONFIG);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn('Error cargando configuración:', e);
+      return null;
+    }
+  }
+
   private cargarConfiguracion(): void {
-    const configGuardada = localStorage.getItem('configCapturaUnificada');
-    if (configGuardada) {
-      try {
-        const config = JSON.parse(configGuardada);
-        if (config.metaVideos && this.opcionesMetaVideos.includes(config.metaVideos)) {
-          this.metaVideos = config.metaVideos;
-        }
-        if (typeof config.modoAutomatico === 'boolean') {
-          this.modoAutomatico = config.modoAutomatico;
-        }
-        if (typeof config.filtroPrivacidadActivo === 'boolean') {
-          this.filtroPrivacidadActivo = config.filtroPrivacidadActivo;
-        }
-      } catch (e) {
-        console.warn('Error cargando configuración:', e);
-      }
+    const config = this.leerConfiguracion();
+    this.configGuardada = config;
+    if (!config) return;
+
+    if (config.metaVideos && this.metasDisponibles.includes(config.metaVideos)) {
+      this.metaVideos = config.metaVideos;
+    }
+    if (typeof config.modoAutomatico === 'boolean') {
+      this.modoAutomatico = config.modoAutomatico;
+    }
+    if (typeof config.filtroPrivacidadActivo === 'boolean') {
+      this.filtroPrivacidadActivo = config.filtroPrivacidadActivo;
     }
   }
 
   private guardarConfiguracion(): void {
-    const config = {
+    const config: ConfigCaptura = {
       metaVideos: this.metaVideos,
       categoriaId: this.categoriaSeleccionada?.id,
       modoAutomatico: this.modoAutomatico,
       filtroPrivacidadActivo: this.filtroPrivacidadActivo
     };
-    localStorage.setItem('configCapturaUnificada', JSON.stringify(config));
+    try {
+      localStorage.setItem(CLAVE_CONFIG, JSON.stringify(config));
+    } catch (e) {
+      console.warn('No se pudo guardar la configuración:', e);
+    }
   }
+
+  // ---------------------------------------------------------------------------
+  // Categorías y señas
+  // ---------------------------------------------------------------------------
 
   cargarCategorias(): void {
     this.cargandoCategorias = true;
-    this.categoriaService.listarCategorias(true).subscribe({
+
+    this.categoriaService.listarCategorias(true).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (response) => {
         if (response.exito && response.datos) {
           this.categorias = response.datos.filter(c => c.activa);
 
-          const configGuardada = localStorage.getItem('configCapturaUnificada');
-          if (configGuardada) {
-            try {
-              const config = JSON.parse(configGuardada);
-              const categoriaGuardada = this.categorias.find(c => c.id === config.categoriaId);
-              if (categoriaGuardada) {
-                this.seleccionarCategoria(categoriaGuardada);
-              } else if (this.categorias.length > 0) {
-                this.seleccionarCategoria(this.categorias[0]);
-              }
-            } catch (e) {
-              if (this.categorias.length > 0) {
-                this.seleccionarCategoria(this.categorias[0]);
-              }
-            }
-          } else if (this.categorias.length > 0) {
-            this.seleccionarCategoria(this.categorias[0]);
+          const guardada = this.categorias.find(c => c.id === this.configGuardada?.categoriaId);
+          const inicial = guardada ?? this.categorias[0];
+          if (inicial) {
+            this.seleccionarCategoria(inicial);
           }
+        } else {
+          this.error = response.mensaje || 'No se pudieron cargar las categorías';
         }
         this.cargandoCategorias = false;
       },
@@ -196,20 +271,27 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private cargarSenasDeCategoria(categoriaId: number): void {
+    // Si el usuario cambia rápido de categoría, se descarta la petición anterior
+    // para que una respuesta tardía no pise la selección actual.
+    this.senasSub?.unsubscribe();
     this.cargandoSenas = true;
-    this.senaCategoriaService.listarSenas(categoriaId).subscribe({
+
+    this.senasSub = this.senaCategoriaService.listarSenas(categoriaId).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (respuesta) => {
         if (respuesta.exito) {
-          this.senasDisponibles = respuesta.datos.sort((a, b) => a.orden - b.orden);
+          this.senasDisponibles = [...respuesta.datos].sort((a, b) => a.orden - b.orden);
           if (this.senasDisponibles.length > 0) {
             this.indiceSenaActual = 0;
             this.senaActual = this.senasDisponibles[0];
-            this.imagenCargada = false;
-            this.imagenError = false;
+            this.actualizarUrlReferencia();
+            this.sincronizarConteo();
           } else {
             this.senaActual = null;
             this.indiceSenaActual = 0;
             this.mostrarInputSena = true;
+            this.actualizarUrlReferencia();
           }
         }
         this.cargandoSenas = false;
@@ -226,10 +308,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     this.metaVideos = nuevaMeta;
     this.guardarConfiguracion();
     this.mensaje = `Meta actualizada: ${nuevaMeta} videos por seña`;
-
-    if (this.videosCapturados > this.metaVideos) {
-      this.videosCapturados = this.metaVideos;
-    }
   }
 
   toggleModoAutomatico(): void {
@@ -251,10 +329,37 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       : 'Filtro de privacidad desactivado: se grabará la imagen completa';
   }
 
-  obtenerRutaReferencia(): string {
-    if (!this.senaActual?.archivo_referencia) return '';
-    const nombreArchivo = this.senaActual.archivo_referencia.split(/[\\/]/).pop();
-    return `${environment.apiUrl.replace('/api/v1', '')}/archivos/senas_referencia/${nombreArchivo}`;
+  // ---------------------------------------------------------------------------
+  // Referencia visual de la seña
+  // ---------------------------------------------------------------------------
+
+  private actualizarUrlReferencia(): void {
+    this.referenciaSub?.unsubscribe();
+    this.urlReferencia = '';
+    this.imagenCargada = false;
+    this.imagenError = false;
+
+    const sena = this.senaActual;
+    if (!sena?.archivo_referencia) {
+      this.cargandoReferencia = false;
+      return;
+    }
+
+    this.cargandoReferencia = true;
+    this.referenciaSub = this.archivosService.urlReferencia(sena.archivo_referencia).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (url) => {
+        if (this.senaActual?.id !== sena.id) return;
+        this.urlReferencia = url;
+        this.cargandoReferencia = false;
+      },
+      error: () => {
+        if (this.senaActual?.id !== sena.id) return;
+        this.imagenError = true;
+        this.cargandoReferencia = false;
+      }
+    });
   }
 
   tieneReferencia(): boolean {
@@ -297,14 +402,16 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     if (!archivo) return;
 
     this.subiendoImagen = true;
-    this.senaCategoriaService.subirArchivoReferencia(this.categoriaSeleccionada.id, this.senaActual.id, archivo).subscribe({
+    this.senaCategoriaService.subirArchivoReferencia(this.categoriaSeleccionada.id, this.senaActual.id, archivo).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (respuesta) => {
         if (respuesta.exito) {
           this.senaActual = respuesta.datos;
           const indice = this.senasDisponibles.findIndex(s => s.id === respuesta.datos.id);
           if (indice >= 0) this.senasDisponibles[indice] = respuesta.datos;
-          this.imagenCargada = false;
-          this.imagenError = false;
+          this.archivosService.limpiarCache();
+          this.actualizarUrlReferencia();
           this.mensaje = respuesta.datos.tipo_referencia === 'video'
             ? 'Video de referencia actualizado'
             : 'Imagen de referencia actualizada';
@@ -325,12 +432,16 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
     if (!confirm('¿Eliminar la referencia de esta seña?')) return;
 
-    this.senaCategoriaService.eliminarArchivoReferencia(this.categoriaSeleccionada.id, this.senaActual.id).subscribe({
+    this.senaCategoriaService.eliminarArchivoReferencia(this.categoriaSeleccionada.id, this.senaActual.id).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (respuesta) => {
         if (respuesta.exito) {
           this.senaActual = respuesta.datos;
           const indice = this.senasDisponibles.findIndex(s => s.id === respuesta.datos.id);
           if (indice >= 0) this.senasDisponibles[indice] = respuesta.datos;
+          this.archivosService.limpiarCache();
+          this.actualizarUrlReferencia();
           this.mensaje = 'Referencia eliminada';
         }
       },
@@ -339,6 +450,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       }
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // CRUD de señas
+  // ---------------------------------------------------------------------------
 
   agregarSena(): void {
     if (!this.categoriaSeleccionada) return;
@@ -351,12 +466,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     const nombre = this.nuevaSenaTexto.trim().toUpperCase();
 
     if (this.editandoSenaId !== null) {
-      this.senaCategoriaService.actualizarSena(this.categoriaSeleccionada.id, this.editandoSenaId, { nombre }).subscribe({
+      this.senaCategoriaService.actualizarSena(this.categoriaSeleccionada.id, this.editandoSenaId, { nombre }).pipe(
+        takeUntil(this.destroy$)
+      ).subscribe({
         next: (respuesta) => {
           if (respuesta.exito) {
             const indice = this.senasDisponibles.findIndex(s => s.id === this.editandoSenaId);
             if (indice >= 0) this.senasDisponibles[indice] = respuesta.datos;
             this.senaActual = respuesta.datos;
+            this.actualizarUrlReferencia();
             this.mensaje = `Seña actualizada: ${nombre}`;
           }
           this.finalizarEdicionSena();
@@ -372,12 +490,16 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       ? Math.max(...this.senasDisponibles.map(s => s.orden))
       : 0;
 
-    this.senaCategoriaService.crearSena(this.categoriaSeleccionada.id, { nombre, orden: maxOrden + 1 }).subscribe({
+    this.senaCategoriaService.crearSena(this.categoriaSeleccionada.id, { nombre, orden: maxOrden + 1 }).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (respuesta) => {
         if (respuesta.exito) {
           this.senasDisponibles.push(respuesta.datos);
           this.senaActual = respuesta.datos;
           this.indiceSenaActual = this.senasDisponibles.length - 1;
+          this.videosCapturados = 0;
+          this.actualizarUrlReferencia();
           this.mensaje = `Seña agregada: ${nombre}`;
         }
         this.finalizarEdicionSena();
@@ -411,20 +533,25 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
     if (!confirm(`¿Eliminar la seña "${sena.nombre}"? Esto no borra los videos ya grabados.`)) return;
 
-    this.senaCategoriaService.eliminarSena(this.categoriaSeleccionada.id, sena.id).subscribe({
+    this.senaCategoriaService.eliminarSena(this.categoriaSeleccionada.id, sena.id).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: () => {
         const indice = this.senasDisponibles.findIndex(s => s.id === sena.id);
         if (indice >= 0) this.senasDisponibles.splice(indice, 1);
 
         if (this.senaActual?.id === sena.id) {
+          this.videosCapturados = 0;
           if (this.senasDisponibles.length > 0) {
             this.indiceSenaActual = 0;
             this.senaActual = this.senasDisponibles[0];
+            this.sincronizarConteo();
           } else {
             this.senaActual = null;
             this.indiceSenaActual = 0;
             this.mostrarInputSena = true;
           }
+          this.actualizarUrlReferencia();
         }
 
         this.mensaje = `Seña "${sena.nombre}" eliminada`;
@@ -434,6 +561,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       }
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Cámara y detección
+  // ---------------------------------------------------------------------------
 
   async iniciarCamara(): Promise<void> {
     try {
@@ -509,6 +640,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       this.privacyFilter.actualizarMascara(results);
     }
 
+    const teniaMano = this.manoDetectada;
     this.manoDetectada = this.handDetectionService.verificarManoDetectada(results);
     this.numeroManos = results.multiHandLandmarks?.length || 0;
 
@@ -519,7 +651,9 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       }
     }
 
-    if (this.manoDetectada && !this.grabando && this.senaActual) {
+    // Solo al pasar de "sin mano" a "con mano". Antes se reescribía en CADA frame (~30/s),
+    // pisando mensajes como "Video guardado" y forzando detección de cambios continua.
+    if (this.manoDetectada && !teniaMano && !this.grabando && !this.enProceso && this.senaActual) {
       this.mensaje = `Mano detectada. Listo para grabar "${this.senaActual.nombre}"`;
     }
 
@@ -529,13 +663,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private evaluarAutoGrabacion(): void {
-    if (this.grabando || this.cooldownActivo || !this.senaActual || !this.camaraActiva) {
+    if (this.grabando || this.enProceso || this.cooldownActivo || !this.senaActual || !this.camaraActiva
+        || this.pendientesSubida >= this.MAX_PENDIENTES) {
       this.framesConsecutivosConMano = 0;
       this.progresoEstabilidad = 0;
       return;
     }
 
-    if (this.videosCapturados >= this.metaVideos) {
+    if (this.totalContado() >= this.metaVideos) {
+      this.framesConsecutivosConMano = 0;
       this.progresoEstabilidad = 0;
       return;
     }
@@ -560,8 +696,12 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
   private activarCooldown(): void {
     this.cooldownActivo = true;
-    setTimeout(() => {
+    if (this.temporizadorCooldown) {
+      clearTimeout(this.temporizadorCooldown);
+    }
+    this.temporizadorCooldown = setTimeout(() => {
       this.cooldownActivo = false;
+      this.temporizadorCooldown = null;
     }, this.COOLDOWN_MS);
   }
 
@@ -597,7 +737,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
     this.mensaje = 'Cámara detenida correctamente';
   }
 
+  // ---------------------------------------------------------------------------
+  // Grabación
+  // ---------------------------------------------------------------------------
+
   iniciarGrabacion(): void {
+    if (this.grabando || this.enProceso) {
+      return;
+    }
+
     if (!this.categoriaSeleccionada) {
       this.error = 'Primero selecciona una categoría';
       return;
@@ -618,24 +766,22 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       return;
     }
 
-    if (this.videosCapturados >= this.metaVideos) {
+    if (this.totalContado() >= this.metaVideos) {
       this.error = `Ya alcanzaste la meta de ${this.metaVideos} videos para "${this.senaActual.nombre}"`;
       return;
     }
 
-    if (this.grabando) {
-      return;
-    }
-
+    this.enProceso = true;
     this.grabando = true;
     this.tiempoGrabacion = 0;
-    this.recordedChunks = [];
     this.tiempoInicio = performance.now();
     this.framesTotalesGrabacion = 0;
     this.framesConManoGrabacion = 0;
     this.error = null;
 
     const usaFiltro = this.filtroPrivacidadActivo;
+    const chunks: Blob[] = [];
+    this.recordedChunks = chunks;
 
     try {
       if (usaFiltro) {
@@ -645,6 +791,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
         this.streamCaptura = this.streamOriginal;
       }
 
+      const streamLocal = this.streamCaptura;
       const mimeType = this.obtenerMejorMimeType();
 
       const options = {
@@ -652,22 +799,26 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
         videoBitsPerSecond: 2500000
       };
 
-      this.mediaRecorder = new (window as any).MediaRecorder(this.streamCaptura, options);
+      const recorder = new (window as any).MediaRecorder(streamLocal, options);
+      this.mediaRecorder = recorder;
 
-      this.mediaRecorder.ondataavailable = (event: any) => {
+      recorder.ondataavailable = (event: any) => {
         if (event.data && event.data.size > 0) {
-          this.recordedChunks.push(event.data);
+          chunks.push(event.data);
         }
       };
 
-      this.mediaRecorder.onstop = () => {
+      recorder.onstop = () => {
         if (usaFiltro) {
           this.privacyFilter.detenerRender();
-          this.streamCaptura?.getTracks().forEach((t: any) => t.stop());
+          streamLocal?.getTracks().forEach((t: any) => t.stop());
         }
 
-        if (this.recordedChunks.length === 0) {
+        this.streamCaptura = null;
+
+        if (chunks.length === 0) {
           this.error = 'No se capturaron datos de video';
+          this.enProceso = false;
           this.activarCooldown();
           return;
         }
@@ -676,22 +827,16 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
           ? Math.round((this.framesConManoGrabacion / this.framesTotalesGrabacion) * 100)
           : 0;
 
-        const blob = new Blob(this.recordedChunks, { type: mimeType });
+        const blob = new Blob(chunks, { type: mimeType });
 
-        if (this.videoPreviewUrl && typeof this.videoPreviewUrl === 'string') {
-          URL.revokeObjectURL(this.videoPreviewUrl as string);
-        }
-
-        const objectURL = URL.createObjectURL(blob);
-        this.videoPreviewUrl = this.sanitizer.bypassSecurityTrustUrl(objectURL);
-
+        this.reemplazarPreview(blob);
         this.guardarVideo(blob);
 
-        this.streamCaptura = null;
+        this.enProceso = false;
         this.activarCooldown();
       };
 
-      this.mediaRecorder.start(100);
+      recorder.start(100);
       this.actualizarTemporizador();
 
       this.mensaje = `Grabando "${this.senaActual.nombre}"... (${this.tiempoGrabacion}s)`;
@@ -701,7 +846,26 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       this.privacyFilter.detenerRender();
       this.error = 'Error al iniciar la grabación. Intenta nuevamente.';
       this.grabando = false;
+      this.enProceso = false;
     }
+  }
+
+  /**
+   * Antes se guardaba la URL ya envuelta por el sanitizer (un objeto, no un string) y la
+   * comprobación `typeof === 'string'` nunca se cumplía: los blob URL jamás se liberaban.
+   */
+  private reemplazarPreview(blob: Blob): void {
+    this.liberarPreview();
+    this.videoPreviewObjectUrl = URL.createObjectURL(blob);
+    this.videoPreviewUrl = this.sanitizer.bypassSecurityTrustUrl(this.videoPreviewObjectUrl);
+  }
+
+  private liberarPreview(): void {
+    if (this.videoPreviewObjectUrl) {
+      URL.revokeObjectURL(this.videoPreviewObjectUrl);
+      this.videoPreviewObjectUrl = null;
+    }
+    this.videoPreviewUrl = null;
   }
 
   private actualizarTemporizador(): void {
@@ -765,87 +929,151 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
         this.mediaRecorder.stop();
       } catch (error) {
         console.error('Error deteniendo MediaRecorder:', error);
+        this.enProceso = false;
       }
+    } else {
+      this.enProceso = false;
     }
 
     this.mensaje = 'Grabación finalizada, procesando video...';
   }
 
+  // ---------------------------------------------------------------------------
+  // Cola de subida
+  // ---------------------------------------------------------------------------
+
   guardarVideo(videoBlob: Blob): void {
-    if (!this.categoriaSeleccionada || !this.senaActual) return;
+    const datasetId = this.categoriaDatasetId;
+    if (datasetId === null || !this.senaActual) return;
+
+    const tipoReal = videoBlob.type.toLowerCase();
+    const esMp4 = tipoReal.includes('mp4') || tipoReal.includes('h264') || tipoReal.includes('avc1');
+    const extension = esMp4 ? '.mp4' : '.webm';
+
+    this.colaSubida.push({
+      blob: videoBlob,
+      categoriaId: datasetId,
+      senaId: this.senaActual.id,
+      senaNombre: this.senaActual.nombre,
+      nombreArchivo: `${this.senaActual.nombre}_${Date.now()}${extension}`,
+      porcentajeMano: this.porcentajeManoUltimaToma
+    });
+
+    this.actualizarPendientes();
+    this.procesarCola();
+  }
+
+  private actualizarPendientes(): void {
+    this.pendientesSubida = this.colaSubida.length + this.enSubida.length;
+  }
+
+  private pendientesDeSenaActual(): number {
+    const id = this.senaActual?.id;
+    return this.colaSubida.filter(i => i.senaId === id).length
+      + this.enSubida.filter(i => i.senaId === id).length;
+  }
+
+  private totalContado(): number {
+    return this.videosCapturados + this.pendientesDeSenaActual() + (this.enProceso ? 1 : 0);
+  }
+
+  private procesarCola(): void {
+    while (this.enSubida.length < this.MAX_SUBIDAS_SIMULTANEAS && this.colaSubida.length > 0) {
+      this.subirSiguiente();
+    }
+  }
+
+  private subirSiguiente(): void {
+    const item = this.colaSubida.shift()!;
+    this.enSubida.push(item);
+    this.actualizarPendientes();
 
     const formData = new FormData();
-    const timestamp = new Date().getTime();
+    formData.append('archivo', item.blob, item.nombreArchivo);
+    formData.append('categoria_id', item.categoriaId.toString());
+    formData.append('sena', item.senaNombre);
 
-    let extension = '.webm';
-    let tipoReal = videoBlob.type.toLowerCase();
+    // Sin takeUntil a propósito: si el usuario sale de la vista, los videos ya en vuelo se terminan de subir.
+    this.capturaService.capturarVideoArchivo(formData).pipe(
+      finalize(() => {
+        this.enSubida = this.enSubida.filter(i => i !== item);
+        this.actualizarPendientes();
 
-    if (tipoReal.includes('mp4') || tipoReal.includes('h264') || tipoReal.includes('avc1')) {
-      extension = '.mp4';
-    }
+        if (this.destruido) return;
 
-    const filename = `${this.senaActual.nombre}_${timestamp}${extension}`;
-
-    formData.append('archivo', videoBlob, filename);
-    formData.append('categoria_id', this.categoriaSeleccionada.id.toString());
-    formData.append('sena', this.senaActual.nombre);
-
-    this.mensaje = 'Enviando video al servidor...';
-
-    this.capturaService.capturarVideoArchivo(formData).subscribe({
+        if (this.colaSubida.length > 0) {
+          this.procesarCola();
+        } else if (this.enSubida.length === 0) {
+          this.sincronizarConteo();
+        }
+      })
+    ).subscribe({
       next: (response) => {
-        if (response.exito) {
-          this.videosCapturados++;
-          const videosRestantes = this.metaVideos - this.videosCapturados;
+        if (this.destruido) return;
 
-          this.mensaje = `Video ${this.videosCapturados}/${this.metaVideos} de "${this.senaActual!.nombre}" guardado`;
-
-          if (response.datos) {
-            const videoData = response.datos;
-            this.mensaje += ` | Frames: ${videoData.frames_extraidos}`;
-          }
-
-          this.mensaje += ` | Mano visible: ${this.porcentajeManoUltimaToma}%`;
-
-          if (videosRestantes > 0) {
-            this.mensaje += ` | Faltan: ${videosRestantes} videos`;
-          }
-
-          if (this.videosCapturados >= this.metaVideos) {
-            setTimeout(() => {
-              this.mensaje = `Meta completada para "${this.senaActual?.nombre}" (${this.metaVideos} videos)`;
-            }, 1000);
-          }
-        } else {
+        if (!response.exito) {
           this.error = `Error: ${response.mensaje || 'Error al guardar video'}`;
+          return;
         }
+
+        if (item.senaId === this.senaActual?.id) {
+          this.videosCapturados++;
+        }
+
+        const restantes = Math.max(0, this.metaVideos - this.videosCapturados);
+        let texto = `Video ${Math.min(this.videosCapturados, this.metaVideos)}/${this.metaVideos} de "${item.senaNombre}" guardado`;
+        texto += ` | Frames: ${response.datos?.frames_extraidos ?? 0}`;
+        texto += ` | Mano visible: ${item.porcentajeMano}%`;
+        if (restantes > 0) {
+          texto += ` | Faltan: ${restantes} videos`;
+        }
+        this.mensaje = texto;
       },
-      error: (err) => {
-        console.error('Error completo:', err);
-        let errorMsg = 'Error al guardar video';
-
-        if (err.error?.detail) {
-          errorMsg += `: ${err.error.detail}`;
-        } else if (err.error?.mensaje) {
-          errorMsg += `: ${err.error.mensaje}`;
-        }
-
-        this.error = errorMsg;
+      error: (err: Error) => {
+        if (this.destruido) return;
+        this.error = `Error al guardar video de "${item.senaNombre}": ${err.message}`;
       }
     });
   }
 
+  private sincronizarConteo(): void {
+    const datasetId = this.categoriaDatasetId;
+    const sena = this.senaActual;
+    if (datasetId === null || !sena) return;
+
+    this.conteoSub?.unsubscribe();
+    this.conteoSub = this.capturaService.obtenerConteoSena(datasetId, sena.nombre).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (respuesta) => {
+        const sinSubidasEnCurso = this.enSubida.length === 0 && this.colaSubida.length === 0;
+        if (respuesta.exito && respuesta.datos && this.senaActual?.id === sena.id && sinSubidasEnCurso) {
+          this.videosCapturados = respuesta.datos.total;
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Navegación entre señas
+  // ---------------------------------------------------------------------------
+
+  private cambiarSena(indice: number): void {
+    this.indiceSenaActual = indice;
+    this.senaActual = this.senasDisponibles[indice];
+    this.videosCapturados = 0;
+    this.framesConsecutivosConMano = 0;
+    this.progresoEstabilidad = 0;
+    this.error = null;
+    this.actualizarUrlReferencia();
+    this.sincronizarConteo();
+  }
+
   siguienteSena(): void {
     if (this.indiceSenaActual < this.senasDisponibles.length - 1) {
-      this.indiceSenaActual++;
-      this.senaActual = this.senasDisponibles[this.indiceSenaActual];
-      this.videosCapturados = 0;
-      this.imagenCargada = false;
-      this.imagenError = false;
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
-      this.mensaje = `Pasando a: ${this.senaActual.nombre} (Meta: ${this.metaVideos} videos)`;
-      this.error = null;
+      this.cambiarSena(this.indiceSenaActual + 1);
+      this.mensaje = `Pasando a: ${this.senaActual!.nombre} (Meta: ${this.metaVideos} videos)`;
     } else {
       this.mensaje = '¡Categoría completa!';
       this.detenerCamara();
@@ -854,30 +1082,16 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
 
   senaAnterior(): void {
     if (this.indiceSenaActual > 0) {
-      this.indiceSenaActual--;
-      this.senaActual = this.senasDisponibles[this.indiceSenaActual];
-      this.videosCapturados = 0;
-      this.imagenCargada = false;
-      this.imagenError = false;
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
-      this.mensaje = `Volviendo a: ${this.senaActual.nombre}`;
-      this.error = null;
+      this.cambiarSena(this.indiceSenaActual - 1);
+      this.mensaje = `Volviendo a: ${this.senaActual!.nombre}`;
     }
   }
 
   seleccionarSena(sena: SenaCategoria): void {
     const indice = this.senasDisponibles.findIndex(s => s.id === sena.id);
     if (indice >= 0) {
-      this.indiceSenaActual = indice;
-      this.senaActual = sena;
-      this.videosCapturados = 0;
-      this.imagenCargada = false;
-      this.imagenError = false;
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
+      this.cambiarSena(indice);
       this.mensaje = `Seña seleccionada: ${sena.nombre}`;
-      this.error = null;
     }
   }
 
@@ -887,35 +1101,54 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       return;
     }
 
-    const videosPosibles = Math.min(cantidad, this.metaVideos - this.videosCapturados);
+    const objetivo = Math.min(cantidad, this.metaVideos - this.totalContado());
 
-    if (videosPosibles <= 0) {
+    if (objetivo <= 0) {
       this.error = `Ya alcanzaste la meta de ${this.metaVideos} videos`;
       return;
     }
 
     this.modoAutomaticoPrevioACapturaMasiva = this.modoAutomatico;
     this.modoAutomatico = false;
+    this.mensaje = `Iniciando captura rápida de ${objetivo} videos...`;
 
-    this.mensaje = `Iniciando captura rápida de ${videosPosibles} videos...`;
+    let iniciados = 0;
 
-    let contador = 0;
-    const capturarSiguiente = () => {
-      if (contador >= videosPosibles || !this.manoDetectada || !this.camaraActiva || this.videosCapturados >= this.metaVideos) {
-        this.mensaje = `Captura rápida completada: ${contador} videos`;
-        this.restaurarModoAutomaticoPostCapturaMasiva();
+    const terminar = () => {
+      this.mensaje = `Captura rápida completada: ${iniciados} videos`;
+      this.restaurarModoAutomaticoPostCapturaMasiva();
+    };
+
+    const paso = () => {
+      if (this.destruido) return;
+
+      if (iniciados >= objetivo || !this.camaraActiva || this.totalContado() >= this.metaVideos) {
+        terminar();
+        return;
+      }
+
+      if (this.grabando || this.enProceso || this.cooldownActivo || this.pendientesSubida >= this.MAX_PENDIENTES) {
+        setTimeout(paso, 300);
+        return;
+      }
+
+      if (!this.manoDetectada) {
+        terminar();
         return;
       }
 
       this.iniciarGrabacion();
-      contador++;
 
-      setTimeout(() => {
-        capturarSiguiente();
-      }, (this.maxTiempoGrabacion + 2) * 1000);
+      if (!this.grabando) {
+        terminar();
+        return;
+      }
+
+      iniciados++;
+      setTimeout(paso, 300);
     };
 
-    capturarSiguiente();
+    paso();
   }
 
   private restaurarModoAutomaticoPostCapturaMasiva(): void {
@@ -926,7 +1159,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   getPorcentajeCompletado(): number {
-    return (this.videosCapturados / this.metaVideos) * 100;
+    return Math.min(100, (this.videosCapturados / this.metaVideos) * 100);
   }
 
   getMetaAlcanzada(): boolean {
@@ -939,11 +1172,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       this.animationFrameId = null;
     }
 
-    if (this.renderFrameId) {
-      cancelAnimationFrame(this.renderFrameId);
-      this.renderFrameId = null;
-    }
-
     if (this.streamCaptura) {
       this.streamCaptura.getTracks().forEach((track: any) => track.stop());
       this.streamCaptura = null;
@@ -954,10 +1182,9 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy, AfterViewIn
       this.streamOriginal = null;
     }
 
-    if (this.videoPreviewUrl && typeof this.videoPreviewUrl === 'string') {
-      URL.revokeObjectURL(this.videoPreviewUrl as string);
-    }
+    this.liberarPreview();
 
     this.recordedChunks = [];
+    this.colaSubida = [];
   }
 }

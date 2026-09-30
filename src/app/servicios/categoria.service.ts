@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of, BehaviorSubject } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { BehaviorSubject, Observable, defer, of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 export interface Categoria {
   id: number;
@@ -19,8 +19,6 @@ export interface Categoria {
   fecha_creacion: string;
   total_lecciones: number;
   dataset_id?: number;
-
-  // Información del modelo asignado
   modelo_ia_id?: number;
   modelo_nombre?: string;
   modelo_activo?: boolean;
@@ -73,39 +71,49 @@ export interface AsignacionModelo {
   providedIn: 'root'
 })
 export class CategoriaService {
-  private apiUrl = `${environment.apiUrl}/categorias`;
-  private categoriasConModelosSubject = new BehaviorSubject<Categoria[]>([]);
-  public categoriasConModelos$ = this.categoriasConModelosSubject.asObservable();
+  private readonly apiUrl = `${environment.apiUrl}/categorias`;
+  private readonly categoriasConModelosSubject = new BehaviorSubject<Categoria[]>([]);
+  private cargadas = false;
 
-  constructor(private http: HttpClient) { 
-    this.cargarCategoriasConModelos();
+  readonly categoriasConModelos$: Observable<Categoria[]> = defer(() => {
+    if (!this.cargadas) this.cargarCategoriasConModelos();
+    return this.categoriasConModelosSubject.asObservable();
+  });
+
+  constructor(private http: HttpClient) { }
+
+  private respuestaListaVacia(): RespuestaLista<Categoria> {
+    return {
+      exito: false,
+      mensaje: 'Error al cargar categorías',
+      datos: [],
+      total: 0,
+      pagina: 1,
+      por_pagina: 0
+    };
+  }
+
+  private recargarSiExito<T extends { exito: boolean }>(): (fuente: Observable<T>) => Observable<T> {
+    return fuente => fuente.pipe(
+      tap(response => {
+        if (response.exito) this.cargarCategoriasConModelos();
+      })
+    );
   }
 
   cargarCategoriasConModelos(): void {
-    this.http.get<RespuestaLista<Categoria>>(
-      `${this.apiUrl}/con-modelos`
-    ).pipe(
-      catchError(error => {
-        console.error('Error cargando categorías con modelos:', error);
-        return of({
-          exito: false,
-          mensaje: 'Error al cargar categorías',
-          datos: [],
-          total: 0,
-          pagina: 1,
-          por_pagina: 0
-        });
-      })
-    ).subscribe(response => {
+    this.cargadas = true;
+    this.listarCategoriasConModelos().subscribe(response => {
       if (response.exito) {
         this.categoriasConModelosSubject.next(response.datos);
+      } else {
+        this.cargadas = false;
       }
     });
   }
 
   listarCategorias(activasSolo: boolean = true, tipo_id?: number): Observable<RespuestaLista<Categoria>> {
-    let params = new HttpParams();
-    params = params.set('activas_solo', activasSolo.toString());
+    let params = new HttpParams().set('activas_solo', activasSolo.toString());
 
     if (tipo_id) {
       params = params.set('tipo_id', tipo_id.toString());
@@ -127,11 +135,7 @@ export class CategoriaService {
   }
 
   eliminarCategoria(id: number, forzar: boolean = false): Observable<RespuestaAPI> {
-    let params = new HttpParams();
-    if (forzar) {
-      params = params.set('forzar', forzar.toString());
-    }
-
+    const params = forzar ? new HttpParams().set('forzar', 'true') : undefined;
     return this.http.delete<RespuestaAPI>(`${this.apiUrl}/${id}`, { params });
   }
 
@@ -144,46 +148,24 @@ export class CategoriaService {
   }
 
   asignarModelo(categoriaId: number, modeloId: number): Observable<RespuestaAPI> {
-    const params = new HttpParams().set('modelo_id', modeloId.toString());
     return this.http.patch<RespuestaAPI>(
       `${this.apiUrl}/${categoriaId}/asignar-modelo`,
       {},
-      { params }
-    ).pipe(
-      tap(response => {
-        if (response.exito) {
-          this.cargarCategoriasConModelos();
-        }
-      })
-    );
+      { params: new HttpParams().set('modelo_id', modeloId.toString()) }
+    ).pipe(this.recargarSiExito());
   }
 
   desasignarModelo(categoriaId: number): Observable<RespuestaAPI> {
     return this.http.delete<RespuestaAPI>(
       `${this.apiUrl}/${categoriaId}/desasignar-modelo`
-    ).pipe(
-      tap(response => {
-        if (response.exito) {
-          this.cargarCategoriasConModelos();
-        }
-      })
-    );
+    ).pipe(this.recargarSiExito());
   }
 
   listarCategoriasConModelos(): Observable<RespuestaLista<Categoria>> {
-    return this.http.get<RespuestaLista<Categoria>>(
-      `${this.apiUrl}/con-modelos`
-    ).pipe(
+    return this.http.get<RespuestaLista<Categoria>>(`${this.apiUrl}/con-modelos`).pipe(
       catchError(error => {
         console.error('Error cargando categorías con modelos:', error);
-        return of({
-          exito: false,
-          mensaje: 'Error al cargar categorías',
-          datos: [],
-          total: 0,
-          pagina: 1,
-          por_pagina: 0
-        });
+        return of(this.respuestaListaVacia());
       })
     );
   }
@@ -192,12 +174,6 @@ export class CategoriaService {
     return this.http.post<RespuestaAPI>(
       `${this.apiUrl}/asignar-modelos-lote`,
       { asignaciones }
-    ).pipe(
-      tap(response => {
-        if (response.exito) {
-          this.cargarCategoriasConModelos();
-        }
-      })
-    );
+    ).pipe(this.recargarSiExito());
   }
 }
