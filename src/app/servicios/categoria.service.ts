@@ -67,11 +67,19 @@ export interface AsignacionModelo {
   modelo_id: number;
 }
 
+export interface FiltrosExportacionZip {
+  categoria_id?: number;
+  sena?: string;
+  solo_aprobados?: boolean;
+  incluir_drive?: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class CategoriaService {
   private readonly apiUrl = `${environment.apiUrl}/categorias`;
+  private readonly exportacionUrl = `${environment.apiUrl}/exportacion-dataset`;
   private readonly categoriasConModelosSubject = new BehaviorSubject<Categoria[]>([]);
   private cargadas = false;
 
@@ -175,5 +183,17 @@ export class CategoriaService {
       `${this.apiUrl}/asignar-modelos-lote`,
       { asignaciones }
     ).pipe(this.recargarSiExito());
+  }
+
+  descargarDatasetZip(filtros: FiltrosExportacionZip): Observable<Blob> {
+    let params = new HttpParams();
+
+    Object.entries(filtros).forEach(([clave, valor]) => {
+      if (valor !== undefined && valor !== null && valor !== '') {
+        params = params.set(clave, String(valor));
+      }
+    });
+
+    return this.http.get(`${this.exportacionUrl}/zip`, { params, responseType: 'blob' });
   }
 }

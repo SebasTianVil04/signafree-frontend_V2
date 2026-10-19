@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 
 interface Punto {
   x: number;
@@ -21,12 +21,16 @@ export class PrivacyFilterService {
   private historial: Mascara[][] = [];
   private video: HTMLVideoElement | null = null;
   private renderFrameId: number | null = null;
+  private idRender = 0;
   private resultadosSinMano = 0;
 
+  private readonly FPS_MAXIMO = 30;
   private readonly RESULTADOS_EN_HISTORIAL = 3;
   private readonly RESULTADOS_SIN_MANO_TOLERADOS = 8;
   private readonly MARGEN = 0.25;
   private readonly MARGEN_MINIMO_PX = 16;
+
+  constructor(private ngZone: NgZone) {}
 
   actualizarMascara(results: any): void {
     const manos: any[][] = results?.multiHandLandmarks ?? [];
@@ -62,21 +66,36 @@ export class PrivacyFilterService {
   iniciarRender(video: HTMLVideoElement): void {
     this.detenerRender();
     this.video = video;
-    this.dibujar();
+    const id = ++this.idRender;
+    const intervaloMinimo = 1000 / this.FPS_MAXIMO;
+    let ultimoDibujo = 0;
 
-    const bucle = () => {
-      if (!this.video) return;
-      this.dibujar();
+    const bucle = (marca: number) => {
+      if (!this.video || id !== this.idRender) return;
+
+      if (marca - ultimoDibujo >= intervaloMinimo - 2) {
+        ultimoDibujo = marca;
+        this.dibujar();
+      }
+
       this.renderFrameId = requestAnimationFrame(bucle);
     };
-    this.renderFrameId = requestAnimationFrame(bucle);
+
+    this.dibujar();
+
+    this.ngZone.runOutsideAngular(() => {
+      this.renderFrameId = requestAnimationFrame(bucle);
+    });
   }
 
   detenerRender(): void {
+    this.idRender++;
+
     if (this.renderFrameId !== null) {
       cancelAnimationFrame(this.renderFrameId);
       this.renderFrameId = null;
     }
+
     this.video = null;
   }
 

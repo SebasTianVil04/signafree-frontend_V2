@@ -1,22 +1,39 @@
 import { Component } from '@angular/core';
 
+interface RedSocial {
+  nombre: string;
+  icono: string;
+  url: string;
+}
+
+interface Enlace {
+  nombre: string;
+  url: string;
+}
+
+interface GrupoEnlaces {
+  recursos: Enlace[];
+  soporte: Enlace[];
+  legal: Enlace[];
+}
+
 @Component({
   selector: 'app-pie-pagina',
   templateUrl: './pie-pagina.component.html',
   styleUrls: ['./pie-pagina.component.scss'],
-  standalone: false 
+  standalone: false
 })
 export class PiePaginaComponent {
-  anioActual: number = new Date().getFullYear();
-  
-  redesSociales = [
+  readonly anioActual: number = new Date().getFullYear();
+
+  readonly redesSociales: RedSocial[] = [
     { nombre: 'Facebook', icono: '📘', url: '#' },
     { nombre: 'Twitter', icono: '🐦', url: '#' },
     { nombre: 'Instagram', icono: '📷', url: '#' },
     { nombre: 'YouTube', icono: '📺', url: '#' }
   ];
 
-  enlaces = {
+  readonly enlaces: GrupoEnlaces = {
     recursos: [
       { nombre: 'Diccionario LSP', url: '#' },
       { nombre: 'Guía de Aprendizaje', url: '#' },

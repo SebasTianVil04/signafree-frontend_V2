@@ -1,8 +1,22 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
 .visualizador-container {
   background: white;
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 100%;
 }
 
 .canvas-wrapper {
@@ -14,12 +28,14 @@
   canvas {
     display: block;
     width: 100%;
+    max-width: 100%;
     height: auto;
   }
 }
 
 .controles {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 20px;
 
@@ -32,6 +48,7 @@
     cursor: pointer;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     transition: all 0.3s ease;
 
@@ -41,12 +58,12 @@
     }
 
     &.btn-primary {
-      background: #2196F3;
+      background: #2196f3;
       color: white;
     }
 
     &.btn-success {
-      background: #4CAF50;
+      background: #4caf50;
       color: white;
     }
   }
@@ -75,11 +92,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 
   .color-box {
     width: 20px;
     height: 20px;
     border-radius: 4px;
+    flex-shrink: 0;
+
+    &.muneca { background: #ff5722; }
+    &.pulgar { background: #4caf50; }
+    &.indice { background: #2196f3; }
+    &.medio { background: #9c27b0; }
+    &.anular { background: #ff9800; }
+    &.menique { background: #f44336; }
   }
 
   span:last-child {
@@ -114,17 +140,67 @@
   }
 }
 
+button:focus-visible {
+  outline: 3px solid rgba(33, 150, 243, 0.6);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+  .leyenda-items {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
+  .visualizador-container {
+    padding: 15px;
+  }
+
   .controles {
     flex-direction: column;
 
     .btn {
       width: 100%;
-      justify-content: center;
     }
   }
 
   .leyenda-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .visualizador-container {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .leyenda {
+    padding: 12px;
+  }
+
+  .leyenda-items {
     grid-template-columns: 1fr;
+  }
+
+  .vacio {
+    padding: 28px 12px;
+
+    i {
+      font-size: 38px;
+    }
+  }
+}
+
+@media (hover: none) {
+  .controles .btn:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
   }
 }

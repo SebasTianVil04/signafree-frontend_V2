@@ -2,7 +2,7 @@
   <div class="inicio-card">
     <div class="header-section">
       <h1 class="app-title">¡Bienvenido a SignaFree!</h1>
-      <button class="btn-logout" (click)="cerrarSesion()">
+      <button type="button" class="btn-logout" (click)="cerrarSesion()">
         Cerrar Sesión
       </button>
     </div>
@@ -14,9 +14,7 @@
       <div class="user-details">
         <h2 class="user-name">{{ nombreCompleto }}</h2>
         <p class="user-email">{{ usuario.email }}</p>
-        <span class="user-badge"
-              [class.admin-badge]="esAdmin"
-              [class.user-badge]="esUsuarioBasico">
+        <span class="user-badge" [class.admin-badge]="esAdmin">
           {{ nombreRol }}
         </span>
       </div>
@@ -28,23 +26,19 @@
     </div>
 
     <div class="info-section">
-      <div class="info-card">
-        <div class="icon">📚</div>
-        <h4>Lecciones Interactivas</h4>
-        <p>Aprende paso a paso con nuestras lecciones estructuradas</p>
-      </div>
-
-      <div class="info-card">
-        <div class="icon">🤖</div>
-        <h4>Reconocimiento IA</h4>
-        <p>Practica con nuestro sistema de reconocimiento de señas</p>
-      </div>
-
-      <div class="info-card">
-        <div class="icon">📊</div>
-        <h4>Seguimiento de Progreso</h4>
-        <p>Monitorea tu avance y obtén certificados</p>
-      </div>
+      <button
+        *ngFor="let tarjeta of tarjetas; trackBy: trackByRuta"
+        type="button"
+        class="info-card"
+        [class.clickable]="esRolUsuario"
+        [disabled]="!esRolUsuario"
+        [attr.aria-label]="esRolUsuario ? 'Ir a ' + tarjeta.titulo : tarjeta.titulo"
+        (click)="irA(tarjeta.ruta)">
+        <div class="icon" aria-hidden="true">{{ tarjeta.icono }}</div>
+        <h4>{{ tarjeta.titulo }}</h4>
+        <p>{{ tarjeta.descripcion }}</p>
+        <span class="info-link" *ngIf="esRolUsuario">{{ tarjeta.accion }} →</span>
+      </button>
     </div>
   </div>
 </div>

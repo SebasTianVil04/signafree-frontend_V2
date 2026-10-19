@@ -1,68 +1,57 @@
 <footer class="footer">
   <div class="footer-container">
-    <!-- Sección principal del footer -->
     <div class="footer-main">
-      <!-- Información de la app -->
       <div class="footer-section footer-about">
         <div class="footer-logo">
-          <span class="logo-icon">🤟</span>
+          <span class="logo-icon" aria-hidden="true">🤟</span>
           <span class="logo-text">SignaFree</span>
         </div>
         <p class="footer-description">
-          Plataforma educativa para el aprendizaje del Lenguaje de Señas Peruano. 
-          Aprende de forma interactiva con tecnología de reconocimiento de IA.
+          Plataforma educativa para aprender Lengua de Señas Peruana con tecnología de reconocimiento de IA.
         </p>
         <div class="footer-social">
-          <a *ngFor="let red of redesSociales" 
-             [href]="red.url" 
+          <a *ngFor="let red of redesSociales"
+             [href]="red.url"
              [title]="red.nombre"
+             [attr.aria-label]="red.nombre"
              class="social-link">
-            {{ red.icono }}
+            <span aria-hidden="true">{{ red.icono }}</span>
           </a>
         </div>
       </div>
 
-      <!-- Enlaces de Recursos -->
-      <div class="footer-section">
+      <nav class="footer-section" aria-label="Recursos">
         <h3 class="footer-title">Recursos</h3>
         <ul class="footer-links">
           <li *ngFor="let enlace of enlaces.recursos">
             <a [href]="enlace.url">{{ enlace.nombre }}</a>
           </li>
         </ul>
-      </div>
+      </nav>
 
-      <!-- Enlaces de Soporte -->
-      <div class="footer-section">
+      <nav class="footer-section" aria-label="Soporte">
         <h3 class="footer-title">Soporte</h3>
         <ul class="footer-links">
           <li *ngFor="let enlace of enlaces.soporte">
             <a [href]="enlace.url">{{ enlace.nombre }}</a>
           </li>
         </ul>
-      </div>
+      </nav>
 
-      <!-- Enlaces Legales -->
-      <div class="footer-section">
+      <nav class="footer-section" aria-label="Legal">
         <h3 class="footer-title">Legal</h3>
         <ul class="footer-links">
           <li *ngFor="let enlace of enlaces.legal">
             <a [href]="enlace.url">{{ enlace.nombre }}</a>
           </li>
         </ul>
-      </div>
+      </nav>
     </div>
 
-    <!-- Separador -->
-    <div class="footer-divider"></div>
-
-    <!-- Pie del footer -->
     <div class="footer-bottom">
-      <p class="copyright">
-        © {{ anioActual }} SignaFree. Todos los derechos reservados.
-      </p>
+      <p class="copyright">© {{ anioActual }} SignaFree. Todos los derechos reservados.</p>
       <p class="footer-note">
-        Hecho con <span class="heart">❤️</span> para la comunidad sorda del Perú
+        Hecho con <span class="heart" aria-hidden="true">❤️</span><span class="visually-hidden">cariño</span> para la comunidad sorda del Perú
       </p>
     </div>
   </div>

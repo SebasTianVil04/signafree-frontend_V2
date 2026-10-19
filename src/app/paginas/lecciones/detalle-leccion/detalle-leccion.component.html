@@ -11,7 +11,7 @@
   <div *ngIf="error" class="error-mensaje">
     <i class="bi bi-exclamation-circle-fill"></i>
     <p>{{ error }}</p>
-    <button (click)="volver()" class="btn btn-primario">
+    <button type="button" (click)="volver()" class="btn btn-primario">
       <i class="bi bi-arrow-left"></i> Volver a lecciones
     </button>
   </div>
@@ -25,7 +25,7 @@
           <h4>Lección Bloqueada</h4>
           <p>{{ mensajeBloqueo }}</p>
         </div>
-        <button class="btn-alerta" (click)="volver()">
+        <button type="button" class="btn-alerta" (click)="volver()">
           <i class="bi bi-arrow-left"></i> Volver
         </button>
       </div>
@@ -35,14 +35,14 @@
       <div class="hero-overlay"></div>
 
       <div class="hero-content">
-        <button (click)="volver()" class="btn-volver-hero">
+        <button type="button" (click)="volver()" class="btn-volver-hero">
           <i class="bi bi-arrow-left-circle-fill"></i> Volver
         </button>
 
         <div class="hero-info">
           <div class="badges-top">
             <span class="badge-nivel" [style.background-color]="obtenerColorNivel(leccion.nivel_dificultad)">
-              <i class="bi bi-bar-chart-fill me-1"></i>
+              <i class="bi bi-bar-chart-fill"></i>
               {{ obtenerEtiquetaNivel(leccion.nivel_dificultad) }}
             </span>
             <span class="badge-categoria" *ngIf="leccion.categoria_nombre">
@@ -85,7 +85,7 @@
           </div>
 
           <div class="hero-actions">
-            <button (click)="iniciarLeccion()" class="btn-iniciar-hero"
+            <button type="button" (click)="iniciarLeccion()" class="btn-iniciar-hero"
               [disabled]="verificandoProgreso || !leccion.activa || leccion.bloqueada"
               [class.bloqueada]="!verificandoProgreso && leccion.bloqueada">
               <i class="bi"
@@ -95,7 +95,8 @@
               {{ obtenerTextoBoton() }}
             </button>
 
-            <button (click)="actualizarEstado()" class="btn-actualizar" *ngIf="!verificandoProgreso && leccion?.bloqueada">
+            <button type="button" (click)="actualizarEstado()" class="btn-actualizar"
+              *ngIf="!verificandoProgreso && leccion?.bloqueada">
               <i class="bi bi-arrow-clockwise"></i>
               Actualizar Estado
             </button>
@@ -110,16 +111,19 @@
 
     <div class="contenido-principal">
 
-      <div class="tabs-navegacion">
-        <button class="tab-btn" [class.activa]="tabActiva === 'clases'" (click)="cambiarTab('clases')">
+      <div class="tabs-navegacion" role="tablist">
+        <button type="button" role="tab" class="tab-btn" [class.activa]="tabActiva === 'clases'"
+          [attr.aria-selected]="tabActiva === 'clases'" (click)="cambiarTab('clases')">
           <i class="bi bi-list-ul"></i>
           <span>Clases ({{ cargandoClases ? '…' : totalClases }})</span>
         </button>
-        <button class="tab-btn" [class.activa]="tabActiva === 'info'" (click)="cambiarTab('info')">
+        <button type="button" role="tab" class="tab-btn" [class.activa]="tabActiva === 'info'"
+          [attr.aria-selected]="tabActiva === 'info'" (click)="cambiarTab('info')">
           <i class="bi bi-info-circle-fill"></i>
           <span>Información</span>
         </button>
-        <button class="tab-btn" [class.activa]="tabActiva === 'progreso'" (click)="cambiarTab('progreso')"
+        <button type="button" role="tab" class="tab-btn" [class.activa]="tabActiva === 'progreso'"
+          [attr.aria-selected]="tabActiva === 'progreso'" (click)="cambiarTab('progreso')"
           *ngIf="leccion.progreso">
           <i class="bi bi-graph-up"></i>
           <span>Mi Progreso</span>
@@ -133,10 +137,10 @@
             <h3>Tu Progreso</h3>
             <p>{{ clasesCompletadas }} de {{ cargandoClases ? '–' : totalClases }} clases completadas</p>
           </div>
+          <span class="progreso-porcentaje">{{ porcentajeClasesCompletadas() }}%</span>
           <div class="progreso-barra">
             <div class="barra-fill" [style.width.%]="porcentajeClasesCompletadas()"></div>
           </div>
-          <span class="progreso-porcentaje">{{ porcentajeClasesCompletadas() }}%</span>
         </div>
 
         <div *ngIf="!verificandoProgreso && leccion.bloqueada" class="mensaje-bloqueo-leccion">
@@ -146,13 +150,15 @@
           <div class="bloqueo-contenido">
             <h4>Lección Bloqueada</h4>
             <p>{{ mensajeBloqueo }}</p>
-            <button class="btn-primario" (click)="volver()">
-              <i class="bi bi-arrow-left"></i> Volver a Lecciones
-            </button>
-            <button class="btn-actualizar" (click)="actualizarEstado()" style="margin-left: 10px;">
-              <i class="bi bi-arrow-clockwise"></i>
-              Actualizar Estado
-            </button>
+            <div class="bloqueo-acciones">
+              <button type="button" class="btn-primario" (click)="volver()">
+                <i class="bi bi-arrow-left"></i> Volver a Lecciones
+              </button>
+              <button type="button" class="btn-actualizar" (click)="actualizarEstado()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Actualizar Estado
+              </button>
+            </div>
           </div>
         </div>
 
@@ -215,7 +221,7 @@
             </div>
 
             <div class="clase-footer">
-              <button class="btn-clase" [disabled]="clase.bloqueada" (click)="comenzarClase(clase)">
+              <button type="button" class="btn-clase" [disabled]="clase.bloqueada" (click)="comenzarClase(clase)">
                 <i class="bi" [class.bi-play-fill]="!clase.bloqueada" [class.bi-lock-fill]="clase.bloqueada"></i>
                 {{ clase.bloqueada ? 'Bloqueada' : (clase.completada ? 'Repasar' : 'Comenzar') }}
               </button>
@@ -230,8 +236,7 @@
 
           <div class="info-card">
             <h3><i class="bi bi-info-circle-fill"></i> Acerca de esta lección</h3>
-            <p>{{ leccion.descripcion || 'Esta lección te ayudará a aprender nuevas señas del lenguaje de señas
-              peruano.' }}</p>
+            <p>{{ leccion.descripcion || 'Esta lección te ayudará a aprender nuevas señas del lenguaje de señas peruano.' }}</p>
           </div>
 
           <div class="info-grid">
@@ -304,10 +309,10 @@
           <div class="objetivos-card">
             <h4><i class="bi bi-bullseye"></i> ¿Qué aprenderás?</h4>
             <ul>
-              <li><i class="bi bi-check-lg"></i> Reconocer y reproducir la seña correctamente</li>
-              <li><i class="bi bi-check-lg"></i> Comprender el contexto de uso</li>
-              <li><i class="bi bi-check-lg"></i> Practicar con retroalimentación en tiempo real</li>
-              <li><i class="bi bi-check-lg"></i> Dominar la técnica con precisión</li>
+              <li><i class="bi bi-check-lg"></i> <span>Reconocer y reproducir la seña correctamente</span></li>
+              <li><i class="bi bi-check-lg"></i> <span>Comprender el contexto de uso</span></li>
+              <li><i class="bi bi-check-lg"></i> <span>Practicar con retroalimentación en tiempo real</span></li>
+              <li><i class="bi bi-check-lg"></i> <span>Dominar la técnica con precisión</span></li>
             </ul>
           </div>
 
@@ -320,7 +325,7 @@
           <div class="progreso-header">
             <h3><i class="bi bi-graph-up"></i> Tu Progreso</h3>
             <span class="badge-estado" [class.completada]="leccion.progreso.completada">
-              <i class="bi me-1" [class.bi-check-circle-fill]="leccion.progreso.completada"
+              <i class="bi" [class.bi-check-circle-fill]="leccion.progreso.completada"
                 [class.bi-hourglass-split]="!leccion.progreso.completada"></i>
               {{ leccion.progreso.completada ? 'Completada' : 'En progreso' }}
             </span>
@@ -369,7 +374,7 @@
           </div>
 
           <div class="progreso-visual">
-            <h4><i class="bi bi-arrow-up-right-circle-fill me-2"></i>Dominio de la seña</h4>
+            <h4><i class="bi bi-arrow-up-right-circle-fill"></i> Dominio de la seña</h4>
             <div class="barra-progreso-grande">
               <div class="barra-fill-grande" [style.width.%]="obtenerPorcentajeProgreso()"
                 [style.background]="obtenerColorProgreso()">

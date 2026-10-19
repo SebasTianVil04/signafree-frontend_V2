@@ -23,12 +23,12 @@
         <li>Recarga la página o haz clic en Reintentar</li>
       </ol>
     </div>
-    <button class="btn btn-primario" (click)="inicializarCamara()">
+    <button type="button" class="btn btn-primario" (click)="inicializarCamara()">
       <i class="fas fa-redo"></i> Reintentar
     </button>
   </div>
 
-  <div class="banner-configuracion" *ngIf="camaraActiva && !error">
+  <div class="banner-configuracion" *ngIf="camaraActiva && !error && modoContinuo">
     <div class="config-info">
       <i class="fas fa-user-cog"></i>
       <div class="config-detalle">
@@ -36,11 +36,11 @@
         <span class="config-parametros">
           Tiempo: {{ tiempoInicial }}s |
           Detecciones: {{ umbralDeteccionEstable }} |
-          Confianza mín.: {{ (umbralConfianzaMinima * 100) }}%
+          Confianza mín.: {{ umbralConfianzaMinima * 100 | number:'1.0-0' }}%
         </span>
       </div>
     </div>
-    <div class="categoria-info" *ngIf="camaraActiva">
+    <div class="categoria-info">
       <i class="fas fa-layer-group"></i>
       <div class="categoria-detalle">
         <span class="categoria-titulo">{{ infoCategoria }}</span>
@@ -56,12 +56,48 @@
           <video #videoElement autoplay playsinline muted class="video-feed"></video>
           <canvas #canvasElement class="canvas-overlay"></canvas>
 
-          <div class="guia-mano" *ngIf="camaraActiva && !manoDetectada">
+          <div class="guia-mano" *ngIf="camaraActiva && modoContinuo && !manoDetectada">
             <div class="guia-contenido">
               <i class="fas fa-hand-paper"></i>
               <p>Coloca tus manos aquí</p>
               <small *ngIf="requiereDosManos">(Se necesitan ambas manos)</small>
             </div>
+          </div>
+
+          <div class="guia-overlay" *ngIf="camaraActiva && !modoContinuo && fase === 'posicionando'">
+            <svg viewBox="0 0 640 480" preserveAspectRatio="none" [class.ok]="posicionOk">
+              <defs>
+                <g id="guia-mano">
+                  <rect x="-36" y="0" width="72" height="72" rx="26"/>
+                  <rect x="-36" y="-52" width="15" height="64" rx="7.5"/>
+                  <rect x="-17" y="-80" width="15" height="92" rx="7.5"/>
+                  <rect x="2" y="-90" width="15" height="102" rx="7.5"/>
+                  <rect x="21" y="-76" width="15" height="88" rx="7.5"/>
+                  <rect x="34" y="10" width="17" height="56" rx="8.5" transform="rotate(35 42.5 38)"/>
+                </g>
+              </defs>
+              <ellipse class="rostro" cx="320" cy="170" rx="68" ry="86"/>
+              <use href="#guia-mano" class="mano" transform="translate(120 265) scale(1.4)"/>
+              <use href="#guia-mano" class="mano" transform="translate(520 265) scale(-1.4 1.4)"/>
+              <line class="torso" x1="190" y1="430" x2="450" y2="430"/>
+            </svg>
+            <p class="guia-texto">
+              {{ posicionOk ? '¡Perfecto! No te muevas' : (requiereDosManos ? 'Ubica tu rostro en el óvalo y tus manos abiertas a los lados' : 'Ubica tu rostro en el óvalo y tu mano dentro del encuadre') }}
+            </p>
+          </div>
+
+          <div class="cuenta-overlay" *ngIf="!modoContinuo && fase === 'cuenta'">
+            <span>{{ cuenta }}</span>
+          </div>
+
+          <div class="rec-badge" *ngIf="!modoContinuo && fase === 'grabando'">
+            <i class="fas fa-circle"></i> Realiza la seña ahora · {{ segundosRestantes }}s
+            <div class="barra"><div class="barra-fill" [style.width.%]="progresoCaptura"></div></div>
+          </div>
+
+          <div class="cuenta-overlay procesando" *ngIf="!modoContinuo && fase === 'procesando'">
+            <div class="spinner-fase"></div>
+            <p>Analizando...</p>
           </div>
 
           <div class="feedback-overlay" *ngIf="mostrarFeedback" [class.exito]="feedbackTipo === 'exito'"
@@ -71,7 +107,7 @@
             <p>{{ feedbackMensaje }}</p>
           </div>
 
-          <div class="panel-flotante" *ngIf="senaDetectada || manoDetectada">
+          <div class="panel-flotante" *ngIf="modoContinuo && (senaDetectada || manoDetectada)">
             <div class="flotante-item" *ngIf="senaDetectada && senaDetectada !== ''">
               <span class="flotante-label">Detectado</span>
               <span class="flotante-valor" [class.correcta]="senaDetectada === senaObjetivo"
@@ -83,7 +119,7 @@
             </div>
 
             <div class="flotante-item" *ngIf="manoDetectada">
-              <span class="flotante-label">Confianza (mín. {{ (umbralConfianzaMinima * 100) }}%)</span>
+              <span class="flotante-label">Confianza (mín. {{ umbralConfianzaMinima * 100 | number:'1.0-0' }}%)</span>
               <div class="barra-progreso-flotante">
                 <div class="progreso" [style.width.%]="porcentajeConfianza"
                   [ngStyle]="{'background': colorConfianza}"></div>
@@ -94,14 +130,14 @@
         </div>
       </div>
 
-      <div class="detecciones-consecutivas" *ngIf="deteccionesConsecutivas > 0">
+      <div class="detecciones-consecutivas" *ngIf="modoContinuo && deteccionesConsecutivas > 0">
         <div class="consecutivas-badge">
           <i class="fas fa-bolt"></i>
           <span>{{ deteccionesConsecutivas }}/{{ umbralDeteccionEstable }} detecciones consecutivas</span>
         </div>
       </div>
 
-      <div class="estadisticas-compactas" *ngIf="intentos > 0">
+      <div class="estadisticas-compactas" *ngIf="modoContinuo && intentos > 0">
         <div class="stat-item">
           <i class="fas fa-clipboard-list"></i>
           <div class="stat-content">
@@ -116,7 +152,7 @@
             <span class="stat-value">{{ aciertos }}</span>
           </div>
         </div>
-        <div class="stat-item" *ngIf="intentos > 0">
+        <div class="stat-item">
           <i class="fas fa-chart-line"></i>
           <div class="stat-content">
             <span class="stat-label">Éxito</span>
@@ -145,12 +181,12 @@
         <div class="card-body">
           <span class="categoria-nombre">{{ categoriaSeleccionada.nombre }}</span>
           <small *ngIf="categoriaSeleccionada.modelo_accuracy" class="precision-badge">
-            <i class="fas fa-chart-bar"></i> Precisión: {{ categoriaSeleccionada.modelo_accuracy }}%
+            <i class="fas fa-chart-bar"></i> Precisión: {{ precisionModelo | number:'1.0-0' }}%
           </small>
         </div>
       </div>
 
-      <div class="info-card-grande temporizador-card" [class.urgente]="temporizador <= 10">
+      <div class="info-card-grande temporizador-card" *ngIf="modoContinuo" [class.urgente]="temporizador <= 10">
         <div class="card-header">
           <i class="fas fa-clock"></i>
           <span>Tiempo restante</span>
@@ -161,7 +197,7 @@
         </div>
       </div>
 
-      <div class="info-card-grande manos-card">
+      <div class="info-card-grande manos-card" *ngIf="modoContinuo || fase === 'posicionando'">
         <div class="card-header">
           <i class="fas fa-hand-paper"></i>
           <span>Estado de manos</span>
@@ -195,15 +231,16 @@
 
   <div class="controles" *ngIf="camaraActiva && !error">
     <div class="botones-control">
-      <button class="btn btn-secundario" (click)="reiniciarIntento()" [disabled]="!reconocimientoActivo">
+      <button type="button" class="btn btn-secundario" (click)="reiniciarIntento()"
+        [disabled]="!reconocimientoActivo || fase === 'procesando'">
         <i class="fas fa-redo"></i>
         Reintentar
       </button>
-      <button class="btn btn-info" (click)="togglePausa()" *ngIf="reconocimientoActivo">
+      <button type="button" class="btn btn-info" (click)="togglePausa()" *ngIf="modoContinuo && reconocimientoActivo">
         <i class="fas" [class.fa-pause]="!pausado" [class.fa-play]="pausado"></i>
         {{ pausado ? 'Reanudar' : 'Pausar' }}
       </button>
-      <button class="btn btn-danger" (click)="cancelarPractica()">
+      <button type="button" class="btn btn-danger" (click)="cancelarPractica()">
         <i class="fas fa-times"></i>
         Cancelar
       </button>
@@ -211,42 +248,29 @@
   </div>
 
   <div class="instrucciones-colapsables" *ngIf="camaraActiva && !error">
-    <button class="btn-colapsar" (click)="toggleInstrucciones()">
+    <button type="button" class="btn-colapsar" (click)="toggleInstrucciones()" [attr.aria-expanded]="instruccionesAbiertas">
       <i class="fas" [class.fa-chevron-down]="!instruccionesAbiertas" [class.fa-chevron-up]="instruccionesAbiertas"></i>
       Instrucciones
     </button>
     <div class="instrucciones-contenido" *ngIf="instruccionesAbiertas">
       <h4><i class="fas fa-info-circle"></i> Instrucciones para la seña "{{ senaObjetivo }}":</h4>
       <ul>
-        <li><i class="fas fa-lightbulb"></i> Asegúrate de tener buena iluminación frontal</li>
-        <li *ngIf="requiereDosManos"><i class="fas fa-hands"></i> Coloca <strong>ambas manos</strong> visibles en el
-          área de la cámara</li>
-        <li *ngIf="!requiereDosManos"><i class="fas fa-hand-paper"></i> Mantén tu(s) mano(s) visible(s) dentro del área
-          marcada</li>
-        <li><i class="fas fa-hand-point-right"></i> Realiza la seña <strong>{{ senaObjetivo }}</strong> con claridad
-        </li>
-        <li><i class="fas fa-clock"></i> Mantén la posición estable por al menos 2 segundos</li>
-        <li><i class="fas fa-circle"></i> Espera a que se detecten los puntos <strong
-            style="color: #00FF00">verdes</strong>
-          <span *ngIf="requiereDosManos">
-            y <strong style="color: #FF00FF">magenta</strong>
-          </span> en tus manos
-        </li>
-        <li><i class="fas fa-chart-line"></i> El sistema necesita <strong>{{ umbralDeteccionEstable }}</strong>
-          detecciones consistentes con confianza
-          mínima de <strong>{{ (umbralConfianzaMinima * 100) }}%</strong></li>
+        <li><i class="fas fa-lightbulb"></i> <span>Asegúrate de tener buena iluminación frontal</span></li>
+        <li><i class="fas fa-user"></i> <span>Ubícate a unos 80 cm de la cámara, con torso, manos y cabeza visibles</span></li>
+        <li *ngIf="requiereDosManos"><i class="fas fa-hands"></i> <span>Coloca <strong>ambas manos</strong> abiertas a los lados de tu rostro</span></li>
+        <li *ngIf="!requiereDosManos"><i class="fas fa-hand-paper"></i> <span>Mantén tu mano visible dentro del encuadre</span></li>
+        <li *ngIf="!modoContinuo"><i class="fas fa-check-circle"></i> <span>Cuando la guía se ponga <strong>verde</strong>, no te muevas hasta que inicie la cuenta 3, 2, 1</span></li>
+        <li><i class="fas fa-hand-point-right"></i> <span>Realiza la seña <strong>{{ senaObjetivo }}</strong> con claridad durante {{ duracionCapturaSeg }} segundos</span></li>
+        <li><i class="fas fa-chart-line"></i> <span>La confianza mínima para validar es <strong>{{ umbralConfianzaMinima * 100 | number:'1.0-0' }}%</strong></span></li>
       </ul>
-      <div class="consejos-adicionales" *ngIf="intentos > 0 && aciertos === 0">
+      <div class="consejos-adicionales" *ngIf="modoContinuo && intentos > 0 && aciertos === 0">
         <h5><i class="fas fa-lightbulb"></i> Consejos para mejorar:</h5>
         <ul>
-          <li><i class="fas fa-eye"></i> Verifica que tus manos estén completamente visibles</li>
-          <li *ngIf="requiereDosManos"><i class="fas fa-exclamation-triangle"></i> Asegúrate de que <strong>AMBAS
-              MANOS</strong> sean detectadas</li>
-          <li><i class="fas fa-sync-alt"></i> Intenta con diferentes ángulos de las manos</li>
-          <li><i class="fas fa-adjust"></i> Asegúrate de que no haya reflejos en las manos</li>
-          <li><i class="fas fa-image"></i> Mantén un fondo contrastado</li>
-          <li><i class="fas fa-percentage"></i> La confianza debe superar {{ (umbralConfianzaMinima * 100) }}% para
-            validar</li>
+          <li><i class="fas fa-eye"></i> <span>Verifica que tus manos estén completamente visibles</span></li>
+          <li *ngIf="requiereDosManos"><i class="fas fa-exclamation-triangle"></i> <span>Asegúrate de que <strong>AMBAS MANOS</strong> sean detectadas</span></li>
+          <li><i class="fas fa-sync-alt"></i> <span>Intenta con diferentes ángulos de las manos</span></li>
+          <li><i class="fas fa-adjust"></i> <span>Asegúrate de que no haya reflejos en las manos</span></li>
+          <li><i class="fas fa-image"></i> <span>Mantén un fondo contrastado</span></li>
         </ul>
       </div>
     </div>

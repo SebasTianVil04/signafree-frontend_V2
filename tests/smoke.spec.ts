@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_URL = 'http://localhost:8001';
+const API_URL = 'http://backend:8001';
 
 test.describe('Pruebas de humo', () => {
     test('la aplicación carga y muestra contenido', async ({ page }) => {
@@ -32,8 +32,18 @@ test.describe('Pruebas de humo', () => {
         });
         await page.goto('/');
         await page.waitForLoadState('networkidle');
-        const permitidas = [`${API_URL}/api/v1/usuarios/perfil`, `${API_URL}/api/v1/auth/refresh`];
-        const inesperadas = noAutorizadas.filter((url) => !permitidas.includes(url));
+
+        // El navegador llama al mismo origen (http://web) y Caddy hace de proxy
+        // hacia el backend. Comparamos por path, no por URL completa, para que
+        // el test no dependa de si las peticiones pasan por Caddy o van directas.
+        const pathsPermitidos = [
+            '/api/v1/usuarios/perfil',
+            '/api/v1/auth/refresh',
+        ];
+        const inesperadas = noAutorizadas.filter((url) => {
+            const path = new URL(url).pathname;
+            return !pathsPermitidos.includes(path);
+        });
         expect(inesperadas).toEqual([]);
     });
 

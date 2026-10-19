@@ -1,7 +1,6 @@
 <div class="tomar-examen-container">
-
   <div class="examen-header">
-    <button class="btn-volver" (click)="volverALista()" *ngIf="!examenIniciado">
+    <button type="button" class="btn-volver" (click)="volverALista()" *ngIf="!examenIniciado">
       <i class="bi bi-arrow-left"></i> Volver
     </button>
 
@@ -70,7 +69,7 @@
         </ul>
       </div>
 
-      <button class="btn btn-primario btn-grande" (click)="iniciarExamen()">
+      <button type="button" class="btn btn-primario btn-grande" (click)="iniciarExamen()">
         <i class="bi bi-play-fill"></i> Iniciar Autoevaluación
       </button>
     </div>
@@ -92,30 +91,32 @@
 
   <div class="navegacion-preguntas" *ngIf="examenIniciado && !examenCompletado && preguntas.length > 1">
     <div class="controles-navegacion">
-      <button class="btn-navegacion" (click)="preguntaAnterior()" [disabled]="preguntaActualIndex === 0">
-        <i class="bi bi-chevron-left"></i> Anterior
+      <button type="button" class="btn-navegacion" (click)="preguntaAnterior()" [disabled]="preguntaActualIndex === 0">
+        <i class="bi bi-chevron-left"></i> <span>Anterior</span>
       </button>
 
       <div class="indicadores-preguntas">
-        <button *ngFor="let pregunta of preguntas; let i = index" class="indicador-pregunta"
-          [class.actual]="i === preguntaActualIndex" [class.respondida]="estaRespondida(pregunta.id)"
-          [class.pendiente]="!estaRespondida(pregunta.id)" (click)="cambiarPregunta(i)"
+        <button
+          type="button"
+          *ngFor="let pregunta of preguntas; let i = index"
+          class="indicador-pregunta"
+          [class.actual]="i === preguntaActualIndex"
+          [class.respondida]="estaRespondida(pregunta.id)"
+          [class.pendiente]="!estaRespondida(pregunta.id)"
+          (click)="cambiarPregunta(i)"
           [title]="estaRespondida(pregunta.id) ? 'Respondida' : 'Pendiente'">
           {{ i + 1 }}
           <i class="bi bi-check-lg check-icon" *ngIf="estaRespondida(pregunta.id)"></i>
         </button>
       </div>
 
-      <button class="btn-navegacion" (click)="preguntaSiguiente()"
-        [disabled]="preguntaActualIndex === preguntas.length - 1">
-        Siguiente <i class="bi bi-chevron-right"></i>
+      <button type="button" class="btn-navegacion" (click)="preguntaSiguiente()" [disabled]="preguntaActualIndex === preguntas.length - 1">
+        <span>Siguiente</span> <i class="bi bi-chevron-right"></i>
       </button>
     </div>
   </div>
 
-  <!-- CRÍTICO: Contenedor de pregunta con ngSwitch para forzar destrucción -->
   <ng-container *ngIf="examenIniciado && !examenCompletado && preguntaActual">
-
     <div class="pregunta-card">
       <div class="pregunta-header">
         <h3><i class="bi bi-question-lg"></i> Pregunta {{ preguntaActualIndex + 1 }}</h3>
@@ -136,22 +137,18 @@
       </div>
     </div>
 
-    <!-- CRÍTICO: Usar ng-container con ngSwitch para forzar reconstrucción -->
     <ng-container [ngSwitch]="preguntaActual.tipo_pregunta">
-      
-      <!-- Pregunta de RECONOCIMIENTO -->
       <div *ngSwitchCase="'reconocimiento'" class="reconocimiento-area-compacta">
         <div class="reconocimiento-header">
           <h4>
-            <i class="bi bi-camera-video"></i> 
-            Realiza la seña: <strong>{{ preguntaActual.sena_esperada }}</strong>
+            <i class="bi bi-camera-video"></i>
+            <span>Realiza la seña: <strong>{{ preguntaActual.sena_esperada }}</strong></span>
           </h4>
-          <button class="btn-reiniciar-camara" (click)="reiniciarPreguntaActual()">
+          <button type="button" class="btn-reiniciar-camara" (click)="reiniciarPreguntaActual()">
             <i class="bi bi-arrow-clockwise"></i> Reiniciar
           </button>
         </div>
 
-        <!-- CRÍTICO: Usar trackBy con el ID de la pregunta para forzar recreación -->
         <ng-container *ngIf="mostrarCamara">
           <app-camara-reconocimiento-examen
             [senaObjetivo]="preguntaActual.sena_esperada"
@@ -167,11 +164,10 @@
         </div>
       </div>
 
-      <!-- Pregunta de OPCIÓN MÚLTIPLE -->
       <div *ngSwitchCase="'multiple'" class="opciones-container">
         <h4><i class="bi bi-list-check"></i> Selecciona la respuesta correcta:</h4>
         <div class="opciones-grid">
-          <button 
+          <button
             type="button"
             *ngFor="let opcion of obtenerOpcionesPregunta(preguntaActual); trackBy: trackByKey"
             class="opcion-btn"
@@ -185,21 +181,16 @@
         </div>
 
         <div class="acciones-pregunta">
-          <button 
-            type="button"
-            class="btn btn-primario btn-confirmar" 
-            [disabled]="!respuestaSeleccionada"
-            (click)="confirmarRespuesta()">
+          <button type="button" class="btn btn-primario btn-confirmar" [disabled]="!respuestaSeleccionada" (click)="confirmarRespuesta()">
             <i class="bi bi-check-lg"></i> Confirmar Respuesta
           </button>
         </div>
       </div>
 
-      <!-- Pregunta VERDADERO/FALSO -->
       <div *ngSwitchCase="'verdadero_falso'" class="verdadero-falso-container">
         <h4><i class="bi bi-toggle-on"></i> Selecciona la respuesta correcta:</h4>
         <div class="opciones-vf">
-          <button 
+          <button
             type="button"
             class="btn-vf verdadero"
             [class.seleccionada]="respuestaSeleccionada === 'verdadero'"
@@ -208,7 +199,7 @@
             <span>Verdadero</span>
           </button>
 
-          <button 
+          <button
             type="button"
             class="btn-vf falso"
             [class.seleccionada]="respuestaSeleccionada === 'falso'"
@@ -219,32 +210,24 @@
         </div>
 
         <div class="acciones-pregunta">
-          <button 
-            type="button"
-            class="btn btn-primario btn-confirmar" 
-            [disabled]="!respuestaSeleccionada"
-            (click)="confirmarRespuesta()">
+          <button type="button" class="btn btn-primario btn-confirmar" [disabled]="!respuestaSeleccionada" (click)="confirmarRespuesta()">
             <i class="bi bi-check-lg"></i> Confirmar Respuesta
           </button>
         </div>
       </div>
-
     </ng-container>
 
     <div class="boton-finalizar-container">
-      <button class="btn btn-success btn-grande" (click)="finalizarExamen()">
+      <button type="button" class="btn btn-success btn-grande" (click)="finalizarExamen()">
         <i class="bi bi-check-circle"></i> Finalizar Autoevaluación
       </button>
     </div>
-
   </ng-container>
 
   <div class="pantalla-resultados" *ngIf="examenCompletado && resultado">
     <div class="tarjeta-resultados">
-
       <div class="icono-resultado" [class.aprobado]="resultado.aprobado" [class.reprobado]="!resultado.aprobado">
-        <i class="bi" [class.bi-check-circle-fill]="resultado.aprobado"
-          [class.bi-x-circle-fill]="!resultado.aprobado"></i>
+        <i class="bi" [class.bi-check-circle-fill]="resultado.aprobado" [class.bi-x-circle-fill]="!resultado.aprobado"></i>
       </div>
 
       <h2 *ngIf="resultado.aprobado" class="titulo-resultado exito">
@@ -260,9 +243,7 @@
 
       <div class="estadisticas-resultados">
         <div class="stat-card">
-          <div class="stat-icono porcentaje">
-            <i class="bi bi-graph-up"></i>
-          </div>
+          <div class="stat-icono porcentaje"><i class="bi bi-graph-up"></i></div>
           <div class="stat-info">
             <div class="stat-valor">{{ resultado.porcentaje }}%</div>
             <div class="stat-label">Puntuación</div>
@@ -270,9 +251,7 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icono correctas">
-            <i class="bi bi-check-lg"></i>
-          </div>
+          <div class="stat-icono correctas"><i class="bi bi-check-lg"></i></div>
           <div class="stat-info">
             <div class="stat-valor">{{ resultado.respuestas_correctas }}/{{ resultado.total_preguntas }}</div>
             <div class="stat-label">Correctas</div>
@@ -280,9 +259,7 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icono tiempo">
-            <i class="bi bi-clock"></i>
-          </div>
+          <div class="stat-icono tiempo"><i class="bi bi-clock"></i></div>
           <div class="stat-info">
             <div class="stat-valor">{{ formatearTiempo(resultado.tiempo_empleado) }}</div>
             <div class="stat-label">Tiempo</div>
@@ -290,9 +267,7 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icono puntos">
-            <i class="bi bi-star-fill"></i>
-          </div>
+          <div class="stat-icono puntos"><i class="bi bi-star-fill"></i></div>
           <div class="stat-info">
             <div class="stat-valor">{{ resultado.puntuacion_obtenida }}</div>
             <div class="stat-label">Puntos</div>
@@ -302,9 +277,7 @@
 
       <div class="barra-nota-container">
         <div class="barra-nota">
-          <div class="barra-nota-fill" [style.width.%]="resultado.porcentaje" [class.aprobado]="resultado.aprobado"
-            [class.reprobado]="!resultado.aprobado">
-          </div>
+          <div class="barra-nota-fill" [style.width.%]="resultado.porcentaje" [class.aprobado]="resultado.aprobado" [class.reprobado]="!resultado.aprobado"></div>
         </div>
         <div class="nota-minima">
           <i class="bi bi-flag-fill"></i> Mínimo: {{ resultado.puntuacion_minima }}%
@@ -312,29 +285,27 @@
       </div>
 
       <div class="botones-resultados">
-        <button class="btn btn-secundario" (click)="verDetalles()">
+        <button type="button" class="btn btn-secundario" (click)="verDetalles()">
           <i class="bi bi-bar-chart-fill"></i> Ver Detalles
         </button>
 
-        <button class="btn btn-warning" (click)="reiniciarExamen()" *ngIf="!resultado.aprobado">
+        <button type="button" class="btn btn-warning" (click)="reiniciarExamen()" *ngIf="!resultado.aprobado">
           <i class="bi bi-arrow-repeat"></i> Reintentar
         </button>
 
-        <button class="btn btn-primario" (click)="continuarLeccion()" *ngIf="resultado.aprobado">
+        <button type="button" class="btn btn-primario" (click)="continuarLeccion()" *ngIf="resultado.aprobado">
           <i class="bi bi-arrow-right"></i> Continuar
         </button>
 
-        <button class="btn btn-outline" (click)="volverALista()">
+        <button type="button" class="btn btn-outline" (click)="volverALista()">
           <i class="bi bi-list-ul"></i> Volver a Autoevaluaciones
         </button>
       </div>
-
     </div>
   </div>
 
-  <div class="cargando-container" *ngIf="cargando">
+  <div class="cargando-container" *ngIf="cargando" aria-busy="true">
     <div class="spinner"></div>
     <p><i class="bi bi-hourglass-split"></i> Cargando autoevaluación...</p>
   </div>
-
 </div>

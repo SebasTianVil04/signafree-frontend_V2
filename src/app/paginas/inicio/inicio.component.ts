@@ -5,6 +5,14 @@ import { takeUntil } from 'rxjs/operators';
 import { AutenticacionService } from '../../servicios/autenticacion.service';
 import { Usuario } from '../../modelos/usuario.model';
 
+interface TarjetaAcceso {
+  icono: string;
+  titulo: string;
+  descripcion: string;
+  accion: string;
+  ruta: string;
+}
+
 @Component({
   selector: 'app-inicio',
   templateUrl: './inicio.component.html',
@@ -13,6 +21,23 @@ import { Usuario } from '../../modelos/usuario.model';
 })
 export class InicioComponent implements OnInit, OnDestroy {
   usuario: Usuario | null = null;
+
+  readonly tarjetas: TarjetaAcceso[] = [
+    {
+      icono: '📚',
+      titulo: 'Lecciones Interactivas',
+      descripcion: 'Aprende paso a paso con nuestras lecciones estructuradas',
+      accion: 'Ver lecciones',
+      ruta: '/lecciones'
+    },
+    {
+      icono: '📊',
+      titulo: 'Seguimiento de Progreso',
+      descripcion: 'Monitorea tu avance y obtén certificados',
+      accion: 'Ver mi progreso',
+      ruta: '/progreso'
+    }
+  ];
 
   private destroy$ = new Subject<void>();
 
@@ -38,6 +63,15 @@ export class InicioComponent implements OnInit, OnDestroy {
     this.autenticacionService.logout();
   }
 
+  irA(ruta: string): void {
+    if (!this.esRolUsuario) return;
+    this.router.navigate([ruta]);
+  }
+
+  trackByRuta(_: number, tarjeta: TarjetaAcceso): string {
+    return tarjeta.ruta;
+  }
+
   get iniciales(): string {
     if (!this.usuario?.nombre_usuario) return '';
     return this.usuario.nombre_usuario.substring(0, 2).toUpperCase();
@@ -57,8 +91,9 @@ export class InicioComponent implements OnInit, OnDestroy {
     return !!this.usuario?.es_admin;
   }
 
-  get esUsuarioBasico(): boolean {
+  get esRolUsuario(): boolean {
     if (!this.usuario || this.usuario.es_admin) return false;
-    return (this.usuario.permisos?.length || 0) === 0;
+    const rol = (this.usuario.rol?.nombre || '').trim().toLowerCase();
+    return rol === 'usuario';
   }
 }

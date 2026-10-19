@@ -1,17 +1,14 @@
-<!-- src/app/paginas/examenes/resultados-examen/resultados-examen.component.html -->
 <div class="resultados-container">
-  <!-- Header -->
   <div class="page-header">
     <div class="header-content">
       <h1>Resultados de la Autoevaluación</h1>
       <p *ngIf="examen">{{ examen.titulo }} - {{ getNivelTexto() }}</p>
     </div>
-    <button (click)="volverALista()" class="btn btn-outline">
+    <button type="button" (click)="volverALista()" class="btn-outline">
       <i class="fas fa-arrow-left"></i> Volver a Autoevaluaciones
     </button>
   </div>
 
-  <!-- Resultado Actual (si acaba de terminar) -->
   <div *ngIf="resultadoActual" class="resultado-actual-card">
     <div class="resultado-header">
       <h2>Resultado Reciente</h2>
@@ -40,13 +37,12 @@
     </div>
 
     <div class="resultado-actions">
-      <button (click)="tomarExamenNuevamente()" class="btn btn-primary">
+      <button type="button" (click)="tomarExamenNuevamente()" class="btn-primary">
         <i class="fas fa-redo"></i> Intentar Nuevamente
       </button>
     </div>
   </div>
 
-  <!-- Estadísticas Generales -->
   <div *ngIf="resultados.length > 0" class="estadisticas-section">
     <h3>Estadísticas de la Autoevaluación</h3>
     <div class="estadisticas-grid">
@@ -81,7 +77,6 @@
     </div>
   </div>
 
-  <!-- Historial de Intentos -->
   <div *ngIf="resultados.length > 0" class="historial-section">
     <h3>Historial de Intentos</h3>
     <div class="intentos-list">
@@ -95,7 +90,7 @@
             {{ resultado.aprobado ? 'Aprobado' : 'No Aprobado' }}
           </span>
         </div>
-        
+
         <div class="intento-stats">
           <div class="intento-stat">
             <span class="stat-value">{{ resultado.porcentaje | number:'1.1-1' }}%</span>
@@ -114,18 +109,16 @@
     </div>
   </div>
 
-  <!-- Empty State -->
   <div *ngIf="!cargando && resultados.length === 0 && !resultadoActual" class="empty-state">
     <i class="fas fa-chart-bar"></i>
     <h3>No hay resultados aún</h3>
     <p>Completa la autoevaluación para ver tus resultados aquí</p>
-    <button (click)="tomarExamenNuevamente()" class="btn btn-primary">
+    <button type="button" (click)="tomarExamenNuevamente()" class="btn-primary">
       <i class="fas fa-play"></i> Tomar Autoevaluación
     </button>
   </div>
 
-  <!-- Loading -->
-  <div *ngIf="cargando" class="loading-container">
+  <div *ngIf="cargando" class="loading-container" aria-busy="true">
     <div class="spinner"></div>
     <p>Cargando resultados...</p>
   </div>

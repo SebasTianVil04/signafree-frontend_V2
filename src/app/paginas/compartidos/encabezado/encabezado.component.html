@@ -1,16 +1,27 @@
-<nav class="navbar" *ngIf="usuario">
-
+<nav class="navbar" *ngIf="usuario" (document:keydown.escape)="cerrarMenus()">
   <div class="navbar-top">
     <div class="navbar-top-container">
-
-      <a (click)="navegarA($event, '/inicio')" class="logo">
+      <a
+        (click)="navegarA($event, '/inicio')"
+        (keydown.enter)="navegarA($event, '/inicio')"
+        class="logo"
+        role="link"
+        tabindex="0"
+        aria-label="Ir al inicio">
         <span class="logo-icon">🤟</span>
         <span class="logo-text">SignaFree</span>
       </a>
 
       <div class="navbar-user">
-        <div class="user-menu" (click)="toggleMenuUsuario($event)" role="button" tabindex="0"
-          (keydown.enter)="toggleMenuUsuario($event)" [attr.aria-expanded]="menuUsuarioAbierto">
+        <div
+          class="user-menu"
+          (click)="toggleMenuUsuario($event)"
+          (keydown.enter)="toggleMenuUsuario($event)"
+          role="button"
+          tabindex="0"
+          aria-haspopup="true"
+          [attr.aria-expanded]="menuUsuarioAbierto"
+          aria-label="Menú de usuario">
           <div class="user-avatar" [class.admin]="esAdmin" [class.user]="esUser">
             {{ iniciales }}
           </div>
@@ -18,35 +29,46 @@
             <span class="user-name">{{ usuario.nombre_usuario }}</span>
             <span class="user-role">{{ nombreRol }}</span>
           </div>
-          <span class="dropdown-arrow" [class.active]="menuUsuarioAbierto">▾</span>
+          <span class="dropdown-arrow" [class.active]="menuUsuarioAbierto" aria-hidden="true">▾</span>
         </div>
 
         <div class="user-dropdown" [class.active]="menuUsuarioAbierto">
-          <a (click)="navegarA($event, '/perfil')" class="dropdown-item">
+          <a
+            (click)="navegarA($event, '/perfil')"
+            (keydown.enter)="navegarA($event, '/perfil')"
+            class="dropdown-item"
+            role="link"
+            tabindex="0">
             <span class="dropdown-icon">👤</span>
             <span>Mi Perfil</span>
           </a>
           <div class="dropdown-divider"></div>
-          <a (click)="cerrarSesion($event)" class="dropdown-item logout">
+          <a
+            (click)="cerrarSesion($event)"
+            (keydown.enter)="cerrarSesion($event)"
+            class="dropdown-item logout"
+            role="button"
+            tabindex="0">
             <span class="dropdown-icon">🚪</span>
             <span>Cerrar Sesión</span>
           </a>
         </div>
       </div>
 
-      <button type="button" class="navbar-toggle" (click)="toggleMenu()"
+      <button
+        type="button"
+        class="navbar-toggle"
+        (click)="toggleMenu()"
         [attr.aria-expanded]="menuAbierto"
         [attr.aria-label]="menuAbierto ? 'Cerrar menú' : 'Abrir menú'">
         <span class="toggle-icon" [class.active]="menuAbierto">
           <span></span><span></span><span></span>
         </span>
       </button>
-
     </div>
   </div>
 
   <div class="navbar-menu" [class.active]="menuAbierto">
-
     <div class="mobile-user-section">
       <div class="user-avatar-large" [class.admin]="esAdmin" [class.user]="esUser">
         {{ iniciales }}
@@ -55,25 +77,38 @@
         <div class="user-name-large">{{ usuario.nombre_usuario }}</div>
         <div class="user-role-large">{{ nombreRol }}</div>
       </div>
-      <button type="button" class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar">✕</button>
+      <button type="button" class="close-menu-btn" (click)="cerrarMenus()" aria-label="Cerrar menú">✕</button>
     </div>
 
     <ul class="nav-links">
-      <li *ngFor="let item of menuItems; trackBy: trackByLabel"
+      <li
+        *ngFor="let item of menuItems; trackBy: trackByLabel"
         [class.has-submenu]="item.hijos && item.hijos.length > 0">
 
         <ng-container *ngIf="item.hijos && item.hijos.length > 0">
-          <a (click)="toggleSubmenu($event, item.label)" class="nav-link"
+          <a
+            (click)="toggleSubmenu($event, item.label)"
+            (keydown.enter)="toggleSubmenu($event, item.label)"
+            class="nav-link"
+            role="button"
+            tabindex="0"
+            aria-haspopup="true"
             [class.active]="submenuAbierto === item.label"
             [attr.aria-expanded]="submenuAbierto === item.label">
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label">{{ item.label }}</span>
-            <span class="dropdown-icon" [class.active]="submenuAbierto === item.label">▾</span>
+            <span class="dropdown-icon" [class.active]="submenuAbierto === item.label" aria-hidden="true">▾</span>
           </a>
 
           <ul class="submenu" [class.active]="submenuAbierto === item.label">
             <li *ngFor="let hijo of item.hijos; trackBy: trackByLabel">
-              <a (click)="navegarA($event, hijo.ruta)" class="submenu-link" [class.active]="esRutaActiva(hijo.ruta)">
+              <a
+                (click)="navegarA($event, hijo.ruta)"
+                (keydown.enter)="navegarA($event, hijo.ruta)"
+                class="submenu-link"
+                role="link"
+                tabindex="0"
+                [class.active]="esRutaActiva(hijo.ruta)">
                 <span class="submenu-icon">{{ hijo.icon }}</span>
                 <span>{{ hijo.label }}</span>
               </a>
@@ -82,28 +117,41 @@
         </ng-container>
 
         <ng-container *ngIf="!item.hijos || item.hijos.length === 0">
-          <a (click)="navegarA($event, item.ruta)" class="nav-link" [class.active]="esRutaActiva(item.ruta)">
+          <a
+            (click)="navegarA($event, item.ruta)"
+            (keydown.enter)="navegarA($event, item.ruta)"
+            class="nav-link"
+            role="link"
+            tabindex="0"
+            [class.active]="esRutaActiva(item.ruta)">
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label">{{ item.label }}</span>
           </a>
         </ng-container>
-
       </li>
     </ul>
 
     <div class="mobile-user-actions">
-      <a (click)="navegarA($event, '/perfil')" class="mobile-action">
+      <a
+        (click)="navegarA($event, '/perfil')"
+        (keydown.enter)="navegarA($event, '/perfil')"
+        class="mobile-action"
+        role="link"
+        tabindex="0">
         <span class="action-icon">👤</span>
         <span>Mi Perfil</span>
       </a>
-      <a (click)="cerrarSesion($event)" class="mobile-action logout">
+      <a
+        (click)="cerrarSesion($event)"
+        (keydown.enter)="cerrarSesion($event)"
+        class="mobile-action logout"
+        role="button"
+        tabindex="0">
         <span class="action-icon">🚪</span>
         <span>Cerrar Sesión</span>
       </a>
     </div>
-
   </div>
-
 </nav>
 
 <div class="navbar-overlay" *ngIf="menuAbierto || menuUsuarioAbierto" (click)="cerrarMenus()"></div>

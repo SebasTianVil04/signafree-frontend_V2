@@ -1,6 +1,6 @@
 <div class="clase-contenedor" *ngIf="!cargando && claseActual">
   <div class="clase-encabezado">
-    <button class="btn-volver" (click)="volverALecciones()">
+    <button type="button" class="btn-volver" (click)="volverALecciones()">
       <i class="fas fa-arrow-left"></i> Volver a Lecciones
     </button>
 
@@ -29,9 +29,10 @@
 
   <div class="clase-contenido">
     <aside class="menu-clases" [class.abierto]="menuAbierto">
-      <div class="menu-header">
+      <div class="menu-header" (click)="toggleMenu()">
         <h3>Clases de la Lección</h3>
-        <button class="btn-toggle-menu" (click)="toggleMenu()">
+        <button type="button" class="btn-toggle-menu" [attr.aria-expanded]="menuAbierto"
+          aria-label="Mostrar u ocultar menú de clases">
           <i class="fas" [class.fa-times]="menuAbierto" [class.fa-bars]="!menuAbierto"></i>
         </button>
       </div>
@@ -92,13 +93,12 @@
                 </span>
               </span>
 
-              <div class="progreso-examen-bar" *ngIf="!examen.completado && !examen.disponible">
-                <div class="progreso-examen-fill" [style.width.%]="obtenerRequisitosExamen(examen).porcentaje">
+              <ng-container *ngIf="!examen.completado && !examen.disponible">
+                <div class="progreso-examen-bar" *ngIf="obtenerRequisitosExamen(examen) as req">
+                  <div class="progreso-examen-fill" [style.width.%]="req.porcentaje"></div>
+                  <span class="progreso-examen-texto">{{ req.porcentaje }}%</span>
                 </div>
-                <span class="progreso-examen-texto">
-                  {{ obtenerRequisitosExamen(examen).porcentaje }}%
-                </span>
-              </div>
+              </ng-container>
             </div>
             <div class="examen-accion">
               <i class="fas fa-arrow-right" *ngIf="examen.disponible || examen.completado"></i>
@@ -136,7 +136,7 @@
 
           <div class="stat-item">
             <span class="stat-label">Progreso Total:</span>
-            <span class="stat-value">{{ (clasesCompletadas / totalClases * 100) | number:'1.0-0' }}%</span>
+            <span class="stat-value">{{ (totalClases > 0 ? clasesCompletadas / totalClases * 100 : 0) | number:'1.0-0' }}%</span>
           </div>
 
           <div class="stat-item puntos-acumulados" *ngIf="puntosObtenidos > 0">
@@ -147,18 +147,20 @@
           </div>
         </div>
         <div class="progreso-bar">
-          <div class="progreso-fill" [style.width.%]="(clasesCompletadas / totalClases) * 100"></div>
+          <div class="progreso-fill" [style.width.%]="totalClases > 0 ? (clasesCompletadas / totalClases) * 100 : 0"></div>
         </div>
       </div>
     </aside>
 
     <main class="area-principal" [class.cambiando]="cambiandoClase">
-      <div class="pestanas-modo">
-        <button class="pestaña" [class.activa]="modoActual === 'aprender'" (click)="cambiarModo('aprender')">
+      <div class="pestanas-modo" role="tablist">
+        <button type="button" role="tab" class="pestana" [class.activa]="modoActual === 'aprender'"
+          [attr.aria-selected]="modoActual === 'aprender'" (click)="cambiarModo('aprender')">
           <i class="fas fa-play-circle"></i>
           Aprender
         </button>
-        <button class="pestaña" [class.activa]="modoActual === 'practicar'" (click)="cambiarModo('practicar')"
+        <button type="button" role="tab" class="pestana" [class.activa]="modoActual === 'practicar'"
+          [attr.aria-selected]="modoActual === 'practicar'" (click)="cambiarModo('practicar')"
           [disabled]="!claseActual?.requiere_practica">
           <i class="fas fa-hands"></i>
           Practicar
@@ -171,7 +173,7 @@
             controlsList="nodownload" preload="metadata" playsinline (error)="alErrorVideoLocal()">
           </video>
 
-          <iframe *ngIf="videoTipo === 'externo' && videoUrl" [src]="videoUrl" frameborder="0"
+          <iframe *ngIf="videoTipo === 'externo' && videoUrl" [src]="videoUrl" title="Video de la clase"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen>
           </iframe>
@@ -220,7 +222,7 @@
         </div>
 
         <div class="accion-practica" *ngIf="claseActual?.requiere_practica">
-          <button class="btn-grande btn-primario" (click)="cambiarModo('practicar')">
+          <button type="button" class="btn-grande btn-primario" (click)="cambiarModo('practicar')">
             <i class="fas fa-hands"></i>
             Ir a Practicar
           </button>
@@ -248,15 +250,15 @@
               <ul>
                 <li>
                   <i class="fas fa-check-circle"></i>
-                  Realizar al menos {{ claseActual?.intentos_minimos || 3 }} intentos
+                  <span>Realizar al menos {{ claseActual?.intentos_minimos || 3 }} intentos</span>
                 </li>
                 <li>
                   <i class="fas fa-check-circle"></i>
-                  Alcanzar una precisión mínima del {{ ((claseActual?.precision_minima || 0.7) * 100).toFixed(0) }}%
+                  <span>Alcanzar una precisión mínima del {{ ((claseActual?.precision_minima || 0.7) * 100).toFixed(0) }}%</span>
                 </li>
                 <li>
                   <i class="fas fa-check-circle"></i>
-                  La seña detectada debe ser: <strong>{{ letraSena }}</strong>
+                  <span>La seña detectada debe ser: <strong>{{ letraSena }}</strong></span>
                 </li>
               </ul>
 
@@ -277,8 +279,7 @@
               <div class="stats-grid">
                 <div class="stat">
                   <span class="label">Intentos:</span>
-                  <span class="valor">{{ progresoClase.intentos_realizados }}/{{ claseActual?.intentos_minimos || 3
-                    }}</span>
+                  <span class="valor">{{ progresoClase.intentos_realizados }}/{{ claseActual?.intentos_minimos || 3 }}</span>
                 </div>
                 <div class="stat">
                   <span class="label">Mejor Precisión:</span>
@@ -293,7 +294,7 @@
               </div>
             </div>
 
-            <button class="btn-grande btn-primario" (click)="iniciarPractica()">
+            <button type="button" class="btn-grande btn-primario" (click)="iniciarPractica()">
               <i class="fas fa-play"></i>
               Comenzar Práctica
             </button>
@@ -325,7 +326,7 @@
 
               <div class="detalle-item">
                 <span class="label">Seña Reconocida:</span>
-                <span class="valor seña" [class.correcta]="senaReconocidaCoincide"
+                <span class="valor sena" [class.correcta]="senaReconocidaCoincide"
                   [class.incorrecta]="!senaReconocidaCoincide">
                   {{ resultadoPractica.sena_reconocida || 'Ninguna' }}
                   <i class="fas" [class.fa-check]="senaReconocidaCoincide"
@@ -371,12 +372,11 @@
                   *ngIf="resultadoPractica.precision < (claseActual?.precision_minima || 0.7)">
                   <i class="fas fa-chart-line"></i>
                   <span>
-                    Necesitas mejorar tu precisión. Requerido: {{ ((claseActual?.precision_minima || 0.7) *
-                    100).toFixed(0) }}%
+                    Necesitas mejorar tu precisión. Requerido: {{ ((claseActual?.precision_minima || 0.7) * 100).toFixed(0) }}%
                   </span>
                 </div>
 
-                <div class="info-seña" *ngIf="!senaReconocidaCoincide">
+                <div class="info-sena" *ngIf="!senaReconocidaCoincide">
                   <i class="fas fa-exclamation-triangle"></i>
                   <span>
                     La seña detectada no coincide. Revisa la demostración y vuelve a intentar.
@@ -392,16 +392,17 @@
             </div>
 
             <div class="acciones-resultado">
-              <button class="btn btn-secundario" (click)="reiniciarPractica()">
+              <button type="button" class="btn btn-secundario" (click)="reiniciarPractica()">
                 <i class="fas fa-redo"></i>
                 Intentar de Nuevo
               </button>
-              <button class="btn btn-primario" (click)="navegarASiguienteClase()"
+              <button type="button" class="btn btn-primario" (click)="navegarASiguienteClase()"
                 *ngIf="resultadoPractica.exito && !esUltimaClase">
                 Siguiente Clase
                 <i class="fas fa-arrow-right"></i>
               </button>
-              <button class="btn btn-primario" (click)="volverALecciones()" *ngIf="esUltimaClase && claseCompletada">
+              <button type="button" class="btn btn-primario" (click)="volverALecciones()"
+                *ngIf="esUltimaClase && claseCompletada">
                 <i class="fas fa-check-double"></i>
                 Finalizar Lección
               </button>
@@ -413,9 +414,10 @@
   </div>
 
   <div class="navegacion-clases">
-    <button class="btn-navegacion" (click)="navegarAClaseAnterior()" [disabled]="esPrimeraClase">
+    <button type="button" class="btn-navegacion btn-anterior" (click)="navegarAClaseAnterior()"
+      [disabled]="esPrimeraClase">
       <i class="fas fa-chevron-left"></i>
-      Clase Anterior
+      <span>Clase Anterior</span>
     </button>
 
     <div class="indicador-progreso">
@@ -425,8 +427,9 @@
       </div>
     </div>
 
-    <button class="btn-navegacion" (click)="navegarASiguienteClase()" [disabled]="!puedeAvanzar && !esUltimaClase">
-      Siguiente Clase
+    <button type="button" class="btn-navegacion btn-siguiente" (click)="navegarASiguienteClase()"
+      [disabled]="!puedeAvanzar && !esUltimaClase">
+      <span>Siguiente Clase</span>
       <i class="fas fa-chevron-right"></i>
     </button>
   </div>
@@ -440,6 +443,8 @@
 <div class="error-contenedor" *ngIf="error && !cargando">
   <i class="fas fa-exclamation-circle"></i>
   <p>{{ error }}</p>
-  <button class="btn btn-primario" (click)="cargarDatosCompletos()">Reintentar</button>
-  <button class="btn btn-secundario" (click)="volverALecciones()">Volver a Lecciones</button>
+  <div class="error-acciones">
+    <button type="button" class="btn btn-primario" (click)="cargarDatosCompletos()">Reintentar</button>
+    <button type="button" class="btn btn-secundario" (click)="volverALecciones()">Volver a Lecciones</button>
+  </div>
 </div>

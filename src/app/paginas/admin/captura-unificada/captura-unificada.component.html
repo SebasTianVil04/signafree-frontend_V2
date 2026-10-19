@@ -1,8 +1,8 @@
-<div class="captura-unificada container py-4">
+<div class="captura-unificada container-xxl px-2 px-sm-3 py-3 py-md-4">
 
   <div class="row mb-3">
     <div class="col-12">
-      <h2 class="text-primary mb-1">
+      <h2 class="text-primary mb-1 titulo-pagina">
         <i class="bi bi-camera-video-fill me-2"></i>
         Captura De Datos
       </h2>
@@ -12,12 +12,12 @@
 
   <div *ngIf="error" class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
     <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
-    <button type="button" class="btn-close" (click)="cerrarAlerta('error')"></button>
+    <button type="button" class="btn-close" aria-label="Cerrar" (click)="cerrarAlerta('error')"></button>
   </div>
 
   <div *ngIf="mensaje" class="alert alert-info alert-dismissible fade show mb-3" role="alert">
     <i class="bi bi-info-circle-fill me-2"></i>{{ mensaje }}
-    <button type="button" class="btn-close" (click)="cerrarAlerta('mensaje')"></button>
+    <button type="button" class="btn-close" aria-label="Cerrar" (click)="cerrarAlerta('mensaje')"></button>
   </div>
 
   <div *ngIf="camaraActiva" class="alert mb-3" [class.alert-success]="manoDetectada" [class.alert-warning]="!manoDetectada">
@@ -48,21 +48,20 @@
             <p class="text-muted mt-2">Cargando categorías...</p>
           </div>
 
-          <div *ngIf="!cargandoCategorias && categorias.length === 0" class="alert alert-warning">
+          <div *ngIf="!cargandoCategorias && categorias.length === 0" class="alert alert-warning mb-0">
             <i class="bi bi-exclamation-circle me-2"></i>
             No hay categorías disponibles. Por favor, crea una categoría primero.
           </div>
 
           <div *ngIf="!cargandoCategorias && categorias.length > 0" class="row g-3">
-            <div *ngFor="let categoria of categorias" class="col-md-6 col-lg-4">
+            <div *ngFor="let categoria of categorias" class="col-12 col-sm-6 col-xl-4">
               <div class="card h-100 categoria-card" [class.border-primary]="categoriaSeleccionada?.id === categoria.id"
-                [class.shadow]="categoriaSeleccionada?.id === categoria.id" (click)="seleccionarCategoria(categoria)"
-                style="cursor: pointer; transition: all 0.3s;">
+                [class.shadow]="categoriaSeleccionada?.id === categoria.id" (click)="seleccionarCategoria(categoria)">
                 <div class="card-body">
                   <div class="d-flex align-items-center mb-2">
                     <i [class]="obtenerClaseIcono(categoria.icono) + ' me-2 fs-4 text-primary'"></i>
-                    <div class="flex-grow-1">
-                      <h4 class="mb-0 fw-bold">{{ categoria.nombre }}</h4>
+                    <div class="flex-grow-1 min-w-0">
+                      <h4 class="mb-0 fw-bold titulo-categoria">{{ categoria.nombre }}</h4>
                       <small class="text-muted">{{ categoria.tipo_etiqueta }}</small>
                     </div>
                     <div *ngIf="categoriaSeleccionada?.id === categoria.id">
@@ -81,13 +80,13 @@
     </div>
   </div>
 
-  <div class="row g-4" *ngIf="categoriaSeleccionada" style="max-width: 1600px; margin: 0 auto;">
+  <div class="row g-3 g-lg-4 layout-principal" *ngIf="categoriaSeleccionada">
 
-    <div class="col-12 col-lg-8">
+    <div class="col-12 col-lg-7 col-xl-8">
       <div class="card shadow">
-        <div class="card-header bg-gradient text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
+        <div class="card-header cabecera-camara text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
           [style.background]="'linear-gradient(135deg, ' + (categoriaSeleccionada.color || '#0d6efd') + ', ' + (categoriaSeleccionada.color || '#0d6efd') + '99)'">
-          <h5 class="mb-0">
+          <h5 class="mb-0 titulo-camara">
             <i class="bi bi-camera-video me-2"></i>
             Vista de Cámara - {{ categoriaSeleccionada.nombre }}
           </h5>
@@ -112,63 +111,95 @@
             </div>
           </div>
         </div>
-        <div class="card-body text-center bg-dark position-relative">
 
-          <video #videoElement style="display: none;"></video>
+        <div class="card-body text-center bg-dark position-relative cuerpo-camara">
 
-          <canvas #canvasElement width="640" height="480" class="w-100 rounded"
-            style="max-height: 480px; background: #000;" [hidden]="!camaraActiva">
-          </canvas>
+          <video #videoElement class="d-none" playsinline muted autoplay></video>
 
-          <div *ngIf="grabando" class="position-absolute top-0 start-0 m-3">
-            <span class="badge bg-danger fs-5 pulse-animation">
+          <div class="visor-wrap">
+            <canvas #canvasElement width="640" height="480" class="visor-canvas" [hidden]="!camaraActiva">
+            </canvas>
+
+            <div class="guia-overlay" *ngIf="camaraActiva && fase === 'posicionando'">
+              <svg viewBox="0 0 640 480" preserveAspectRatio="none" [class.ok]="posicionOk">
+                <defs>
+                  <g id="guia-mano-captura">
+                    <rect x="-36" y="0" width="72" height="72" rx="26"/>
+                    <rect x="-36" y="-52" width="15" height="64" rx="7.5"/>
+                    <rect x="-17" y="-80" width="15" height="92" rx="7.5"/>
+                    <rect x="2" y="-90" width="15" height="102" rx="7.5"/>
+                    <rect x="21" y="-76" width="15" height="88" rx="7.5"/>
+                    <rect x="34" y="10" width="17" height="56" rx="8.5" transform="rotate(35 42.5 38)"/>
+                  </g>
+                </defs>
+                <ellipse class="rostro" cx="320" cy="170" rx="68" ry="86"/>
+                <use href="#guia-mano-captura" class="mano" transform="translate(120 265) scale(1.4)"/>
+                <use href="#guia-mano-captura" class="mano" transform="translate(520 265) scale(-1.4 1.4)"/>
+                <line class="torso" x1="190" y1="430" x2="450" y2="430"/>
+              </svg>
+              <p class="guia-texto">
+                {{ posicionOk ? (modoAutomatico ? '¡Perfecto! No te muevas' : 'Posición correcta. Pulsa "Grabar Video"') : 'Ubica tu rostro en el óvalo y tus manos dentro del encuadre' }}
+              </p>
+            </div>
+
+            <div class="cuenta-overlay" *ngIf="camaraActiva && fase === 'cuenta'">
+              <span>{{ cuenta }}</span>
+            </div>
+          </div>
+
+          <div *ngIf="grabando" class="position-absolute top-0 start-0 m-2 m-md-3">
+            <span class="badge bg-danger insignia-rec pulse-animation">
               <i class="bi bi-record-circle me-1"></i>
               REC {{ tiempoGrabacion.toFixed(1) }}s / {{ maxTiempoGrabacion }}s
             </span>
           </div>
 
-          <div *ngIf="cooldownActivo && !grabando" class="position-absolute top-0 start-0 m-3">
-            <span class="badge bg-secondary fs-6">
+          <div *ngIf="cooldownActivo && !grabando" class="position-absolute top-0 start-0 m-2 m-md-3">
+            <span class="badge bg-secondary insignia-cooldown">
               <i class="bi bi-hourglass-split me-1"></i>
               Preparando siguiente toma...
             </span>
           </div>
 
-          <div *ngIf="modoAutomatico && camaraActiva && !grabando && !cooldownActivo && manoDetectada && progresoEstabilidad > 0"
-            class="position-absolute top-0 end-0 m-3" style="width: 140px;">
+          <div *ngIf="modoAutomatico && camaraActiva && fase === 'posicionando' && !cooldownActivo && manoDetectada && progresoEstabilidad > 0"
+            class="position-absolute top-0 end-0 m-2 m-md-3 panel-estabilidad">
             <div class="small text-white mb-1">
               <i class="bi bi-magic me-1"></i>Estabilizando...
             </div>
-            <div class="progress" style="height: 10px;">
+            <div class="progress barra-delgada">
               <div class="progress-bar bg-success" role="progressbar" [style.width.%]="progresoEstabilidad"></div>
             </div>
           </div>
 
-          <div *ngIf="!camaraActiva" class="py-5">
-            <i class="bi bi-camera-video-off text-muted" style="font-size: 4rem;"></i>
+          <div *ngIf="!camaraActiva" class="py-4 py-md-5">
+            <i class="bi bi-camera-video-off text-muted icono-grande"></i>
             <p class="text-muted mt-3">Cámara desactivada</p>
-            <button class="btn btn-lg btn-primary" (click)="iniciarCamara()">
+            <button class="btn btn-primary btn-accion-principal" (click)="iniciarCamara()">
               <i class="bi bi-play-circle me-2"></i>
               Iniciar Cámara con Detección
             </button>
           </div>
 
-          <div *ngIf="camaraActiva" class="mt-3">
-            <button *ngIf="!grabando && !modoAutomatico" class="btn btn-danger btn-lg me-2" (click)="iniciarGrabacion()"
+          <div *ngIf="camaraActiva" class="acciones-camara mt-3">
+            <button *ngIf="!grabando && !modoAutomatico && fase !== 'cuenta'" class="btn btn-danger" (click)="iniciarGrabacion()"
               [disabled]="!manoDetectada || !senaActual">
               <i class="bi bi-record-circle me-2"></i>
               Grabar Video
             </button>
-            <button *ngIf="grabando" class="btn btn-success btn-lg me-2" (click)="detenerGrabacion()">
+            <button *ngIf="fase === 'cuenta'" class="btn btn-outline-light" (click)="cancelarCuenta()">
+              <i class="bi bi-x-octagon me-2"></i>
+              Cancelar cuenta
+            </button>
+            <button *ngIf="grabando" class="btn btn-success" (click)="detenerGrabacion()">
               <i class="bi bi-stop-circle me-2"></i>
               Detener
             </button>
-            <button class="btn btn-warning btn-lg me-2" (click)="capturaMasiva(10)"
-              [disabled]="!manoDetectada || grabando || !senaActual">
+            <button class="btn btn-warning" (click)="capturaMasiva(10)"
+              [disabled]="!manoDetectada || grabando || fase === 'cuenta' || !senaActual">
               <i class="bi bi-lightning-charge me-2"></i>
               Captura Rápida (10)
             </button>
-            <button class="btn btn-secondary btn-lg" (click)="detenerCamara()" [disabled]="grabando">
+            <button class="btn btn-secondary" (click)="detenerCamara()" [disabled]="grabando">
               <i class="bi bi-x-circle me-2"></i>
               Cerrar
             </button>
@@ -176,7 +207,11 @@
 
           <p *ngIf="camaraActiva && modoAutomatico" class="text-white-50 small mt-2 mb-0">
             <i class="bi bi-info-circle me-1"></i>
-            Mantén la mano quieta frente a la cámara: la grabación se inicia sola.
+            Ubícate según la guía: al ponerse verde inicia la cuenta 3, 2, 1 y se graban {{ maxTiempoGrabacion }} s.
+          </p>
+          <p *ngIf="camaraActiva && !modoAutomatico" class="text-white-50 small mt-2 mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            Pulsa "Grabar Video": tras la cuenta 3, 2, 1 se graban {{ maxTiempoGrabacion }} s.
           </p>
         </div>
       </div>
@@ -189,13 +224,13 @@
           </h6>
         </div>
         <div class="card-body text-center">
-          <video [src]="videoPreviewUrl" controls autoplay class="w-100 rounded" style="max-height: 250px;">
+          <video [src]="videoPreviewUrl" controls autoplay muted playsinline class="w-100 rounded video-preview">
           </video>
         </div>
       </div>
     </div>
 
-    <div class="col-12 col-lg-4">
+    <div class="col-12 col-lg-5 col-xl-4">
 
       <div class="card shadow mb-3 border-primary">
         <div class="card-body text-center">
@@ -210,8 +245,8 @@
                 [(ngModel)]="nuevaSenaTexto" placeholder="Ingresa la seña" (keyup.enter)="agregarSena()"
                 maxlength="100">
             </div>
-            <div class="mt-2">
-              <button class="btn btn-success btn-sm me-2" (click)="agregarSena()">
+            <div class="mt-2 d-flex justify-content-center gap-2 flex-wrap">
+              <button class="btn btn-success btn-sm" (click)="agregarSena()">
                 <i class="bi bi-check-lg me-1"></i>Guardar
               </button>
               <button class="btn btn-secondary btn-sm" (click)="cancelarEdicionSena()">
@@ -221,18 +256,18 @@
           </div>
 
           <div *ngIf="!mostrarInputSena">
-            <div class="display-4 fw-bold mb-3" [style.color]="categoriaSeleccionada.color || '#0d6efd'">
+            <div class="sena-nombre mb-3" [style.color]="categoriaSeleccionada.color || '#0d6efd'">
               {{ senaActual?.nombre || 'Sin seña' }}
             </div>
 
-            <div class="mb-3">
-              <button *ngIf="senaActual" class="btn btn-outline-warning btn-sm me-2" (click)="editarSenaActual()">
+            <div class="mb-3 d-flex justify-content-center gap-2 flex-wrap">
+              <button *ngIf="senaActual" class="btn btn-outline-warning btn-sm" (click)="editarSenaActual()">
                 <i class="bi bi-pencil me-1"></i>Editar Seña
               </button>
               <button class="btn btn-outline-primary btn-sm" (click)="mostrarInputSena = true">
                 <i class="bi bi-plus-lg me-1"></i>Nueva Seña
               </button>
-              <button *ngIf="senaActual" class="btn btn-outline-danger btn-sm ms-2" (click)="eliminarSena(senaActual)">
+              <button *ngIf="senaActual" class="btn btn-outline-danger btn-sm" (click)="eliminarSena(senaActual)">
                 <i class="bi bi-trash me-1"></i>Eliminar
               </button>
             </div>
@@ -248,23 +283,25 @@
               <i class="bi bi-target me-1"></i>
               Videos por seña:
             </label>
-            <div class="btn-group btn-group-sm w-100" role="group" style="flex-wrap: wrap;">
-              <button *ngFor="let meta of [10, 20, 30, 50, 100, 150, 200]" type="button" class="btn"
+            <div class="metas-grupo">
+              <button *ngFor="let meta of [10, 20, 30, 50, 100, 150, 200]" type="button" class="btn btn-sm"
                 [class.btn-primary]="meta === metaVideos" [class.btn-outline-primary]="meta !== metaVideos"
-                (click)="cambiarMetaVideos(meta)" style="min-width: 14.28%;">
+                (click)="cambiarMetaVideos(meta)">
                 {{ meta }}
               </button>
             </div>
           </div>
 
-          <div class="progress mb-2" style="height: 25px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated"
-              [class.bg-success]="!getMetaAlcanzada()" [class.bg-warning]="getMetaAlcanzada()" role="progressbar"
-              [style.width.%]="getPorcentajeCompletado()">
-              <strong class="fs-6">
-                {{ videosCapturados }} / {{ metaVideos }}
-                <span *ngIf="pendientesSubida > 0" class="small">(+{{ pendientesSubida }} subiendo)</span>
-              </strong>
+          <div class="progreso-meta">
+            <div class="fw-bold mb-1">
+              {{ videosCapturados }} / {{ metaVideos }}
+              <span *ngIf="pendientesSubida > 0" class="small text-muted">(+{{ pendientesSubida }} subiendo)</span>
+            </div>
+            <div class="progress barra-meta">
+              <div class="progress-bar progress-bar-striped progress-bar-animated"
+                [class.bg-success]="!getMetaAlcanzada()" [class.bg-warning]="getMetaAlcanzada()" role="progressbar"
+                [style.width.%]="getPorcentajeCompletado()">
+              </div>
             </div>
           </div>
 
@@ -282,12 +319,12 @@
       </div>
 
       <div *ngIf="senaActual" class="card shadow mb-3 border-warning">
-        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center gap-2">
+          <h6 class="mb-0 text-truncate">
             <i class="bi bi-image me-2"></i>
             Seña de Referencia - {{ senaActual.nombre }}
           </h6>
-          <button class="btn btn-sm btn-outline-dark" (click)="toggleReferencia()">
+          <button class="btn btn-sm btn-outline-dark flex-shrink-0" (click)="toggleReferencia()" aria-label="Mostrar u ocultar referencia">
             <i class="bi" [class.bi-eye]="!mostrarReferencia" [class.bi-eye-slash]="mostrarReferencia"></i>
           </button>
         </div>
@@ -295,7 +332,7 @@
 
           <input #inputImagenReferencia type="file"
             accept="image/*,video/mp4,video/webm,video/quicktime"
-            style="display: none;" (change)="onArchivoReferenciaSeleccionado($event)">
+            class="d-none" (change)="onArchivoReferenciaSeleccionado($event)">
 
           <div *ngIf="tieneReferencia()" class="position-relative">
 
@@ -303,30 +340,28 @@
               <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
             </div>
 
-            <video *ngIf="esVideoReferencia() && urlReferencia" [src]="urlReferencia" controls
-              class="img-fluid rounded shadow-sm"
-              style="max-height: 200px; background: white; padding: 10px;"
+            <video *ngIf="esVideoReferencia() && urlReferencia" [src]="urlReferencia" controls playsinline
+              class="referencia-media"
               (error)="onImageError($event)" (loadeddata)="onImageLoad($event)">
             </video>
 
             <img *ngIf="esImagenReferencia() && urlReferencia" [src]="urlReferencia" [alt]="'Seña de ' + senaActual.nombre"
-              class="img-fluid rounded shadow-sm"
-              style="max-height: 200px; background: white; padding: 10px;"
+              class="referencia-media"
               (error)="onImageError($event)" (load)="onImageLoad($event)">
 
             <div *ngIf="imagenError" class="text-center py-4">
-              <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 3rem;"></i>
+              <i class="bi bi-exclamation-triangle-fill text-warning icono-grande"></i>
               <p class="text-muted small mt-2 mb-0">No se encontró el archivo de referencia</p>
             </div>
           </div>
 
           <div *ngIf="!tieneReferencia()" class="text-center py-4">
-            <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+            <i class="bi bi-image text-muted icono-grande"></i>
             <p class="text-muted small mt-2 mb-0">Sin imagen ni video de referencia</p>
           </div>
 
-          <div class="mt-3">
-            <button class="btn btn-outline-primary btn-sm me-2" (click)="abrirSelectorImagen()" [disabled]="subiendoImagen">
+          <div class="mt-3 d-flex justify-content-center gap-2 flex-wrap">
+            <button class="btn btn-outline-primary btn-sm" (click)="abrirSelectorImagen()" [disabled]="subiendoImagen">
               <span *ngIf="subiendoImagen" class="spinner-border spinner-border-sm me-1"></span>
               <i *ngIf="!subiendoImagen" class="bi bi-upload me-1"></i>
               {{ tieneReferencia() ? 'Reemplazar' : 'Subir' }} imagen/video
@@ -355,7 +390,7 @@
             <i class="bi bi-info-circle me-2"></i>
             Información de Categoría
           </h6>
-          <ul class="list-unstyled mb-0">
+          <ul class="list-unstyled mb-0 lista-info">
             <li class="mb-2">
               <i class="bi bi-tag me-2 text-primary"></i>
               <strong>Nombre:</strong> {{ categoriaSeleccionada.nombre }}
@@ -395,7 +430,7 @@
             <i class="bi bi-cpu me-2"></i>
             Estado de Detección
           </h6>
-          <ul class="list-unstyled mb-0">
+          <ul class="list-unstyled mb-0 lista-info">
             <li class="mb-2">
               <i class="bi bi-check-circle-fill text-success me-2"></i>
               MediaPipe: <span class="badge bg-success">Activo</span>
@@ -409,7 +444,7 @@
               <i class="bi bi-speedometer2 me-2"></i>
               Estado:
               <span *ngIf="manoDetectada" class="badge bg-success">Mano Detectada</span>
-              <span *ngIf="!manoDetectada" class="badge bg-warning">Esperando Mano</span>
+              <span *ngIf="!manoDetectada" class="badge bg-warning text-dark">Esperando Mano</span>
             </li>
             <li class="mb-2">
               <i class="bi bi-magic me-2"></i>
@@ -439,20 +474,24 @@
           </h6>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            <button class="btn btn-outline-primary" (click)="senaAnterior()"
-              [disabled]="indiceSenaActual === 0 || senasDisponibles.length === 0">
-              <i class="bi bi-arrow-left me-2"></i>
-              Seña Anterior
-            </button>
-            <button class="btn btn-outline-primary" (click)="siguienteSena()"
-              [disabled]="indiceSenaActual === senasDisponibles.length - 1 || senasDisponibles.length === 0">
-              Siguiente Seña
-              <i class="bi bi-arrow-right ms-2"></i>
-            </button>
+          <div class="row g-2">
+            <div class="col-6 col-lg-12">
+              <button class="btn btn-outline-primary w-100" (click)="senaAnterior()"
+                [disabled]="indiceSenaActual === 0 || senasDisponibles.length === 0">
+                <i class="bi bi-arrow-left me-2"></i>
+                Anterior
+              </button>
+            </div>
+            <div class="col-6 col-lg-12">
+              <button class="btn btn-outline-primary w-100" (click)="siguienteSena()"
+                [disabled]="indiceSenaActual === senasDisponibles.length - 1 || senasDisponibles.length === 0">
+                Siguiente
+                <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
           </div>
           <div class="mt-3 text-center" *ngIf="senasDisponibles.length > 0">
-            <div class="progress" style="height: 8px;">
+            <div class="progress barra-delgada mb-1">
               <div class="progress-bar bg-primary" role="progressbar"
                 [style.width.%]="(indiceSenaActual + 1) / senasDisponibles.length * 100">
               </div>
@@ -473,7 +512,7 @@
             Selección Rápida de Señas
           </h6>
         </div>
-        <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+        <div class="card-body lista-senas">
           <div *ngIf="cargandoSenas" class="text-center py-3">
             <div class="spinner-border spinner-border-sm text-primary"></div>
           </div>
@@ -483,13 +522,13 @@
           </div>
           <div class="d-flex flex-wrap gap-2 justify-content-center" *ngIf="!cargandoSenas && senasDisponibles.length > 0">
             <div *ngFor="let sena of senasDisponibles" class="position-relative">
-              <button class="btn btn-sm" [class.btn-primary]="sena.id === senaActual?.id"
+              <button class="btn btn-sm boton-sena" [class.btn-primary]="sena.id === senaActual?.id"
                 [class.btn-outline-secondary]="sena.id !== senaActual?.id" (click)="seleccionarSena(sena)"
-                style="min-width: 50px; height: 40px;" [title]="'Seleccionar seña: ' + sena.nombre">
+                [title]="'Seleccionar seña: ' + sena.nombre">
                 {{ sena.nombre }}
                 <span *ngIf="sena.id === senaActual?.id"
                   class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
-                  <i class="bi bi-check text-white" style="font-size: 0.6rem;"></i>
+                  <i class="bi bi-check text-white marca-check"></i>
                 </span>
               </button>
             </div>

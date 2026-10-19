@@ -1,12 +1,11 @@
 <div class="reconocimiento-examen-contenedor-compacto">
-  
-  <div class="cargando-overlay" *ngIf="cargando && !error">
+  <div class="cargando-overlay" *ngIf="cargando && !error" aria-busy="true">
     <div class="spinner"></div>
     <p>Iniciando cámara y reconocimiento...</p>
     <small>Por favor, permite el acceso a la cámara</small>
   </div>
 
-  <div class="error-overlay" *ngIf="error">
+  <div class="error-overlay" *ngIf="error" role="alert">
     <i class="fas fa-exclamation-triangle"></i>
     <h3>{{ error }}</h3>
     <p class="error-detalle">{{ errorDetalle }}</p>
@@ -19,26 +18,38 @@
         <li>Recarga la página o haz clic en Reintentar</li>
       </ol>
     </div>
-    <button class="btn btn-primario btn-small" (click)="inicializarCamara()">
+    <button type="button" class="btn btn-primario btn-small" (click)="inicializarCamara()">
       <i class="fas fa-redo"></i> Reintentar
     </button>
   </div>
 
   <div class="contenido-principal" [class.oculto]="!camaraActiva || error || cargando">
-    
     <div class="video-y-info">
-      
       <div class="video-section">
         <div class="video-wrapper-compacto">
           <video #videoElement autoplay playsinline muted class="video-feed-compacto"></video>
           <canvas #canvasElement class="canvas-overlay-compacto"></canvas>
-          
-          <div class="guia-mano-examen" *ngIf="camaraActiva && !manoDetectada">
-            <div class="guia-contenido-examen">
-              <i class="fas fa-hand-paper"></i>
-              <p>Coloca tus manos aquí</p>
-              <small *ngIf="requiereDosManos">(Se necesitan ambas manos)</small>
-            </div>
+
+          <div class="guia-overlay" *ngIf="camaraActiva && !manoDetectada">
+            <svg viewBox="0 0 640 480" preserveAspectRatio="none">
+              <defs>
+                <g id="guia-mano-examen-svg">
+                  <rect x="-36" y="0" width="72" height="72" rx="26"/>
+                  <rect x="-36" y="-52" width="15" height="64" rx="7.5"/>
+                  <rect x="-17" y="-80" width="15" height="92" rx="7.5"/>
+                  <rect x="2" y="-90" width="15" height="102" rx="7.5"/>
+                  <rect x="21" y="-76" width="15" height="88" rx="7.5"/>
+                  <rect x="34" y="10" width="17" height="56" rx="8.5" transform="rotate(35 42.5 38)"/>
+                </g>
+              </defs>
+              <ellipse class="rostro" cx="320" cy="170" rx="68" ry="86"/>
+              <use href="#guia-mano-examen-svg" class="mano" transform="translate(120 265) scale(1.4)"/>
+              <use href="#guia-mano-examen-svg" class="mano" transform="translate(520 265) scale(-1.4 1.4)"/>
+              <line class="torso" x1="190" y1="430" x2="450" y2="430"/>
+            </svg>
+            <p class="guia-texto">
+              {{ requiereDosManos ? 'Ubica tu rostro en el óvalo y ambas manos dentro del encuadre' : 'Ubica tu rostro en el óvalo y tu mano dentro del encuadre' }}
+            </p>
           </div>
 
           <div class="estado-deteccion-overlay" *ngIf="manoDetectada && deteccionesConsecutivas > 0">
@@ -50,7 +61,6 @@
       </div>
 
       <div class="info-section">
-        
         <div class="card-sena-objetivo">
           <div class="label-card">Seña a realizar:</div>
           <div class="valor-sena">{{ senaObjetivo }}</div>
@@ -79,10 +89,7 @@
             <span class="info-label">Confianza:</span>
             <div class="confianza-visual">
               <div class="barra-confianza">
-                <div class="relleno-confianza" 
-                     [style.width.%]="porcentajeConfianza" 
-                     [ngStyle]="{'background': colorConfianza}">
-                </div>
+                <div class="relleno-confianza" [style.width.%]="porcentajeConfianza" [ngStyle]="{'background': colorConfianza}"></div>
               </div>
               <span class="porcentaje-texto">{{ porcentajeConfianza }}%</span>
             </div>
@@ -103,9 +110,7 @@
           <i class="fas fa-spinner fa-spin"></i>
           <span>Analizando seña...</span>
         </div>
-
       </div>
-
     </div>
 
     <div class="instrucciones-compactas">
@@ -120,10 +125,8 @@
       </div>
       <div class="instruccion-item">
         <i class="fas fa-check-double"></i>
-        <span>Se capturará automáticamente tras <strong>{{ umbralDeteccionEstable }}</strong> detecciones estables con confianza ≥ {{ (umbralConfianzaMinima * 100) }}%</span>
+        <span>Se capturará automáticamente tras <strong>{{ umbralDeteccionEstable }}</strong> detecciones estables con confianza ≥ {{ umbralConfianzaMinima * 100 }}%</span>
       </div>
     </div>
-
   </div>
-
 </div>

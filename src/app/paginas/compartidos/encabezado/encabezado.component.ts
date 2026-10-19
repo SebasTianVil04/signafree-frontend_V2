@@ -124,9 +124,16 @@ export class EncabezadoComponent implements OnInit, OnDestroy {
 
   cerrarSesion(event: Event): void {
     event.stopPropagation();
-    this.autenticacionService.logout();
     this.menuService.limpiar();
     this.cerrarMenus();
+
+    this.autenticacionService.cerrarSesion().subscribe({
+      next: () => {
+      },
+      error: () => {
+        this.autenticacionService.logout();
+      }
+    });
   }
 
   navegarA(event: Event, ruta?: string): void {

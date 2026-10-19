@@ -4,6 +4,7 @@ import { injectQuery, injectQueryClient } from '@tanstack/angular-query-experime
 import { firstValueFrom } from 'rxjs';
 import { DatasetService, VideoDataset, CategoriaDataset } from '../../../servicios/dataset.service';
 import { ArchivosService } from '../../../servicios/archivos.service';
+import { CategoriaService } from '../../../servicios/categoria.service';
 
 const QK_CATEGORIAS = ['categoriasDataset'] as const;
 const QK_VIDEOS = ['todosLosVideosDataset'] as const;
@@ -26,6 +27,8 @@ export class GestionImagenesDatasetComponent implements OnInit {
   estadoFiltro: string | null = null;
 
   procesandoMasivo: boolean = false;
+  descargandoZip: boolean = false;
+  incluirDrive: boolean = false;
   error: string | null = null;
   mensaje: string | null = null;
   videoSeleccionado: VideoDataset | null = null;
@@ -57,7 +60,8 @@ export class GestionImagenesDatasetComponent implements OnInit {
 
   constructor(private datasetService: DatasetService,
     private sanitizer: DomSanitizer,
-    private archivosService: ArchivosService) {
+    private archivosService: ArchivosService,
+    private categoriaService: CategoriaService) {
     effect(() => {
       const res = this.categoriasQuery.data();
       if (res?.exito && res.datos) {
@@ -328,15 +332,72 @@ export class GestionImagenesDatasetComponent implements OnInit {
     this.eliminarEnLote(this.videosFiltrados);
   }
 
+  async descargarZip(): Promise<void> {
+    if (this.descargandoZip) {
+      return;
+    }
+
+    this.descargandoZip = true;
+    this.error = null;
+    this.mensaje = null;
+
+    try {
+      const blob = await firstValueFrom(
+        this.categoriaService.descargarDatasetZip({
+          categoria_id: this.categoriaFiltro ?? undefined,
+          solo_aprobados: true,
+          incluir_drive: this.incluirDrive
+        })
+      );
+
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = this.nombreArchivoZip();
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      URL.revokeObjectURL(url);
+
+      this.mensaje = 'ZIP generado y descargado correctamente';
+    } catch (err) {
+      this.error = 'Error al descargar el ZIP: ' + await this.mensajeDeError(err);
+    } finally {
+      this.descargandoZip = false;
+    }
+  }
+
+  private nombreArchivoZip(): string {
+    const ahora = new Date();
+    const dos = (n: number) => String(n).padStart(2, '0');
+    const fecha = `${ahora.getFullYear()}${dos(ahora.getMonth() + 1)}${dos(ahora.getDate())}`;
+    const hora = `${dos(ahora.getHours())}${dos(ahora.getMinutes())}`;
+    return `dataset_signafree_${fecha}_${hora}.zip`;
+  }
+
+  private async mensajeDeError(err: any): Promise<string> {
+    const cuerpo = err?.error;
+
+    if (cuerpo instanceof Blob) {
+      try {
+        const texto = await cuerpo.text();
+        const json = JSON.parse(texto);
+        return json.mensaje || json.detail || texto;
+      } catch {
+        return err?.message || 'Error desconocido';
+      }
+    }
+
+    return cuerpo?.mensaje || err?.message || 'Error desconocido';
+  }
+
   private async aprobarEnLote(videos: VideoDataset[]): Promise<void> {
     let totalAprobados = 0;
     let totalErrores = 0;
 
     for (const video of videos) {
       try {
-        const response = await this.datasetService
-          .aprobarVideo(video.id, true)
-          .toPromise();
+        const response = await firstValueFrom(this.datasetService.aprobarVideo(video.id, true));
 
         if (response?.exito) {
           totalAprobados++;
@@ -362,9 +423,7 @@ export class GestionImagenesDatasetComponent implements OnInit {
 
     for (const video of videos) {
       try {
-        const response = await this.datasetService
-          .eliminarVideo(video.id)
-          .toPromise();
+        const response = await firstValueFrom(this.datasetService.eliminarVideo(video.id));
 
         if (response?.exito) {
           totalEliminados++;

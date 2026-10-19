@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_URL = 'http://localhost:8001';
+const API_URL = 'http://backend:8001';
 
 const rutasSensibles = ['/uploads', '/archivos_subidos', '/archivos/senas_referencia'];
 

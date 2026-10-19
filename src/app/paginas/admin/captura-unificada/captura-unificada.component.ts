@@ -26,6 +26,8 @@ interface ConfigCaptura {
   filtroPrivacidadActivo?: boolean;
 }
 
+type FaseCaptura = 'inactiva' | 'posicionando' | 'cuenta' | 'grabando';
+
 const CLAVE_CONFIG = 'configCapturaUnificada';
 
 @Component({
@@ -57,6 +59,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   manoDetectada: boolean = false;
   numeroManos: number = 0;
 
+  fase: FaseCaptura = 'inactiva';
+  cuenta: number = 3;
+  posicionOk: boolean = false;
+
   videosCapturados: number = 0;
   metaVideos: number = 20;
   readonly metasDisponibles: number[] = [10, 20, 30, 50, 100, 150, 200];
@@ -66,12 +72,13 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   private enSubida: ItemSubida[] = [];
   private enProceso: boolean = false;
   private readonly MAX_PENDIENTES = 4;
-  private readonly MAX_SUBIDAS_SIMULTANEAS = 2;
+  private readonly MAX_SUBIDAS_SIMULTANEAS = 1;
 
   tiempoGrabacion: number = 0;
   maxTiempoGrabacion: number = 3;
   tiempoInicio: number = 0;
-  animationFrameId: number | null = null;
+  private intervaloGrabacion: ReturnType<typeof setInterval> | null = null;
+  private timeoutFinGrabacion: ReturnType<typeof setTimeout> | null = null;
 
   mediaRecorder: any = null;
   recordedChunks: Blob[] = [];
@@ -97,9 +104,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   private framesTotalesGrabacion: number = 0;
   private framesConManoGrabacion: number = 0;
   private porcentajeManoUltimaToma: number = 0;
-  private framesConsecutivosConMano: number = 0;
-  private readonly FRAMES_ESTABLES_REQUERIDOS = 6;
   progresoEstabilidad: number = 0;
+
+  private readonly SEGUNDOS_CUENTA = 3;
+  private readonly MS_POSICION_ESTABLE = 1000;
+  private readonly MAX_FRAMES_SIN_POSICION = 10;
+  private posicionOkDesde: number = 0;
+  private framesSinPosicion: number = 0;
+  private cuentaAutomatica: boolean = false;
+  private timerCuenta: ReturnType<typeof setInterval> | null = null;
 
   cooldownActivo: boolean = false;
   private readonly COOLDOWN_MS = 1000;
@@ -107,7 +120,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
   private modoAutomaticoPrevioACapturaMasiva: boolean | null = null;
 
-  // Ciclo de vida / peticiones cancelables
   private destruido = false;
   private readonly destroy$ = new Subject<void>();
   private senasSub?: Subscription;
@@ -144,11 +156,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     this.limpiarRecursos();
   }
 
-  /**
-   * Id que esperan los endpoints de captura/dataset: CategoriaDataset.id.
-   * GET /categorias lo devuelve como `dataset_id`. Si no viniera, se usa Categoria.id
-   * (comportamiento anterior, que solo funciona cuando ambos ids coinciden).
-   */
   get categoriaDatasetId(): number | null {
     const c = this.categoriaSeleccionada;
     return c ? (c.dataset_id ?? c.id) : null;
@@ -182,10 +189,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
       this.mensaje = null;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Configuración local
-  // ---------------------------------------------------------------------------
 
   private leerConfiguracion(): ConfigCaptura | null {
     try {
@@ -227,10 +230,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Categorías y señas
-  // ---------------------------------------------------------------------------
-
   cargarCategorias(): void {
     this.cargandoCategorias = true;
 
@@ -271,8 +270,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   }
 
   private cargarSenasDeCategoria(categoriaId: number): void {
-    // Si el usuario cambia rápido de categoría, se descarta la petición anterior
-    // para que una respuesta tardía no pise la selección actual.
     this.senasSub?.unsubscribe();
     this.cargandoSenas = true;
 
@@ -312,11 +309,11 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
   toggleModoAutomatico(): void {
     this.modoAutomatico = !this.modoAutomatico;
-    this.framesConsecutivosConMano = 0;
+    this.posicionOkDesde = 0;
     this.progresoEstabilidad = 0;
     this.guardarConfiguracion();
     this.mensaje = this.modoAutomatico
-      ? 'Auto-grabación activada: se grabará sola al estabilizar la mano'
+      ? 'Auto-grabación activada: al ubicarte bien se iniciará la cuenta regresiva'
       : 'Auto-grabación desactivada: usa el botón "Grabar Video"';
   }
 
@@ -328,10 +325,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
       ? 'Filtro de privacidad activado: el rostro no se grabará'
       : 'Filtro de privacidad desactivado: se grabará la imagen completa';
   }
-
-  // ---------------------------------------------------------------------------
-  // Referencia visual de la seña
-  // ---------------------------------------------------------------------------
 
   private actualizarUrlReferencia(): void {
     this.referenciaSub?.unsubscribe();
@@ -451,10 +444,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // CRUD de señas
-  // ---------------------------------------------------------------------------
-
   agregarSena(): void {
     if (!this.categoriaSeleccionada) return;
 
@@ -562,10 +551,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Cámara y detección
-  // ---------------------------------------------------------------------------
-
   async iniciarCamara(): Promise<void> {
     try {
       const constraints = {
@@ -613,6 +598,8 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      this.handDetectionService.setDibujarLandmarks(true);
+
       await this.handDetectionService.iniciarDeteccion(
         video,
         canvas,
@@ -621,17 +608,20 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
       this.camaraActiva = true;
       this.deteccionActiva = true;
-      this.framesConsecutivosConMano = 0;
+      this.fase = 'posicionando';
+      this.posicionOk = false;
+      this.posicionOkDesde = 0;
       this.progresoEstabilidad = 0;
       this.mensaje = this.modoAutomatico
-        ? 'Cámara iniciada. Auto-grabación activa: mantén la mano estable para grabar'
-        : 'Cámara iniciada con detección de manos activa';
+        ? 'Cámara iniciada. Ubícate según la guía: al ponerse verde comenzará la cuenta regresiva'
+        : 'Cámara iniciada. Ubícate según la guía y pulsa "Grabar Video"';
       this.error = null;
 
     } catch (error) {
       console.error('Error iniciando cámara:', error);
       this.error = 'No se pudo acceder a la cámara. Asegúrate de permitir el acceso.';
       this.camaraActiva = false;
+      this.fase = 'inactiva';
     }
   }
 
@@ -651,47 +641,113 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Solo al pasar de "sin mano" a "con mano". Antes se reescribía en CADA frame (~30/s),
-    // pisando mensajes como "Video guardado" y forzando detección de cambios continua.
-    if (this.manoDetectada && !teniaMano && !this.grabando && !this.enProceso && this.senaActual) {
+    if (this.manoDetectada && !teniaMano && this.fase === 'posicionando' && !this.enProceso && this.senaActual) {
       this.mensaje = `Mano detectada. Listo para grabar "${this.senaActual.nombre}"`;
     }
 
-    if (this.modoAutomatico) {
-      this.evaluarAutoGrabacion();
+    this.evaluarFases(results);
+  }
+
+  private posicionCorrecta(results: Results): boolean {
+    const manos = results.multiHandLandmarks ?? [];
+    if (manos.length === 0) return false;
+    if (!this.handDetectionService.verificarManoDetectada(results)) return false;
+
+    return manos.every(mano =>
+      mano.every(p => p.x > 0.03 && p.x < 0.97 && p.y > 0.03 && p.y < 0.97)
+    );
+  }
+
+  private puedeAutoGrabar(): boolean {
+    return !this.grabando
+      && !this.enProceso
+      && !this.cooldownActivo
+      && !!this.senaActual
+      && this.pendientesSubida === 0
+      && this.totalContado() < this.metaVideos;
+  }
+
+  private evaluarFases(results: Results): void {
+    if (!this.camaraActiva) return;
+
+    const ok = this.posicionCorrecta(results);
+
+    if (this.fase === 'posicionando') {
+      this.posicionOk = ok;
+
+      if (!this.modoAutomatico || !this.puedeAutoGrabar() || !ok) {
+        this.posicionOkDesde = 0;
+        this.progresoEstabilidad = 0;
+        return;
+      }
+
+      if (!this.posicionOkDesde) {
+        this.posicionOkDesde = Date.now();
+      }
+
+      const transcurrido = Date.now() - this.posicionOkDesde;
+      this.progresoEstabilidad = Math.min(100, Math.round((transcurrido / this.MS_POSICION_ESTABLE) * 100));
+
+      if (transcurrido >= this.MS_POSICION_ESTABLE) {
+        this.posicionOkDesde = 0;
+        this.progresoEstabilidad = 0;
+        this.iniciarCuenta(true);
+      }
+      return;
+    }
+
+    if (this.fase === 'cuenta' && this.cuentaAutomatica) {
+      if (ok) {
+        this.framesSinPosicion = 0;
+      } else {
+        this.framesSinPosicion++;
+        if (this.framesSinPosicion > this.MAX_FRAMES_SIN_POSICION) {
+          this.cancelarCuenta();
+        }
+      }
     }
   }
 
-  private evaluarAutoGrabacion(): void {
-    if (this.grabando || this.enProceso || this.cooldownActivo || !this.senaActual || !this.camaraActiva
-        || this.pendientesSubida >= this.MAX_PENDIENTES) {
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
-      return;
-    }
+  private iniciarCuenta(automatica: boolean): void {
+    if (this.fase === 'cuenta' || this.grabando || this.enProceso) return;
 
-    if (this.totalContado() >= this.metaVideos) {
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
-      return;
-    }
+    this.limpiarTimerCuenta();
+    this.cuentaAutomatica = automatica;
+    this.framesSinPosicion = 0;
+    this.cuenta = this.SEGUNDOS_CUENTA;
+    this.fase = 'cuenta';
+    this.handDetectionService.setDibujarLandmarks(false);
+    this.mensaje = `Prepárate para hacer la seña "${this.senaActual?.nombre}"`;
 
-    if (this.manoDetectada) {
-      this.framesConsecutivosConMano++;
-      this.progresoEstabilidad = Math.min(
-        100,
-        Math.round((this.framesConsecutivosConMano / this.FRAMES_ESTABLES_REQUERIDOS) * 100)
-      );
-
-      if (this.framesConsecutivosConMano >= this.FRAMES_ESTABLES_REQUERIDOS) {
-        this.framesConsecutivosConMano = 0;
-        this.progresoEstabilidad = 0;
-        this.iniciarGrabacion();
+    this.timerCuenta = setInterval(() => {
+      this.cuenta--;
+      if (this.cuenta <= 0) {
+        this.limpiarTimerCuenta();
+        this.comenzarGrabacion();
       }
-    } else {
-      this.framesConsecutivosConMano = 0;
-      this.progresoEstabilidad = 0;
+    }, 1000);
+  }
+
+  private limpiarTimerCuenta(): void {
+    if (this.timerCuenta) {
+      clearInterval(this.timerCuenta);
+      this.timerCuenta = null;
     }
+  }
+
+  cancelarCuenta(): void {
+    this.limpiarTimerCuenta();
+    this.volverAPosicionando();
+  }
+
+  private volverAPosicionando(): void {
+    this.fase = this.camaraActiva ? 'posicionando' : 'inactiva';
+    this.cuenta = this.SEGUNDOS_CUENTA;
+    this.posicionOk = false;
+    this.posicionOkDesde = 0;
+    this.framesSinPosicion = 0;
+    this.progresoEstabilidad = 0;
+    this.handDetectionService.setDibujarLandmarks(true);
   }
 
   private activarCooldown(): void {
@@ -706,11 +762,14 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   }
 
   detenerCamara(): void {
+    this.limpiarTimerCuenta();
+
     if (this.grabando) {
       this.detenerGrabacion();
     }
 
     this.handDetectionService.detenerDeteccion().catch(() => {});
+    this.handDetectionService.setDibujarLandmarks(true);
 
     this.privacyFilter.detenerRender();
     this.privacyFilter.reiniciar();
@@ -732,47 +791,69 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     this.deteccionActiva = false;
     this.manoDetectada = false;
     this.numeroManos = 0;
-    this.framesConsecutivosConMano = 0;
+    this.fase = 'inactiva';
+    this.posicionOk = false;
+    this.posicionOkDesde = 0;
+    this.framesSinPosicion = 0;
     this.progresoEstabilidad = 0;
     this.mensaje = 'Cámara detenida correctamente';
   }
 
-  // ---------------------------------------------------------------------------
-  // Grabación
-  // ---------------------------------------------------------------------------
-
-  iniciarGrabacion(): void {
-    if (this.grabando || this.enProceso) {
-      return;
-    }
-
+  private validarParaGrabar(requiereMano: boolean): boolean {
     if (!this.categoriaSeleccionada) {
       this.error = 'Primero selecciona una categoría';
-      return;
+      return false;
     }
 
     if (!this.camaraActiva) {
       this.error = 'Primero inicia la cámara';
-      return;
+      return false;
     }
 
-    if (!this.manoDetectada) {
+    if (requiereMano && !this.manoDetectada) {
       this.error = 'No se detecta ninguna mano. Coloca tu mano frente a la cámara';
-      return;
+      return false;
     }
 
     if (!this.senaActual) {
       this.error = 'Primero ingresa o selecciona una seña';
-      return;
+      return false;
     }
 
     if (this.totalContado() >= this.metaVideos) {
       this.error = `Ya alcanzaste la meta de ${this.metaVideos} videos para "${this.senaActual.nombre}"`;
+      return false;
+    }
+
+    return true;
+  }
+
+  iniciarGrabacion(): void {
+    if (this.grabando || this.enProceso || this.fase === 'cuenta') return;
+    if (!this.validarParaGrabar(true)) return;
+    this.iniciarCuenta(false);
+  }
+
+  iniciarGrabacionDirecta(): void {
+    if (this.grabando || this.enProceso) return;
+    if (!this.validarParaGrabar(true)) return;
+    this.comenzarGrabacion();
+  }
+
+  private comenzarGrabacion(): void {
+    if (this.grabando || this.enProceso) return;
+
+    if (!this.validarParaGrabar(false)) {
+      this.volverAPosicionando();
       return;
     }
 
+    const sena = this.senaActual!;
+
     this.enProceso = true;
     this.grabando = true;
+    this.fase = 'grabando';
+    this.handDetectionService.setDibujarLandmarks(false);
     this.tiempoGrabacion = 0;
     this.tiempoInicio = performance.now();
     this.framesTotalesGrabacion = 0;
@@ -796,7 +877,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
       const options = {
         mimeType: mimeType,
-        videoBitsPerSecond: 2500000
+        videoBitsPerSecond: 1500000
       };
 
       const recorder = new (window as any).MediaRecorder(streamLocal, options);
@@ -820,6 +901,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
           this.error = 'No se capturaron datos de video';
           this.enProceso = false;
           this.activarCooldown();
+          this.volverAPosicionando();
           return;
         }
 
@@ -834,12 +916,13 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
 
         this.enProceso = false;
         this.activarCooldown();
+        this.volverAPosicionando();
       };
 
       recorder.start(100);
       this.actualizarTemporizador();
 
-      this.mensaje = `Grabando "${this.senaActual.nombre}"... (${this.tiempoGrabacion}s)`;
+      this.mensaje = `Grabando "${sena.nombre}"... (${this.tiempoGrabacion}s)`;
 
     } catch (error) {
       console.error('Error iniciando grabación:', error);
@@ -847,13 +930,10 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
       this.error = 'Error al iniciar la grabación. Intenta nuevamente.';
       this.grabando = false;
       this.enProceso = false;
+      this.volverAPosicionando();
     }
   }
 
-  /**
-   * Antes se guardaba la URL ya envuelta por el sanitizer (un objeto, no un string) y la
-   * comprobación `typeof === 'string'` nunca se cumplía: los blob URL jamás se liberaban.
-   */
   private reemplazarPreview(blob: Blob): void {
     this.liberarPreview();
     this.videoPreviewObjectUrl = URL.createObjectURL(blob);
@@ -869,26 +949,33 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   }
 
   private actualizarTemporizador(): void {
-    const actualizar = () => {
+    this.limpiarTemporizadorGrabacion();
+
+    this.intervaloGrabacion = setInterval(() => {
       if (!this.grabando) {
-        this.animationFrameId = null;
+        this.limpiarTemporizadorGrabacion();
         return;
       }
 
       const tiempoTranscurrido = (performance.now() - this.tiempoInicio) / 1000;
-      this.tiempoGrabacion = Math.floor(tiempoTranscurrido * 10) / 10;
+      this.tiempoGrabacion = Math.min(this.maxTiempoGrabacion, Math.floor(tiempoTranscurrido * 10) / 10);
+    }, 100);
 
-      this.mensaje = `Grabando "${this.senaActual?.nombre}"... (${this.tiempoGrabacion.toFixed(1)}s)`;
+    this.timeoutFinGrabacion = setTimeout(() => {
+      this.timeoutFinGrabacion = null;
+      this.detenerGrabacion();
+    }, this.maxTiempoGrabacion * 1000);
+  }
 
-      if (this.tiempoGrabacion >= this.maxTiempoGrabacion) {
-        this.detenerGrabacion();
-        return;
-      }
-
-      this.animationFrameId = requestAnimationFrame(actualizar);
-    };
-
-    this.animationFrameId = requestAnimationFrame(actualizar);
+  private limpiarTemporizadorGrabacion(): void {
+    if (this.intervaloGrabacion) {
+      clearInterval(this.intervaloGrabacion);
+      this.intervaloGrabacion = null;
+    }
+    if (this.timeoutFinGrabacion) {
+      clearTimeout(this.timeoutFinGrabacion);
+      this.timeoutFinGrabacion = null;
+    }
   }
 
   private obtenerMejorMimeType(): string {
@@ -918,11 +1005,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     if (!this.grabando) return;
 
     this.grabando = false;
-
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+    this.limpiarTemporizadorGrabacion();
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
@@ -930,17 +1013,15 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
       } catch (error) {
         console.error('Error deteniendo MediaRecorder:', error);
         this.enProceso = false;
+        this.volverAPosicionando();
       }
     } else {
       this.enProceso = false;
+      this.volverAPosicionando();
     }
 
     this.mensaje = 'Grabación finalizada, procesando video...';
   }
-
-  // ---------------------------------------------------------------------------
-  // Cola de subida
-  // ---------------------------------------------------------------------------
 
   guardarVideo(videoBlob: Blob): void {
     const datasetId = this.categoriaDatasetId;
@@ -993,7 +1074,6 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     formData.append('categoria_id', item.categoriaId.toString());
     formData.append('sena', item.senaNombre);
 
-    // Sin takeUntil a propósito: si el usuario sale de la vista, los videos ya en vuelo se terminan de subir.
     this.capturaService.capturarVideoArchivo(formData).pipe(
       finalize(() => {
         this.enSubida = this.enSubida.filter(i => i !== item);
@@ -1055,15 +1135,11 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Navegación entre señas
-  // ---------------------------------------------------------------------------
-
   private cambiarSena(indice: number): void {
     this.indiceSenaActual = indice;
     this.senaActual = this.senasDisponibles[indice];
     this.videosCapturados = 0;
-    this.framesConsecutivosConMano = 0;
+    this.posicionOkDesde = 0;
     this.progresoEstabilidad = 0;
     this.error = null;
     this.actualizarUrlReferencia();
@@ -1127,7 +1203,8 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (this.grabando || this.enProceso || this.cooldownActivo || this.pendientesSubida >= this.MAX_PENDIENTES) {
+      if (this.grabando || this.enProceso || this.cooldownActivo || this.fase === 'cuenta'
+          || this.pendientesSubida >= this.MAX_PENDIENTES) {
         setTimeout(paso, 300);
         return;
       }
@@ -1137,7 +1214,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.iniciarGrabacion();
+      this.iniciarGrabacionDirecta();
 
       if (!this.grabando) {
         terminar();
@@ -1167,10 +1244,7 @@ export class CapturaUnificadaComponent implements OnInit, OnDestroy {
   }
 
   private limpiarRecursos(): void {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+    this.limpiarTemporizadorGrabacion();
 
     if (this.streamCaptura) {
       this.streamCaptura.getTracks().forEach((track: any) => track.stop());

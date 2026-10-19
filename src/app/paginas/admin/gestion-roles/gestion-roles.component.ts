@@ -4,6 +4,8 @@ import { lastValueFrom } from 'rxjs';
 import { RolesService } from '../../../servicios/roles.service';
 import { Rol, PermisosPorModulo } from '../../../modelos/rol.model';
 
+const CODIGO_ROL_ADMIN = 'admin';
+
 @Component({
   selector: 'app-gestion-roles',
   templateUrl: './gestion-roles.component.html',
@@ -34,14 +36,17 @@ export class GestionRolesComponent {
 
   cargando = computed(() => this.permisosQuery.isPending() || this.rolesQuery.isPending());
 
-  mostrarModalRol = false;
-  rolEditando: Rol | null = null;
+  mostrarModalRol = signal(false);
+  rolEditando = signal<Rol | null>(null);
+  permisosSeleccionados = signal<ReadonlySet<number>>(new Set<number>());
+
   formRol = {
     codigo: '',
     nombre: '',
     descripcion: '',
-    permisos_ids: [] as number[],
   };
+
+  esRolAdminEditando = computed(() => this.rolEditando()?.codigo === CODIGO_ROL_ADMIN);
 
   rolCambiandoEstadoId = signal<number | null>(null);
   rolEliminandoId = signal<number | null>(null);
@@ -73,6 +78,7 @@ export class GestionRolesComponent {
     mutationFn: async (payload: {
       modo: 'crear' | 'editar';
       id?: number;
+      esAdmin: boolean;
       codigo: string;
       nombre: string;
       descripcion: string;
@@ -89,28 +95,34 @@ export class GestionRolesComponent {
         );
       }
 
-      const [rolActualizado] = await Promise.all([
-        lastValueFrom(
-          this.rolesService.actualizarRol(payload.id!, {
-            nombre: payload.nombre,
-            descripcion: payload.descripcion,
-          })
-        ),
-        lastValueFrom(
+      let rolActualizado = await lastValueFrom(
+        this.rolesService.actualizarRol(payload.id!, {
+          nombre: payload.nombre,
+          descripcion: payload.descripcion,
+        })
+      );
+
+      if (!payload.esAdmin) {
+        rolActualizado = await lastValueFrom(
           this.rolesService.asignarPermisos(payload.id!, {
             permisos_ids: payload.permisos_ids,
           })
-        ),
-      ]);
+        );
+      }
+
       return rolActualizado;
     },
     onSuccess: () => {
-      this.queryClient.invalidateQueries({ queryKey: ['roles'] });
       this.cerrarModalInterno();
+    },
+    onSettled: () => {
+      this.queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
   }));
 
   guardando = computed(() => this.guardarMutation.isPending());
+
+  permisosBloqueados = computed(() => this.guardando() || this.esRolAdminEditando());
 
   trackByRolId = (_: number, rol: Rol) => rol.id;
   trackByPermisoId = (_: number, p: { id: number }) => p.id;
@@ -128,25 +140,27 @@ export class GestionRolesComponent {
   }
 
   abrirModalNuevo(): void {
-    this.rolEditando = null;
-    this.formRol = { codigo: '', nombre: '', descripcion: '', permisos_ids: [] };
-    this.mostrarModalRol = true;
+    this.rolEditando.set(null);
+    this.formRol = { codigo: '', nombre: '', descripcion: '' };
+    this.permisosSeleccionados.set(new Set<number>());
+    this.mostrarModalRol.set(true);
   }
 
   abrirModalEditar(rol: Rol): void {
-    this.rolEditando = rol;
     this.formRol = {
       codigo: rol.codigo,
       nombre: rol.nombre,
       descripcion: rol.descripcion || '',
-      permisos_ids: rol.permisos.map((p) => p.id),
     };
-    this.mostrarModalRol = true;
+    this.permisosSeleccionados.set(new Set<number>((rol.permisos ?? []).map((p) => p.id)));
+    this.rolEditando.set(rol);
+    this.mostrarModalRol.set(true);
   }
 
   private cerrarModalInterno(): void {
-    this.mostrarModalRol = false;
-    this.rolEditando = null;
+    this.mostrarModalRol.set(false);
+    this.rolEditando.set(null);
+    this.permisosSeleccionados.set(new Set<number>());
   }
 
   cerrarModal(): void {
@@ -154,27 +168,32 @@ export class GestionRolesComponent {
     this.cerrarModalInterno();
   }
 
-  togglePermiso(permisoId: number): void {
-    if (this.guardando()) return;
-    const indice = this.formRol.permisos_ids.indexOf(permisoId);
-    if (indice >= 0) this.formRol.permisos_ids.splice(indice, 1);
-    else this.formRol.permisos_ids.push(permisoId);
+  alternarPermiso(permisoId: number): void {
+    if (this.permisosBloqueados()) return;
+
+    const siguiente = new Set<number>(this.permisosSeleccionados());
+    if (siguiente.has(permisoId)) siguiente.delete(permisoId);
+    else siguiente.add(permisoId);
+    this.permisosSeleccionados.set(siguiente);
   }
 
   tienePermisoSeleccionado(permisoId: number): boolean {
-    return this.formRol.permisos_ids.includes(permisoId);
+    return this.esRolAdminEditando() || this.permisosSeleccionados().has(permisoId);
   }
 
   guardar(): void {
     if (this.guardando()) return;
 
+    const rol = this.rolEditando();
+
     this.guardarMutation.mutate({
-      modo: this.rolEditando ? 'editar' : 'crear',
-      id: this.rolEditando?.id,
+      modo: rol ? 'editar' : 'crear',
+      id: rol?.id,
+      esAdmin: this.esRolAdminEditando(),
       codigo: this.formRol.codigo,
       nombre: this.formRol.nombre,
       descripcion: this.formRol.descripcion,
-      permisos_ids: this.formRol.permisos_ids,
+      permisos_ids: Array.from(this.permisosSeleccionados()),
     });
   }
 

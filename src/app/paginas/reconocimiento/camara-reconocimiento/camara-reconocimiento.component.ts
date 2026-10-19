@@ -8,6 +8,8 @@ import { Subscription, firstValueFrom } from 'rxjs';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 import { obtenerConfiguracionTiempo, ConfiguracionTiempo, NivelDificultad } from '../../../config/tiempos-practica.config';
 
+type Fase = 'posicionando' | 'cuenta' | 'grabando' | 'procesando' | 'continuo';
+
 @Component({
   selector: 'app-camara-reconocimiento',
   templateUrl: './camara-reconocimiento.component.html',
@@ -86,6 +88,12 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   letraEnVivo: string = '';
   confianzaEnVivo: number = 0;
 
+  fase: Fase = 'posicionando';
+  cuenta: number = 3;
+  posicionOk: boolean = false;
+  progresoCaptura: number = 0;
+  segundosRestantes: number = 0;
+
   private reconocimientoSubscription?: Subscription;
   estaProcesando: boolean = false;
 
@@ -109,6 +117,21 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private readonly LADO_MAX_FRAME = 480;
   private readonly RETRASO_EMIT_EXITO_MS = 1300;
 
+  private readonly MS_POSICION_ESTABLE = 1000;
+  private readonly DURACION_ESTATICA_MS = 2000;
+  private readonly DURACION_DINAMICA_MS = 4000;
+  private readonly FRAMES_ESTATICA = 12;
+  private readonly FRAMES_DINAMICA = 16;
+  private readonly MIN_FRAMES_CAPTURA = 3;
+  private readonly MAX_FRAMES_SIN_POSICION = 10;
+
+  private posicionOkDesde: number = 0;
+  private framesSinPosicion: number = 0;
+  private framesCaptura: any[] = [];
+  private timerCuenta: any = null;
+  private timerCaptura: any = null;
+  private timerProgreso: any = null;
+
   private ultimosSlotsMP: any[] = [[], []];
 
   private colaVoz: string[] = [];
@@ -116,6 +139,21 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   private emitPendiente: any = null;
 
   private readonly LETRAS_DINAMICAS_LSP = ['J', 'Ñ', 'Z'];
+
+  private readonly NUMEROS_TEXTO: Record<string, string> = {
+    CERO: '0',
+    UNO: '1',
+    UN: '1',
+    DOS: '2',
+    TRES: '3',
+    CUATRO: '4',
+    CINCO: '5',
+    SEIS: '6',
+    SIETE: '7',
+    OCHO: '8',
+    NUEVE: '9',
+    DIEZ: '10'
+  };
 
   constructor(
     private http: HttpClient,
@@ -152,6 +190,15 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     if (this.reconocimientoSubscription) {
       this.reconocimientoSubscription.unsubscribe();
     }
+  }
+
+  private canonica(valor: string): string {
+    const texto = (valor || '').toString().trim().toUpperCase().replace(/\s+/g, ' ');
+    return this.NUMEROS_TEXTO[texto] ?? texto;
+  }
+
+  get senaCanonica(): string {
+    return this.canonica(this.senaObjetivo);
   }
 
   private async inicializarTodo(): Promise<void> {
@@ -245,7 +292,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   private detectarTipoContenido(sena: string): 'letras' | 'numeros' | 'colores' | 'comunes' {
-    const senaUpper = sena.toUpperCase().trim();
+    const senaUpper = this.canonica(sena);
     if (/^\d+$/.test(senaUpper)) return 'numeros';
     if (/^[A-ZÑ]$/.test(senaUpper)) return 'letras';
     const colores = ['ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'BLANCO', 'NEGRO', 'MORADO', 'NARANJA'];
@@ -254,7 +301,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   private esSenaDinamica(sena: string): boolean {
-    const s = (sena || '').toUpperCase().trim();
+    const s = this.canonica(sena);
     if (!s) return true;
     if (s.length === 1 && /^[A-ZÑ0-9]$/.test(s)) {
       return this.LETRAS_DINAMICAS_LSP.includes(s);
@@ -421,20 +468,251 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
     this.manosDetectadas = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
     this.manoDetectada = this.handDetectionService.verificarManoDetectada(results);
-
     this.ultimosSlotsMP = this.handDetectionService.obtenerLandmarksConSlotsFijos(results);
 
+    if (this.modoContinuo) {
+      this.procesarMediaPipeContinuo();
+      return;
+    }
+
+    if (this.pausado || !this.reconocimientoActivo) return;
+
+    this.procesarFase(results);
+  }
+
+  private procesarMediaPipeContinuo(): void {
     if (this.manoDetectada) {
       const hayMano = this.ultimosSlotsMP.some(s => Array.isArray(s) && s.length >= 21);
       if (hayMano) {
         this.capturarYEnviarFrame();
       }
-    } else if (this.modoContinuo) {
+    } else {
       this.bloqueoRepeticionContinuo = false;
       this.reconocimientoService.limpiarBuffer();
     }
 
     this.cdr.markForCheck();
+  }
+
+  private procesarFase(results: any): void {
+    const ok = this.posicionCorrecta(results);
+
+    this.ngZone.run(() => {
+      switch (this.fase) {
+        case 'posicionando':
+          this.posicionOk = ok;
+          if (ok) {
+            if (!this.posicionOkDesde) this.posicionOkDesde = Date.now();
+            if (Date.now() - this.posicionOkDesde >= this.MS_POSICION_ESTABLE) {
+              this.iniciarCuenta();
+            }
+          } else {
+            this.posicionOkDesde = 0;
+          }
+          break;
+
+        case 'cuenta':
+          if (ok) {
+            this.framesSinPosicion = 0;
+          } else {
+            this.framesSinPosicion++;
+            if (this.framesSinPosicion > this.MAX_FRAMES_SIN_POSICION) {
+              this.reiniciarFases();
+            }
+          }
+          break;
+
+        case 'grabando': {
+          const hayMano = this.ultimosSlotsMP.some(s => Array.isArray(s) && s.length >= 21);
+          if (hayMano) {
+            this.framesCaptura.push({
+              frame_base64: '',
+              timestamp: Date.now(),
+              landmarks: this.handDetectionService.convertirSlotsASimplificados(this.ultimosSlotsMP)
+            });
+          }
+          break;
+        }
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  private posicionCorrecta(results: any): boolean {
+    const manos: any[] = results?.multiHandLandmarks ?? [];
+    const requeridas = this.requiereDosManos ? 2 : 1;
+
+    if (manos.length < requeridas) return false;
+    if (!this.handDetectionService.verificarManoDetectada(results)) return false;
+
+    const dentro = manos.every(m =>
+      m.every((p: any) => p.x > 0.03 && p.x < 0.97 && p.y > 0.03 && p.y < 0.97)
+    );
+    if (!dentro) return false;
+
+    if (requeridas === 2) {
+      const xs = manos.map(m => m[0].x).sort((a: number, b: number) => a - b);
+      return xs[0] < 0.42 && xs[1] > 0.58;
+    }
+
+    return true;
+  }
+
+  private reiniciarFases(): void {
+    if (this.timerCuenta) {
+      clearInterval(this.timerCuenta);
+      this.timerCuenta = null;
+    }
+    if (this.timerCaptura) {
+      clearTimeout(this.timerCaptura);
+      this.timerCaptura = null;
+    }
+    this.limpiarTimerProgreso();
+    this.fase = 'posicionando';
+    this.cuenta = 3;
+    this.posicionOk = false;
+    this.posicionOkDesde = 0;
+    this.framesSinPosicion = 0;
+    this.framesCaptura = [];
+    this.handDetectionService.setDibujarLandmarks(true);
+    this.cdr.detectChanges();
+  }
+
+  private iniciarCuenta(): void {
+    this.fase = 'cuenta';
+    this.cuenta = 3;
+    this.framesSinPosicion = 0;
+    this.handDetectionService.setDibujarLandmarks(false);
+
+    this.timerCuenta = setInterval(() => {
+      this.ngZone.run(() => {
+        this.cuenta--;
+        if (this.cuenta <= 0) {
+          clearInterval(this.timerCuenta);
+          this.timerCuenta = null;
+          this.iniciarCaptura();
+        }
+        this.cdr.detectChanges();
+      });
+    }, 1000);
+  }
+
+  private iniciarCaptura(): void {
+    const duracion = this.duracionCapturaMs;
+
+    this.fase = 'grabando';
+    this.framesCaptura = [];
+    this.progresoCaptura = 0;
+    this.segundosRestantes = Math.ceil(duracion / 1000);
+
+    const inicio = Date.now();
+    this.limpiarTimerProgreso();
+    this.timerProgreso = setInterval(() => {
+      this.ngZone.run(() => {
+        const transcurrido = Date.now() - inicio;
+        this.progresoCaptura = Math.min(100, (transcurrido / duracion) * 100);
+        this.segundosRestantes = Math.max(0, Math.ceil((duracion - transcurrido) / 1000));
+        this.cdr.detectChanges();
+      });
+    }, 100);
+
+    this.timerCaptura = setTimeout(() => {
+      this.timerCaptura = null;
+      this.finalizarCaptura();
+    }, duracion);
+  }
+
+  private limpiarTimerProgreso(): void {
+    if (this.timerProgreso) {
+      clearInterval(this.timerProgreso);
+      this.timerProgreso = null;
+    }
+  }
+
+  private muestrear(frames: any[], n: number): any[] {
+    if (frames.length <= n) return [...frames];
+    const paso = (frames.length - 1) / (n - 1);
+    return Array.from({ length: n }, (_, i) => frames[Math.round(i * paso)]);
+  }
+
+  private finalizarCaptura(): void {
+    this.limpiarTimerProgreso();
+    this.ngZone.run(() => {
+      if (this.framesCaptura.length < this.MIN_FRAMES_CAPTURA) {
+        this.mostrarFeedbackTemporal('error', 'No se detectaron tus manos. Intenta de nuevo.');
+        this.reiniciarFases();
+        return;
+      }
+
+      this.fase = 'procesando';
+      this.cdr.detectChanges();
+
+      const frames = this.muestrear(this.framesCaptura, this.framesAEnviar);
+
+      this.reconocimientoService
+        .procesarSecuenciaFrames(frames, this._categoriaId)
+        .subscribe({
+          next: (resp) => this.ngZone.run(() => this.manejarRespuestaCaptura(resp)),
+          error: () => this.ngZone.run(() => {
+            this.mostrarFeedbackTemporal('error', 'No se pudo procesar. Intenta de nuevo.');
+            this.reiniciarFases();
+          })
+        });
+    });
+  }
+
+  private manejarRespuestaCaptura(resp: any): void {
+    if (!this.reconocimientoActivo) return;
+
+    const datos = resp?.datos;
+
+    if (!resp?.exito || !datos) {
+      this.mostrarFeedbackTemporal('error', 'No se pudo reconocer la seña. Intenta de nuevo.');
+      this.reiniciarFases();
+      return;
+    }
+
+    let conf = Number(datos.confianza ?? 0);
+    if (!isFinite(conf)) conf = 0;
+    if (conf > 1) conf = conf / 100;
+
+    const senaDetectadaTexto = (datos.sena_detectada || '').toString().trim().toUpperCase();
+    const sena = this.canonica(senaDetectadaTexto);
+    const objetivo = this.senaCanonica;
+    const acierto = sena !== '' && sena === objetivo && conf >= this.umbralConfianzaMinima;
+
+    this.intentos++;
+    if (acierto) this.aciertos++;
+
+    const resultado = {
+      exito: acierto,
+      precision: conf,
+      sena_reconocida: acierto ? this.senaObjetivo : senaDetectadaTexto,
+      tiempo: Math.floor((Date.now() - this.tiempoInicio) / 1000),
+      intentos: this.intentos,
+      mensaje: acierto ? 'Reconocimiento exitoso' : 'No se reconoció la seña',
+      modo: 'video',
+      categoria_id: this._categoriaId,
+      tipo_contenido: this.tipoContenido,
+      categoria_nombre: this.categoriaSeleccionada?.nombre
+    };
+
+    this.reconocimientoActivo = false;
+    this.handDetectionService.setDibujarLandmarks(false);
+
+    if (acierto) {
+      if (this.activarAudio) {
+        this.reproducirLetraPorVoz(this.senaObjetivo);
+      }
+      this.mostrarFeedbackTemporal('exito', `¡Correcto! Seña ${this.senaObjetivo} detectada`);
+    }
+
+    const retraso = acierto && this.activarAudio ? this.RETRASO_EMIT_EXITO_MS : 0;
+
+    this.emitPendiente = setTimeout(() => {
+      this.emitPendiente = null;
+      this.resultadoEmitido.emit(resultado);
+    }, retraso);
   }
 
   private capturarYEnviarFrame(): void {
@@ -491,16 +769,10 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
         this.reconocimientoService.establecerCategoria(this._categoriaId);
       }
 
-      this.reconocimientoService.establecerSenaEsperada(this.senaObjetivo || null);
+      this.reconocimientoService.establecerSenaEsperada(this.senaCanonica || null);
 
-      const tipoInicial = this.esSenaDinamica(this.senaObjetivo) ? 'DINAMICA' : 'ESTATICA';
-      this.reconocimientoService.establecerTipoSenaInicial(tipoInicial);
-
-      this.reconocimientoService.iniciarReconocimiento();
-      this.reconocimientoActivo = true;
       this.estaProcesando = false;
       this.pausado = false;
-
       this.tiempoInicio = Date.now();
       this.intentos = 0;
       this.aciertos = 0;
@@ -514,7 +786,19 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
       this.ultimoTimestampEmisionContinuo = 0;
       this.bloqueoRepeticionContinuo = false;
 
-      this.iniciarTemporizador();
+      if (this.modoContinuo) {
+        const tipoInicial = this.esSenaDinamica(this.senaObjetivo) ? 'DINAMICA' : 'ESTATICA';
+        this.reconocimientoService.establecerTipoSenaInicial(tipoInicial);
+        this.reconocimientoService.iniciarReconocimiento();
+        this.reconocimientoActivo = true;
+        this.fase = 'continuo';
+        this.handDetectionService.setDibujarLandmarks(true);
+        this.iniciarTemporizador();
+      } else {
+        this.reconocimientoActivo = true;
+        this.reiniciarFases();
+      }
+
       await this.iniciarDeteccionManos();
     } catch (error: any) {
       this.error = 'Error al iniciar reconocimiento';
@@ -525,6 +809,7 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   private procesarResultadoVideo(resultado: ResultadoReconocimientoVideo): void {
+    if (!this.modoContinuo) return;
     if (!this.reconocimientoActivo || this.pausado) return;
 
     this.senaDetectada = (resultado.sena_detectada || '').trim().toUpperCase();
@@ -532,35 +817,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     this.letraEnVivo = this.senaDetectada;
     this.confianzaEnVivo = this.confianza;
 
-    if (this.modoContinuo) {
-      this.verificarDeteccionContinua();
-    } else {
-      this.verificarDeteccionSimple();
-    }
+    this.verificarDeteccionContinua();
 
     this.cdr.detectChanges();
-  }
-
-  private verificarDeteccionSimple(): void {
-    if (!this.senaDetectada || this.confianza < this.umbralConfianzaMinima) return;
-
-    const senaDetectadaNorm = this.senaDetectada.trim().toUpperCase();
-    const senaObjetivoNorm = this.senaObjetivo.trim().toUpperCase();
-
-    if (senaDetectadaNorm === senaObjetivoNorm) {
-      this.deteccionesConsecutivas++;
-      if (this.deteccionesConsecutivas >= this.umbralDeteccionEstable) {
-        this.manejarAciertoSimple();
-      }
-    } else {
-      if (this.ultimasSenasDetectadas.length >= 2 &&
-        this.ultimasSenasDetectadas.slice(-2).every(s => s !== senaObjetivoNorm)) {
-        this.deteccionesConsecutivas = 0;
-      }
-    }
-
-    this.ultimasSenasDetectadas.push(senaDetectadaNorm);
-    if (this.ultimasSenasDetectadas.length > 3) this.ultimasSenasDetectadas.shift();
   }
 
   private verificarDeteccionContinua(): void {
@@ -666,51 +925,6 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     }
   }
 
-  private manejarAciertoSimple(): void {
-    this.aciertos++;
-    this.intentos++;
-
-    if (!this.modoContinuo) {
-      this.reconocimientoActivo = false;
-      this.detenerTemporizador();
-      this.reconocimientoService.detenerReconocimiento();
-    }
-
-    if (this.activarAudio) {
-      this.reproducirLetraPorVoz(this.senaObjetivo);
-    }
-
-    this.mostrarFeedbackTemporal('exito', `¡Correcto! Seña ${this.senaObjetivo} detectada`);
-
-    const datosResultado = {
-      exito: true,
-      precision: this.confianza,
-      sena_reconocida: this.senaObjetivo,
-      tiempo: Math.floor((Date.now() - this.tiempoInicio) / 1000),
-      intentos: this.intentos,
-      mensaje: 'Reconocimiento exitoso',
-      modo: 'video',
-      categoria_id: this._categoriaId,
-      tipo_contenido: this.tipoContenido,
-      categoria_nombre: this.categoriaSeleccionada?.nombre
-    };
-
-    if (this.modoContinuo) {
-      this.deteccionesConsecutivas = 0;
-      this.senaDetectada = '';
-      this.confianza = 0;
-      this.resultadoEmitido.emit(datosResultado);
-      return;
-    }
-
-    const retraso = this.activarAudio ? this.RETRASO_EMIT_EXITO_MS : 0;
-
-    this.emitPendiente = setTimeout(() => {
-      this.emitPendiente = null;
-      this.resultadoEmitido.emit(datosResultado);
-    }, retraso);
-  }
-
   private manejarTiempoAgotado(): void {
     this.intentos++;
     this.reconocimientoActivo = false;
@@ -770,6 +984,12 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   reiniciarIntento(): void {
+    if (!this.modoContinuo) {
+      if (this.fase === 'procesando') return;
+      this.reiniciarFases();
+      return;
+    }
+
     this.detenerTemporizador();
     this.reconocimientoService.detenerReconocimiento();
     this.resetearEstadoSinDetener();
@@ -844,8 +1064,20 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
   detenerTodo(): void {
     this.detenerTemporizador();
+
+    if (this.timerCuenta) {
+      clearInterval(this.timerCuenta);
+      this.timerCuenta = null;
+    }
+    if (this.timerCaptura) {
+      clearTimeout(this.timerCaptura);
+      this.timerCaptura = null;
+    }
+    this.limpiarTimerProgreso();
+
     this.reconocimientoService.detenerReconocimiento();
     this.handDetectionService.detenerDeteccion();
+    this.handDetectionService.setDibujarLandmarks(true);
     this.detenerColaVoz();
 
     if (this.streamActivo) {
@@ -874,6 +1106,9 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
     this.inicializacionEnProgreso = false;
     this.ultimosSlotsMP = [[], []];
     this.bloqueoRepeticionContinuo = false;
+    this.framesCaptura = [];
+    this.posicionOkDesde = 0;
+    this.framesSinPosicion = 0;
   }
 
   cancelarPractica(): void {
@@ -945,8 +1180,8 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
   }
 
   get requiereDosManos(): boolean {
-    if (this.senaObjetivo.length > 1) return true;
-    const s = this.senaObjetivo.toUpperCase();
+    const s = this.senaCanonica;
+    if (s.length > 1) return true;
     return s === 'J' || s === 'Ñ';
   }
 
@@ -972,6 +1207,24 @@ export class CamaraReconocimientoComponent implements OnInit, AfterViewInit, OnD
 
   get infoModelo(): string {
     return 'Modelo global';
+  }
+
+  get duracionCapturaMs(): number {
+    return this.esSenaDinamica(this.senaObjetivo) ? this.DURACION_DINAMICA_MS : this.DURACION_ESTATICA_MS;
+  }
+
+  get duracionCapturaSeg(): number {
+    return this.duracionCapturaMs / 1000;
+  }
+
+  get framesAEnviar(): number {
+    return this.esSenaDinamica(this.senaObjetivo) ? this.FRAMES_DINAMICA : this.FRAMES_ESTATICA;
+  }
+
+  get precisionModelo(): number {
+    const valor = Number(this.categoriaSeleccionada?.modelo_accuracy ?? 0);
+    if (!isFinite(valor)) return 0;
+    return valor <= 1 ? valor * 100 : valor;
   }
 
   toggleInstrucciones(): void {

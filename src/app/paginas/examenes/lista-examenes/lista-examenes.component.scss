@@ -1,8 +1,38 @@
-// src/app/componentes/examenes/lista-examenes/lista-examenes.component.scss
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .examenes-usuario-container {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  overflow-x: hidden;
+
+  .skeleton {
+    background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 12px;
+  }
+
+  .skeleton-stat {
+    height: 105px;
+  }
+
+  .skeleton-leccion {
+    height: 320px;
+  }
 
   .header-examenes {
     margin-bottom: 30px;
@@ -51,6 +81,8 @@
       align-items: end;
 
       .filtro-item {
+        min-width: 0;
+
         label {
           display: flex;
           align-items: center;
@@ -81,7 +113,8 @@
           }
         }
 
-        .btn-secundario {
+        .btn-limpiar {
+          width: 100%;
           background: #6c757d;
           color: white;
           border: none;
@@ -94,7 +127,6 @@
           align-items: center;
           justify-content: center;
           gap: 8px;
-          width: 100%;
 
           &:hover {
             background: #5a6268;
@@ -121,6 +153,7 @@
       gap: 20px;
       transition: transform 0.3s ease, box-shadow 0.3s ease;
       border: 1px solid #f8f9fa;
+      min-width: 0;
 
       &:hover {
         transform: translateY(-3px);
@@ -136,27 +169,18 @@
         justify-content: center;
         font-size: 1.5rem;
         color: white;
+        flex-shrink: 0;
 
-        &.total {
-          background: linear-gradient(135deg, #667eea, #764ba2);
-        }
-
-        &.aprobados {
-          background: linear-gradient(135deg, #4caf50, #45a049);
-        }
-
-        &.pendientes {
-          background: linear-gradient(135deg, #ff9800, #f57c00);
-        }
-
-        &.promedio {
-          background: linear-gradient(135deg, #2196f3, #1976d2);
-        }
+        &.total { background: linear-gradient(135deg, #667eea, #764ba2); }
+        &.aprobados { background: linear-gradient(135deg, #4caf50, #45a049); }
+        &.pendientes { background: linear-gradient(135deg, #ff9800, #f57c00); }
+        &.promedio { background: linear-gradient(135deg, #2196f3, #1976d2); }
       }
 
       .stat-info {
         display: flex;
         flex-direction: column;
+        min-width: 0;
 
         .stat-valor {
           font-size: 2rem;
@@ -175,35 +199,9 @@
     }
   }
 
-  .cargando-container {
-    text-align: center;
-    padding: 60px 20px;
-    color: #6c757d;
-
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #667eea;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-
-    p {
-      font-size: 1.1rem;
-      margin: 0;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  }
-
   .examenes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
     gap: 25px;
 
     .examen-card {
@@ -215,19 +213,18 @@
       border: 2px solid transparent;
       position: relative;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
 
       &:hover {
         transform: translateY(-5px);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
       }
 
-      &.completado {
-        border-left: 4px solid #4caf50;
-      }
-
-      &.pendiente {
-        border-left: 4px solid #ff9800;
-      }
+      &.completado { border-left: 4px solid #4caf50; }
+      &.pendiente { border-left: 4px solid #ff9800; }
+      &.bloqueado { border-left: 4px solid #adb5bd; }
 
       .examen-header {
         display: flex;
@@ -265,20 +262,10 @@
           align-items: center;
           gap: 5px;
 
-          &.aprobado {
-            background: #e8f5e8;
-            color: #2e7d32;
-          }
-
-          &.reprobado {
-            background: #ffebee;
-            color: #c62828;
-          }
-
-          &.pendiente {
-            background: #fff3e0;
-            color: #ef6c00;
-          }
+          &.aprobado { background: #e8f5e8; color: #2e7d32; }
+          &.reprobado { background: #ffebee; color: #c62828; }
+          &.pendiente { background: #fff3e0; color: #ef6c00; }
+          &.bloqueado { background: #eceff1; color: #546e7a; }
 
           i {
             font-size: 0.9rem;
@@ -287,12 +274,15 @@
       }
 
       .examen-contenido {
+        flex: 1;
+
         h3 {
           margin: 0 0 10px 0;
           color: #333;
           font-size: 1.3rem;
           font-weight: 600;
           line-height: 1.4;
+          overflow-wrap: anywhere;
         }
 
         .descripcion {
@@ -300,6 +290,19 @@
           margin-bottom: 20px;
           line-height: 1.5;
           font-size: 0.95rem;
+        }
+
+        .requisitos-info {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          background: #eceff1;
+          color: #546e7a;
+          padding: 10px 12px;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          margin-bottom: 20px;
+          line-height: 1.4;
         }
 
         .detalles-examen {
@@ -348,6 +351,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
             font-size: 0.85rem;
 
             .porcentaje {
@@ -369,6 +374,7 @@
         margin-top: 20px;
 
         .btn {
+          width: 100%;
           padding: 12px 20px;
           border: none;
           border-radius: 8px;
@@ -395,9 +401,18 @@
             background: #6c757d;
             color: white;
 
-            &:hover {
+            &:hover:not(:disabled) {
               background: #5a6268;
               transform: translateY(-2px);
+            }
+          }
+
+          &.btn-bloqueado {
+            background: #adb5bd;
+            color: white;
+
+            &:hover {
+              background: #868e96;
             }
           }
 
@@ -462,6 +477,13 @@
       align-items: center;
       gap: 8px;
 
+      i {
+        font-size: 1rem;
+        color: white;
+        margin: 0;
+        display: inline;
+      }
+
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
@@ -470,7 +492,26 @@
   }
 }
 
-// Responsive Design
+.bi-spin {
+  animation: spin 1s linear infinite;
+}
+
+@media (max-width: 1024px) {
+  .examenes-usuario-container {
+    .filtros-card .filtros-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .examenes-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .examenes-usuario-container {
     padding: 15px;
@@ -488,15 +529,37 @@
       h1 {
         font-size: 1.8rem;
       }
+
+      p {
+        font-size: 1rem;
+      }
     }
 
-    .filtros-card .filtros-grid {
-      grid-template-columns: 1fr;
+    .filtros-card {
+      padding: 18px;
+
+      .filtros-grid {
+        gap: 15px;
+      }
     }
 
     .stats-grid {
-      grid-template-columns: repeat(2, 1fr);
       gap: 15px;
+
+      .stat-card {
+        padding: 18px;
+        gap: 14px;
+
+        .stat-icono {
+          width: 48px;
+          height: 48px;
+          font-size: 1.25rem;
+        }
+
+        .stat-info .stat-valor {
+          font-size: 1.6rem;
+        }
+      }
     }
 
     .examenes-grid {
@@ -504,12 +567,6 @@
 
       .examen-card {
         padding: 20px;
-
-        .examen-header {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 10px;
-        }
       }
     }
 
@@ -524,24 +581,40 @@
 }
 
 @media (max-width: 480px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
   .examenes-usuario-container {
-    .header-examenes .titulo-seccion {
-      h1 {
-        font-size: 1.5rem;
-      }
-      
-      p {
-        font-size: 1rem;
-      }
+    padding: 12px;
+
+    .header-examenes .titulo-seccion h1 {
+      font-size: 1.5rem;
+    }
+
+    .filtros-card .filtros-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .examenes-grid .examen-card .examen-contenido h3 {
+      font-size: 1.15rem;
     }
   }
 }
 
-// Utilidades para iconos Bootstrap
-.bi-spin {
-  animation: spin 1s linear infinite;
+@media (hover: none) {
+  .examenes-usuario-container {
+    .stat-card:hover,
+    .examen-card:hover {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

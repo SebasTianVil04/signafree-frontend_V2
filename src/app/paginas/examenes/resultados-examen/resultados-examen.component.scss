@@ -1,20 +1,32 @@
-/* src/app/paginas/examenes/resultados-examen/resultados-examen.component.scss */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .resultados-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-x: hidden;
 
-  /* Header Styles */
   .page-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 16px;
     margin-bottom: 30px;
     padding-bottom: 20px;
     border-bottom: 2px solid #e9ecef;
 
     .header-content {
+      min-width: 0;
+
       h1 {
         color: #2c3e50;
         margin: 0 0 8px 0;
@@ -42,6 +54,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
 
       &:hover {
         background: #3498db;
@@ -56,7 +69,6 @@
     }
   }
 
-  /* Resultado Actual Card */
   .resultado-actual-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 16px;
@@ -69,6 +81,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       margin-bottom: 25px;
 
       h2 {
@@ -84,16 +97,10 @@
         font-size: 0.85rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        white-space: nowrap;
 
-        &.badge-success {
-          background: rgba(46, 204, 113, 0.9);
-          color: white;
-        }
-
-        &.badge-danger {
-          background: rgba(231, 76, 60, 0.9);
-          color: white;
-        }
+        &.badge-success { background: rgba(46, 204, 113, 0.9); color: white; }
+        &.badge-danger { background: rgba(231, 76, 60, 0.9); color: white; }
       }
     }
 
@@ -111,30 +118,17 @@
         text-align: center;
         border: 1px solid rgba(255, 255, 255, 0.2);
         transition: transform 0.3s ease;
+        min-width: 0;
 
         &:hover {
           transform: translateY(-5px);
         }
 
-        &.primary {
-          background: rgba(52, 152, 219, 0.2);
-        }
-
-        &.success {
-          background: rgba(46, 204, 113, 0.2);
-        }
-
-        &.danger {
-          background: rgba(231, 76, 60, 0.2);
-        }
-
-        &.info {
-          background: rgba(155, 89, 182, 0.2);
-        }
-
-        &.warning {
-          background: rgba(241, 196, 15, 0.2);
-        }
+        &.primary { background: rgba(52, 152, 219, 0.2); }
+        &.success { background: rgba(46, 204, 113, 0.2); }
+        &.danger { background: rgba(231, 76, 60, 0.2); }
+        &.info { background: rgba(155, 89, 182, 0.2); }
+        &.warning { background: rgba(241, 196, 15, 0.2); }
 
         .stat-value {
           font-size: 2rem;
@@ -164,6 +158,7 @@
         transition: all 0.3s ease;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 10px;
 
         &:hover {
@@ -179,7 +174,6 @@
     }
   }
 
-  /* Estadísticas Section */
   .estadisticas-section {
     margin-bottom: 30px;
 
@@ -205,6 +199,7 @@
         gap: 15px;
         transition: all 0.3s ease;
         border-left: 4px solid #3498db;
+        min-width: 0;
 
         &:hover {
           transform: translateY(-3px);
@@ -216,9 +211,12 @@
           color: #3498db;
           width: 50px;
           text-align: center;
+          flex-shrink: 0;
         }
 
         .estadistica-content {
+          min-width: 0;
+
           .estadistica-value {
             font-size: 2rem;
             font-weight: 700;
@@ -236,7 +234,6 @@
     }
   }
 
-  /* Historial Section */
   .historial-section {
     h3 {
       color: #2c3e50;
@@ -267,6 +264,8 @@
           display: flex;
           justify-content: space-between;
           align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
           margin-bottom: 15px;
 
           .intento-fecha {
@@ -303,7 +302,8 @@
 
         .intento-stats {
           display: flex;
-          gap: 30px;
+          flex-wrap: wrap;
+          gap: 20px 30px;
 
           .intento-stat {
             display: flex;
@@ -330,7 +330,6 @@
     }
   }
 
-  /* Empty State */
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -379,11 +378,11 @@
       i {
         font-size: 0.9rem;
         color: white;
+        margin: 0;
       }
     }
   }
 
-  /* Loading Container */
   .loading-container {
     text-align: center;
     padding: 60px 20px;
@@ -406,26 +405,35 @@
   }
 }
 
-/* Animations */
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@media (max-width: 1024px) {
+  .resultados-container {
+    .page-header .header-content h1 {
+      font-size: 1.9rem;
+    }
+
+    .estadisticas-section .estadisticas-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
   .resultados-container {
     padding: 15px;
 
     .page-header {
       flex-direction: column;
+      align-items: stretch;
       gap: 15px;
       text-align: center;
 
-      .header-content {
-        h1 {
-          font-size: 1.8rem;
-        }
+      .header-content h1 {
+        font-size: 1.6rem;
+      }
+
+      .btn-outline {
+        width: 100%;
+        justify-content: center;
       }
     }
 
@@ -434,13 +442,13 @@
 
       .resultado-header {
         flex-direction: column;
-        gap: 15px;
+        gap: 12px;
         text-align: center;
       }
 
       .resultado-stats {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
 
         .stat-card {
           padding: 15px;
@@ -450,22 +458,26 @@
           }
         }
       }
+
+      .resultado-actions .btn-primary {
+        width: 100%;
+      }
     }
 
-    .estadisticas-grid {
-      grid-template-columns: 1fr !important;
-      gap: 15px !important;
+    .estadisticas-section .estadisticas-grid {
+      grid-template-columns: 1fr;
+      gap: 15px;
 
       .estadistica-card {
         padding: 20px;
 
-        .estadistica-value {
-          font-size: 1.5rem !important;
+        .estadistica-content .estadistica-value {
+          font-size: 1.5rem;
         }
       }
     }
 
-    .intento-card {
+    .historial-section .intentos-list .intento-card {
       .intento-header {
         flex-direction: column;
         gap: 10px;
@@ -474,13 +486,20 @@
 
       .intento-stats {
         justify-content: space-around;
-        gap: 15px !important;
+        gap: 15px;
 
-        .intento-stat {
-          .stat-value {
-            font-size: 1.1rem !important;
-          }
+        .intento-stat .stat-value {
+          font-size: 1.1rem;
         }
+      }
+    }
+
+    .empty-state {
+      padding: 40px 20px;
+
+      .btn-primary {
+        width: 100%;
+        justify-content: center;
       }
     }
   }
@@ -488,13 +507,14 @@
 
 @media (max-width: 480px) {
   .resultados-container {
-    .resultado-stats {
-      grid-template-columns: 1fr !important;
+    padding: 12px;
+
+    .resultado-actual-card .resultado-stats {
+      grid-template-columns: 1fr;
     }
 
-    .intento-stats {
+    .historial-section .intentos-list .intento-card .intento-stats {
       flex-direction: column;
-      gap: 15px !important;
 
       .intento-stat {
         flex-direction: row;
@@ -502,5 +522,22 @@
         width: 100%;
       }
     }
+  }
+}
+
+@media (hover: none) {
+  .resultados-container {
+    .stat-card:hover,
+    .estadistica-card:hover,
+    .intento-card:hover {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

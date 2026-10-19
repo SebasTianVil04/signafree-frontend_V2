@@ -25,7 +25,6 @@ body {
     font-family: Roboto, "Helvetica Neue", sans-serif;
 }
 
-
 $primary-color: #667eea;
 $secondary-color: #764ba2;
 $success-color: #48bb78;
@@ -33,7 +32,6 @@ $danger-color: #f56565;
 $warning-color: #ed8936;
 $info-color: #4299e1;
 
-// Escala de grises
 $gray-50: #f7fafc;
 $gray-100: #f8f9fa;
 $gray-200: #e9ecef;
@@ -45,29 +43,24 @@ $gray-700: #4a5568;
 $gray-800: #2d3748;
 $gray-900: #1a202c;
 
-// Texto
 $text-primary: $gray-800;
 $text-secondary: $gray-600;
 $text-muted: $gray-500;
 
-// Bordes
 $border-color: $gray-300;
 $border-radius: 0.5rem;
 $border-radius-lg: 1rem;
 $border-radius-xl: 1.5rem;
 
-// Sombras
 $shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 $shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 $shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 $shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 
-// Breakpoints
 $mobile: 768px;
 $tablet: 1024px;
 $desktop: 1200px;
 
-// Mixins
 @mixin mobile {
     @media (max-width: #{$mobile}) {
         @content;
@@ -178,7 +171,6 @@ $desktop: 1200px;
     animation: spin 1s linear infinite;
 }
 
-// Utilidades
 @mixin card {
     background: white;
     border-radius: $border-radius-lg;
@@ -199,25 +191,15 @@ $desktop: 1200px;
     transform: translate(-50%, -50%);
 }
 
-app-camara-reconocimiento {
-
-    .video-feed,
-    .canvas-overlay {
-        transform: none !important;
-    }
+.video-feed,
+.canvas-overlay,
+.video-feed-compacto,
+.canvas-overlay-compacto,
+.traductor-container .camera-container video,
+.traductor-container .camera-container canvas {
+    transform: scaleX(-1) !important;
 }
 
-app-traductor {
-
-    .camera-container video,
-    .camera-container canvas {
-        transform: none !important;
-    }
-}
-
-// ==========================================================
-// Skeletons de carga
-// ==========================================================
 .skeleton {
     display: block;
     border-radius: 8px;

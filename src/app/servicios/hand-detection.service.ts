@@ -2,14 +2,23 @@ import { Injectable } from '@angular/core';
 
 const MEDIAPIPE_HANDS_VERSION = '0.4.1675469240';
 
+declare global {
+  interface Window {
+    Hands?: any;
+    HAND_CONNECTIONS?: any;
+    drawConnectors?: any;
+    drawLandmarks?: any;
+    Camera?: any;
+    SelfieSegmentation?: any;
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class HandDetectionService {
   private hands: any = null;
   private canvasCtx: CanvasRenderingContext2D | null = null;
-  private drawingUtils: any = null;
-  private handsModule: any = null;
   private videoElement: HTMLVideoElement | null = null;
   private canvasElement: HTMLCanvasElement | null = null;
   private isInitialized: boolean = false;
@@ -18,18 +27,40 @@ export class HandDetectionService {
   private animationFrameId: number | null = null;
   private envioEnCurso: Promise<void> | null = null;
   private cerrando: boolean = false;
+  private avisoDrawingUtilsMostrado: boolean = false;
+  private dibujarActivo: boolean = true;
+
+  private ultimosResultados: any = null;
+  private ultimoResultadoMs: number = 0;
+  private inicioEnvioMs: number = 0;
+  private ultimoTiempoVideo: number = -1;
+  private huboResultado: boolean = false;
+  private recuperando: boolean = false;
+
+  private readonly TIMEOUT_ENVIO_MS = 3000;
+  private readonly TIMEOUT_PRIMER_ENVIO_MS = 20000;
+  private readonly VIGENCIA_RESULTADOS_MS = 500;
 
   constructor() {}
+
+  setDibujarLandmarks(valor: boolean): void {
+    this.dibujarActivo = valor;
+  }
 
   async inicializarDetector(): Promise<any> {
     if (this.hands && this.isInitialized) {
       return this.hands;
     }
 
-    try {
-      this.handsModule = await import('@mediapipe/hands');
+    const HandsClass = (window as any).Hands;
+    if (!HandsClass) {
+      throw new Error(
+        'MediaPipe Hands no está disponible. Verifica que el script se cargue en index.html antes de Angular.'
+      );
+    }
 
-      this.hands = new this.handsModule.Hands({
+    try {
+      this.hands = new HandsClass({
         locateFile: (file: string) => {
           return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@${MEDIAPIPE_HANDS_VERSION}/${file}`;
         }
@@ -37,7 +68,7 @@ export class HandDetectionService {
 
       this.hands.setOptions({
         maxNumHands: 2,
-        modelComplexity: 1,
+        modelComplexity: 0,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
@@ -70,131 +101,229 @@ export class HandDetectionService {
     this.canvasElement = canvasElement;
     this.canvasCtx = canvasElement.getContext('2d');
     this.onResultsCallback = onResultsCallback || null;
+    this.ultimosResultados = null;
+    this.ultimoResultadoMs = 0;
+    this.ultimoTiempoVideo = -1;
+    this.huboResultado = false;
+    this.recuperando = false;
 
     if (!this.canvasCtx) {
       throw new Error('No se pudo obtener el contexto 2D del canvas');
     }
 
     this.ajustarTamañoCanvas();
-
-    this.drawingUtils = await import('@mediapipe/drawing_utils');
-
-    this.hands.onResults((results: any) => {
-      if (!this.isDetecting || this.cerrando) return;
-      this.dibujarResultados(results, canvasElement);
-      if (this.onResultsCallback) {
-        this.onResultsCallback(results);
-      }
-    });
+    this.registrarResultados();
 
     this.isDetecting = true;
     this.procesarFrames();
   }
 
+  private registrarResultados(): void {
+    if (!this.hands) return;
+
+    this.hands.onResults((results: any) => {
+      if (!this.isDetecting || this.cerrando) return;
+      this.huboResultado = true;
+      this.ultimosResultados = results;
+      this.ultimoResultadoMs = performance.now();
+      if (this.onResultsCallback) {
+        this.onResultsCallback(results);
+      }
+    });
+  }
+
   private ajustarTamañoCanvas(): void {
     if (!this.videoElement || !this.canvasElement) return;
 
+    const canvas = this.canvasElement;
     const ancho = this.videoElement.videoWidth;
     const alto = this.videoElement.videoHeight;
 
     if (ancho > 0 && alto > 0) {
-      this.canvasElement.width = ancho;
-      this.canvasElement.height = alto;
-    } else if (this.canvasElement.width === 0 || this.canvasElement.height === 0) {
-      this.canvasElement.width = 640;
-      this.canvasElement.height = 480;
+      if (canvas.width !== ancho) canvas.width = ancho;
+      if (canvas.height !== alto) canvas.height = alto;
+    } else if (canvas.width === 0 || canvas.height === 0) {
+      canvas.width = 640;
+      canvas.height = 480;
     }
   }
 
   private procesarFrames(): void {
-    const detectar = async () => {
-      if (!this.isDetecting || this.cerrando || !this.videoElement || !this.hands) {
+    const detectar = () => {
+      if (!this.isDetecting || this.cerrando || !this.videoElement) {
         return;
       }
 
-      if (!this.envioEnCurso && this.videoElement.readyState === this.videoElement.HAVE_ENOUGH_DATA) {
-        this.ajustarTamañoCanvas();
-        this.envioEnCurso = this.hands.send({ image: this.videoElement })
+      const video = this.videoElement;
+
+      this.ajustarTamañoCanvas();
+      this.dibujarFrame();
+
+      if (this.envioEnCurso) {
+        const limite = this.huboResultado ? this.TIMEOUT_ENVIO_MS : this.TIMEOUT_PRIMER_ENVIO_MS;
+        if (performance.now() - this.inicioEnvioMs > limite) {
+          void this.recuperarDetector();
+        }
+      }
+
+      if (
+        this.hands &&
+        !this.envioEnCurso &&
+        !this.recuperando &&
+        video.readyState === video.HAVE_ENOUGH_DATA &&
+        video.currentTime !== this.ultimoTiempoVideo
+      ) {
+        this.ultimoTiempoVideo = video.currentTime;
+        this.inicioEnvioMs = performance.now();
+
+        const envio: Promise<void> = this.hands.send({ image: video })
           .catch((error: any) => {
             console.warn('Error enviando frame a MediaPipe:', error);
           })
           .finally(() => {
-            this.envioEnCurso = null;
+            if (this.envioEnCurso === envio) {
+              this.envioEnCurso = null;
+            }
           });
+
+        this.envioEnCurso = envio;
       }
 
       if (this.isDetecting && !this.cerrando) {
-        this.animationFrameId = requestAnimationFrame(() => detectar());
+        this.animationFrameId = requestAnimationFrame(detectar);
       }
     };
 
     detectar();
   }
 
-  private dibujarResultados(results: any, canvas: HTMLCanvasElement): void {
-    if (!this.canvasCtx || !this.isDetecting) return;
+  private async recuperarDetector(): Promise<void> {
+    if (this.recuperando || this.cerrando) return;
+
+    this.recuperando = true;
+    console.warn('MediaPipe dejó de responder. Reiniciando el detector...');
+
+    const anterior = this.hands;
+    this.hands = null;
+    this.isInitialized = false;
+    this.envioEnCurso = null;
+    this.huboResultado = false;
 
     try {
-      this.canvasCtx.save();
-      this.canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      Promise.resolve(anterior?.close()).catch(() => {});
+    } catch {}
 
-      if (results.image) {
-        this.canvasCtx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      }
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        for (let index = 0; index < results.multiHandLandmarks.length; index++) {
-          const landmarks = results.multiHandLandmarks[index];
-          const handedness = results.multiHandedness?.[index]?.label || 'Unknown';
-          const score = results.multiHandedness?.[index]?.score ?? 0;
-
-          const esConfiable = score >= 0.75;
-          const connectionColor = !esConfiable ? '#888888' : (handedness === 'Right' ? '#00FF00' : '#00FFFF');
-          const landmarkColor = !esConfiable ? '#555555' : (handedness === 'Right' ? '#FF0000' : '#FF00FF');
-
-          if (this.drawingUtils && this.handsModule) {
-            this.drawingUtils.drawConnectors(
-              this.canvasCtx,
-              landmarks,
-              this.handsModule.HAND_CONNECTIONS,
-              { color: connectionColor, lineWidth: 2 }
-            );
-
-            this.drawingUtils.drawLandmarks(
-              this.canvasCtx,
-              landmarks,
-              { color: landmarkColor, fillColor: landmarkColor, lineWidth: 1, radius: 2 }
-            );
-          }
-        }
-      }
-
-      this.canvasCtx.restore();
-
-      if (results.multiHandLandmarks && results.multiHandedness) {
-        for (let i = 0; i < results.multiHandedness.length; i++) {
-          const handedness = results.multiHandedness[i];
-          const landmarks = results.multiHandLandmarks[i];
-
-          if (landmarks && landmarks[0]) {
-            const wrist = landmarks[0];
-            const x = wrist.x * canvas.width;
-            const y = wrist.y * canvas.height;
-
-            this.canvasCtx.fillStyle = '#FFFFFF';
-            this.canvasCtx.strokeStyle = '#000000';
-            this.canvasCtx.lineWidth = 3;
-            this.canvasCtx.font = 'bold 16px Arial';
-
-            const score = handedness.score ?? 0;
-            const text = `${handedness.label} (${Math.round(score * 100)}%)`;
-            this.canvasCtx.strokeText(text, x - 40, y - 10);
-            this.canvasCtx.fillText(text, x - 40, y - 10);
-          }
-        }
+    try {
+      await this.inicializarDetector();
+      if (this.isDetecting && !this.cerrando) {
+        this.registrarResultados();
       }
     } catch (error) {
+      console.warn('No se pudo reiniciar el detector:', error);
+    } finally {
+      this.recuperando = false;
+    }
+  }
+
+  private dibujarFrame(): void {
+    const ctx = this.canvasCtx;
+    const canvas = this.canvasElement;
+    const video = this.videoElement;
+
+    if (!ctx || !canvas || !video || video.readyState < 2) return;
+
+    try {
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const resultados = this.ultimosResultados;
+      if (
+        this.dibujarActivo &&
+        resultados &&
+        performance.now() - this.ultimoResultadoMs < this.VIGENCIA_RESULTADOS_MS
+      ) {
+        this.dibujarLandmarks(resultados);
+      }
+
+      ctx.restore();
+    } catch (error) {
       console.warn('Error dibujando resultados:', error);
+    }
+  }
+
+  private dibujarLandmarks(results: any): void {
+    if (!this.canvasCtx) return;
+
+    const drawConnectors = (window as any).drawConnectors;
+    const drawLandmarks = (window as any).drawLandmarks;
+    const handConnections = (window as any).HAND_CONNECTIONS;
+
+    if ((!drawConnectors || !drawLandmarks || !handConnections) && !this.avisoDrawingUtilsMostrado) {
+      console.warn('drawing_utils no disponible. Se usarán dibujos con canvas puro.');
+      this.avisoDrawingUtilsMostrado = true;
+    }
+
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
+
+    for (let index = 0; index < results.multiHandLandmarks.length; index++) {
+      const landmarks = results.multiHandLandmarks[index];
+      const handedness = results.multiHandedness?.[index]?.label || 'Unknown';
+      const score = results.multiHandedness?.[index]?.score ?? 0;
+
+      const esConfiable = score >= 0.75;
+      const connectionColor = !esConfiable ? '#888888' : (handedness === 'Right' ? '#00FF00' : '#00FFFF');
+      const landmarkColor = !esConfiable ? '#555555' : (handedness === 'Right' ? '#FF0000' : '#FF00FF');
+
+      if (drawConnectors && drawLandmarks && handConnections) {
+        drawConnectors(
+          this.canvasCtx,
+          landmarks,
+          handConnections,
+          { color: connectionColor, lineWidth: 2 }
+        );
+        drawLandmarks(
+          this.canvasCtx,
+          landmarks,
+          { color: landmarkColor, fillColor: landmarkColor, lineWidth: 1, radius: 2 }
+        );
+      } else {
+        this.dibujarPuntosCanvasPuro(landmarks, connectionColor, landmarkColor);
+      }
+    }
+  }
+
+  private dibujarPuntosCanvasPuro(landmarks: any[], connectionColor: string, landmarkColor: string): void {
+    if (!this.canvasCtx) return;
+
+    const canvas = this.canvasCtx.canvas;
+
+    const conexiones: [number, number][] = [
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      [0, 5], [5, 6], [6, 7], [7, 8],
+      [5, 9], [9, 10], [10, 11], [11, 12],
+      [9, 13], [13, 14], [14, 15], [15, 16],
+      [13, 17], [17, 18], [18, 19], [19, 20],
+      [0, 17]
+    ];
+
+    this.canvasCtx.strokeStyle = connectionColor;
+    this.canvasCtx.lineWidth = 2;
+    for (const [a, b] of conexiones) {
+      const pa = landmarks[a];
+      const pb = landmarks[b];
+      if (!pa || !pb) continue;
+      this.canvasCtx.beginPath();
+      this.canvasCtx.moveTo(pa.x * canvas.width, pa.y * canvas.height);
+      this.canvasCtx.lineTo(pb.x * canvas.width, pb.y * canvas.height);
+      this.canvasCtx.stroke();
+    }
+
+    this.canvasCtx.fillStyle = landmarkColor;
+    for (const p of landmarks) {
+      this.canvasCtx.beginPath();
+      this.canvasCtx.arc(p.x * canvas.width, p.y * canvas.height, 3, 0, 2 * Math.PI);
+      this.canvasCtx.fill();
     }
   }
 
@@ -212,8 +341,7 @@ export class HandDetectionService {
       try {
         const canvas = this.canvasCtx.canvas;
         this.canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-      } catch {
-      }
+      } catch {}
     }
 
     if (this.envioEnCurso) {
@@ -234,13 +362,16 @@ export class HandDetectionService {
     }
 
     this.canvasCtx = null;
-    this.drawingUtils = null;
     this.videoElement = null;
     this.canvasElement = null;
     this.onResultsCallback = null;
     this.isInitialized = false;
-    this.handsModule = null;
     this.envioEnCurso = null;
+    this.ultimosResultados = null;
+    this.ultimoResultadoMs = 0;
+    this.ultimoTiempoVideo = -1;
+    this.huboResultado = false;
+    this.recuperando = false;
     this.cerrando = false;
   }
 

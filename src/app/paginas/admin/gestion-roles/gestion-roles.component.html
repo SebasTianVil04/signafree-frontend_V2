@@ -1,24 +1,33 @@
 <div class="gestion-roles container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
+    <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-sm-center gap-3 mb-4">
+        <h1 class="h3 mb-0">
             <i class="bi bi-shield-lock-fill me-2"></i>
             Gestión de Roles y Permisos
         </h1>
-        <button type="button" class="btn btn-primary" (click)="abrirModalNuevo()">
-            <i class="bi bi-plus-circle me-2"></i>
-            Nuevo Rol
-        </button>
+        <div class="d-grid d-sm-block">
+            <button type="button" class="btn btn-primary" (click)="abrirModalNuevo()">
+                <i class="bi bi-plus-circle me-2"></i>
+                Nuevo Rol
+            </button>
+        </div>
+    </div>
+
+    <div *ngIf="cargando()" class="spinner-carga text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-3 text-muted">Cargando roles...</p>
     </div>
 
     <div *ngIf="!cargando()" class="card">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Código</th>
+                            <th class="d-none d-md-table-cell">Código</th>
                             <th>Nombre</th>
-                            <th>Descripción</th>
+                            <th class="d-none d-lg-table-cell">Descripción</th>
                             <th>Permisos</th>
                             <th>Estado</th>
                             <th class="text-center">Acciones</th>
@@ -26,11 +35,15 @@
                     </thead>
                     <tbody>
                         <tr *ngFor="let rol of roles(); trackBy: trackByRolId">
-                            <td><code>{{ rol.codigo }}</code></td>
-                            <td>{{ rol.nombre }}</td>
-                            <td>{{ rol.descripcion || '-' }}</td>
+                            <td class="d-none d-md-table-cell"><code>{{ rol.codigo }}</code></td>
                             <td>
-                                <span class="badge bg-secondary">{{ rol.permisos.length }} permisos</span>
+                                <div class="fw-semibold text-break">{{ rol.nombre }}</div>
+                                <code class="d-md-none">{{ rol.codigo }}</code>
+                            </td>
+                            <td class="d-none d-lg-table-cell">{{ rol.descripcion || '-' }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ rol.permisos?.length || 0 }}<span
+                                        class="d-none d-sm-inline"> permisos</span></span>
                             </td>
                             <td>
                                 <span class="badge" [class.bg-success]="rol.activo" [class.bg-danger]="!rol.activo">
@@ -38,7 +51,7 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <div class="btn-group">
+                                <div class="acciones d-flex flex-wrap justify-content-center gap-1">
                                     <button type="button" class="btn btn-sm btn-outline-info"
                                         (click)="abrirModalEditar(rol)" [disabled]="hayMutacionEnVuelo()"
                                         title="Editar">
@@ -64,66 +77,89 @@
                                 </div>
                             </td>
                         </tr>
+
+                        <tr *ngIf="roles().length === 0">
+                            <td colspan="6" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                No hay roles registrados
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" [class.show]="mostrarModalRol" [style.display]="mostrarModalRol ? 'block' : 'none'"
-        tabindex="-1">
-        <div class="modal-dialog modal-lg">
+    <div class="modal fade" [class.show]="mostrarModalRol()" [style.display]="mostrarModalRol() ? 'block' : 'none'"
+        tabindex="-1" role="dialog" aria-modal="true"
+        (click)="$event.target === $event.currentTarget && !guardando() && cerrarModal()">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">{{ rolEditando ? 'Editar Rol' : 'Nuevo Rol' }}</h5>
-                    <button type="button" class="btn-close btn-close-white" (click)="cerrarModal()"
-                        [disabled]="guardando()"></button>
+                <div class="modal-header text-white">
+                    <h5 class="modal-title">{{ rolEditando() ? 'Editar Rol' : 'Nuevo Rol' }}</h5>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Cerrar"
+                        (click)="cerrarModal()" [disabled]="guardando()"></button>
                 </div>
                 <div class="modal-body">
-                    <form>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Código</label>
-                                <input type="text" class="form-control" [(ngModel)]="formRol.codigo" name="codigo"
-                                    [disabled]="!!rolEditando || guardando()">
+                    <form (ngSubmit)="guardar()">
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold" for="rol-codigo">Código</label>
+                                <input type="text" id="rol-codigo" class="form-control" [(ngModel)]="formRol.codigo"
+                                    name="codigo" [disabled]="!!rolEditando() || guardando()">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Nombre</label>
-                                <input type="text" class="form-control" [(ngModel)]="formRol.nombre" name="nombre"
-                                    [disabled]="guardando()">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold" for="rol-nombre">Nombre</label>
+                                <input type="text" id="rol-nombre" class="form-control" [(ngModel)]="formRol.nombre"
+                                    name="nombre" [disabled]="guardando()">
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Descripción</label>
-                            <textarea class="form-control" rows="2" [(ngModel)]="formRol.descripcion" name="descripcion"
+                            <label class="form-label fw-bold" for="rol-descripcion">Descripción</label>
+                            <textarea id="rol-descripcion" class="form-control" rows="2"
+                                [(ngModel)]="formRol.descripcion" name="descripcion"
                                 [disabled]="guardando()"></textarea>
                         </div>
 
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Permisos</label>
+                        <div class="mb-2 d-flex justify-content-between align-items-center">
+                            <span class="form-label fw-bold mb-0">Permisos</span>
+                            <span class="badge bg-secondary">{{ permisosSeleccionados().size }} seleccionados</span>
                         </div>
 
-                        <div class="accordion" *ngFor="let grupo of permisosPorModulo()">
-                            <div class="mb-2">
-                                <p class="fw-bold text-uppercase small text-muted mb-1">{{ grupo.modulo }}</p>
-                                <div class="form-check"
-                                    *ngFor="let permiso of grupo.permisos; trackBy: trackByPermisoId">
-                                    <input type="checkbox" class="form-check-input" [id]="'permiso-' + permiso.id"
-                                        [checked]="tienePermisoSeleccionado(permiso.id)"
-                                        (change)="togglePermiso(permiso.id)" [disabled]="guardando()">
-                                    <label class="form-check-label" [for]="'permiso-' + permiso.id">
-                                        {{ permiso.descripcion }} <code class="text-muted">({{ permiso.codigo }})</code>
-                                    </label>
+                        <div *ngIf="esRolAdminEditando()" class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            El rol administrador siempre tiene todos los permisos y no se pueden modificar.
+                        </div>
+
+                        <div class="grupo-permisos" *ngFor="let grupo of permisosPorModulo()">
+                            <p class="grupo-titulo">{{ grupo.modulo }}</p>
+                            <div class="permisos-lista">
+                                <div class="permiso-item"
+                                    *ngFor="let permiso of grupo.permisos; trackBy: trackByPermisoId"
+                                    role="checkbox" tabindex="0"
+                                    [class.deshabilitado]="permisosBloqueados()"
+                                    [attr.aria-checked]="tienePermisoSeleccionado(permiso.id)"
+                                    [attr.aria-disabled]="permisosBloqueados()"
+                                    (click)="alternarPermiso(permiso.id)"
+                                    (keydown.space)="alternarPermiso(permiso.id); $event.preventDefault()"
+                                    (keydown.enter)="alternarPermiso(permiso.id); $event.preventDefault()">
+                                    <input type="checkbox" class="form-check-input" tabindex="-1"
+                                        aria-hidden="true" [checked]="tienePermisoSeleccionado(permiso.id)">
+                                    <span class="permiso-texto">
+                                        {{ permiso.descripcion }}
+                                        <code class="text-muted">({{ permiso.codigo }})</code>
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" (click)="cerrarModal()"
+                <div class="modal-footer flex-column flex-sm-row">
+                    <button type="button" class="btn btn-secondary w-100 w-sm-auto" (click)="cerrarModal()"
                         [disabled]="guardando()">Cancelar</button>
-                    <button type="button" class="btn btn-primary" (click)="guardar()" [disabled]="guardando()">
+                    <button type="button" class="btn btn-primary w-100 w-sm-auto" (click)="guardar()"
+                        [disabled]="guardando()">
                         <span *ngIf="guardando()" class="spinner-border spinner-border-sm me-2" role="status"></span>
                         <i *ngIf="!guardando()" class="bi bi-check-lg me-2"></i>
                         {{ guardando() ? 'Guardando...' : 'Guardar' }}
@@ -133,6 +169,5 @@
         </div>
     </div>
 
-    <div class="modal-backdrop fade" [class.show]="mostrarModalRol" *ngIf="mostrarModalRol" (click)="cerrarModal()">
-    </div>
+    <div class="modal-backdrop fade" [class.show]="mostrarModalRol()" *ngIf="mostrarModalRol()"></div>
 </div>

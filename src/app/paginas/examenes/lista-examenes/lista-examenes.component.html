@@ -1,6 +1,4 @@
-<!-- src/app/componentes/examenes/lista-examenes/lista-examenes.component.html -->
 <div class="examenes-usuario-container">
-
   <div class="header-examenes">
     <div class="titulo-seccion">
       <i class="bi bi-clipboard-check"></i>
@@ -11,12 +9,11 @@
     </div>
   </div>
 
-  <!-- Filtros -->
   <div class="filtros-card">
     <div class="filtros-grid">
       <div class="filtro-item">
-        <label><i class="bi bi-layers"></i> Tipo</label>
-        <select [(ngModel)]="filtros.tipo" (change)="aplicarFiltros()" class="form-control">
+        <label for="filtroTipo"><i class="bi bi-layers"></i> Tipo</label>
+        <select id="filtroTipo" [(ngModel)]="filtros.tipo" (change)="aplicarFiltros()" class="form-control">
           <option value="">Todos los tipos</option>
           <option value="nivel">Autoevaluaciones de Nivel</option>
           <option value="final">Autoevaluaciones Finales</option>
@@ -24,16 +21,16 @@
       </div>
 
       <div class="filtro-item">
-        <label><i class="bi bi-graph-up"></i> Nivel</label>
-        <select [(ngModel)]="filtros.nivel" (change)="aplicarFiltros()" class="form-control">
+        <label for="filtroNivel"><i class="bi bi-graph-up"></i> Nivel</label>
+        <select id="filtroNivel" [(ngModel)]="filtros.nivel" (change)="aplicarFiltros()" class="form-control">
           <option [ngValue]="null">Todos los niveles</option>
           <option *ngFor="let n of [1,2,3,4,5]" [ngValue]="n">Nivel {{ n }}</option>
         </select>
       </div>
 
       <div class="filtro-item">
-        <label><i class="bi bi-check-circle"></i> Estado</label>
-        <select [(ngModel)]="filtros.estado" (change)="aplicarFiltros()" class="form-control">
+        <label for="filtroEstado"><i class="bi bi-check-circle"></i> Estado</label>
+        <select id="filtroEstado" [(ngModel)]="filtros.estado" (change)="aplicarFiltros()" class="form-control">
           <option value="">Todos</option>
           <option value="pendiente">Pendientes</option>
           <option value="aprobado">Aprobados</option>
@@ -42,24 +39,20 @@
       </div>
 
       <div class="filtro-item">
-        <button class="btn btn-secundario btn-block" (click)="limpiarFiltros()">
+        <button type="button" class="btn-limpiar" (click)="limpiarFiltros()">
           <i class="bi bi-x-lg"></i> Limpiar
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Skeleton: estadísticas -->
   <div class="stats-grid" *ngIf="cargando" aria-busy="true" aria-label="Cargando estadísticas">
     <div class="skeleton skeleton-stat" *ngFor="let n of [1, 2, 3, 4]"></div>
   </div>
 
-  <!-- Estadísticas Rápidas -->
   <div class="stats-grid" *ngIf="!cargando && examenes.length > 0">
     <div class="stat-card">
-      <div class="stat-icono total">
-        <i class="bi bi-clipboard-check"></i>
-      </div>
+      <div class="stat-icono total"><i class="bi bi-clipboard-check"></i></div>
       <div class="stat-info">
         <span class="stat-valor">{{ examenes.length }}</span>
         <span class="stat-label">Total Autoevaluaciones</span>
@@ -67,9 +60,7 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-icono aprobados">
-        <i class="bi bi-check-circle-fill"></i>
-      </div>
+      <div class="stat-icono aprobados"><i class="bi bi-check-circle-fill"></i></div>
       <div class="stat-info">
         <span class="stat-valor">{{ contarAprobados() }}</span>
         <span class="stat-label">Aprobados</span>
@@ -77,9 +68,7 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-icono pendientes">
-        <i class="bi bi-clock"></i>
-      </div>
+      <div class="stat-icono pendientes"><i class="bi bi-clock"></i></div>
       <div class="stat-info">
         <span class="stat-valor">{{ contarPendientes() }}</span>
         <span class="stat-label">Pendientes</span>
@@ -87,9 +76,7 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-icono promedio">
-        <i class="bi bi-graph-up"></i>
-      </div>
+      <div class="stat-icono promedio"><i class="bi bi-graph-up"></i></div>
       <div class="stat-info">
         <span class="stat-valor">{{ calcularPromedio() }}%</span>
         <span class="stat-label">Promedio</span>
@@ -97,54 +84,49 @@
     </div>
   </div>
 
-  <!-- Skeleton: tarjetas -->
   <div class="examenes-grid" *ngIf="cargando" aria-busy="true" aria-label="Cargando autoevaluaciones">
     <div class="skeleton skeleton-leccion" *ngFor="let n of skeletons"></div>
   </div>
 
-  <!-- Error -->
-  <div class="sin-resultados" *ngIf="!cargando && errorExamenes">
+  <div class="sin-resultados" *ngIf="!cargando && errorExamenes" role="alert">
     <i class="bi bi-exclamation-triangle"></i>
     <h3>No se pudieron cargar las autoevaluaciones</h3>
     <p>Revisa tu conexión e inténtalo de nuevo.</p>
-    <button class="btn btn-primario" (click)="cargarExamenes()">
+    <button type="button" class="btn-primario" (click)="cargarExamenes()">
       <i class="bi bi-arrow-clockwise"></i> Reintentar
     </button>
   </div>
 
-  <!-- Lista de Autoevaluaciones -->
   <div class="examenes-grid" *ngIf="!cargando && !errorExamenes && examenesFiltrados.length > 0">
-    <div 
+    <div
       *ngFor="let examen of examenesFiltrados"
       class="examen-card"
       [class.completado]="examen.ultimo_resultado?.aprobado"
       [class.pendiente]="!examen.ultimo_resultado?.realizado"
       [class.bloqueado]="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
-      
+
       <div class="examen-header">
-        <div class="tipo-badge" [class.tipo-nivel]="examen.tipo === 'nivel'" 
-             [class.tipo-final]="examen.tipo === 'final'">
+        <div class="tipo-badge" [class.tipo-nivel]="examen.tipo === 'nivel'" [class.tipo-final]="examen.tipo === 'final'">
           {{ examen.tipo === 'nivel' ? 'Nivel ' + examen.nivel : 'Final' }}
         </div>
 
-        <!-- Verificando requisitos -->
         <div class="estado-badge pendiente" *ngIf="verificandoProgreso && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-hourglass-split"></i> Verificando...
         </div>
-        
-        <!-- Indicador de Bloqueado -->
+
         <div class="estado-badge bloqueado" *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-lock-fill"></i> Bloqueado
         </div>
-        
-        <div class="estado-badge" *ngIf="examen.ultimo_resultado?.realizado"
-             [class.aprobado]="examen.ultimo_resultado.aprobado"
-             [class.reprobado]="!examen.ultimo_resultado.aprobado">
-          <i class="bi" [class.bi-check-circle-fill]="examen.ultimo_resultado.aprobado" 
-             [class.bi-x-circle-fill]="!examen.ultimo_resultado.aprobado"></i>
-          {{ examen.ultimo_resultado.aprobado ? 'Aprobado' : 'No Aprobado' }}
+
+        <div
+          class="estado-badge"
+          *ngIf="examen.ultimo_resultado?.realizado"
+          [class.aprobado]="examen.ultimo_resultado?.aprobado"
+          [class.reprobado]="!examen.ultimo_resultado?.aprobado">
+          <i class="bi" [class.bi-check-circle-fill]="examen.ultimo_resultado?.aprobado" [class.bi-x-circle-fill]="!examen.ultimo_resultado?.aprobado"></i>
+          {{ examen.ultimo_resultado?.aprobado ? 'Aprobado' : 'No Aprobado' }}
         </div>
-        
+
         <div class="estado-badge pendiente" *ngIf="!verificandoProgreso && examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-clock"></i> Disponible
         </div>
@@ -154,7 +136,6 @@
         <h3>{{ examen.titulo }}</h3>
         <p class="descripcion">{{ examen.descripcion }}</p>
 
-        <!-- Información de Requisitos -->
         <div class="requisitos-info" *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-info-circle"></i>
           <span>{{ obtenerMensajeRequisitos(examen) }}</span>
@@ -175,73 +156,72 @@
           </div>
         </div>
 
-        <!-- Último Resultado -->
         <div class="ultimo-resultado" *ngIf="examen.ultimo_resultado?.realizado">
           <div class="resultado-barra">
-            <div class="resultado-fill" 
-                 [style.width.%]="examen.ultimo_resultado.porcentaje"
-                 [style.background]="examen.ultimo_resultado.aprobado ? '#4caf50' : '#f44336'">
+            <div
+              class="resultado-fill"
+              [style.width.%]="examen.ultimo_resultado?.porcentaje"
+              [style.background]="examen.ultimo_resultado?.aprobado ? '#4caf50' : '#f44336'">
             </div>
           </div>
           <div class="resultado-info">
-            <span class="porcentaje">{{ examen.ultimo_resultado.porcentaje }}%</span>
-            <span class="fecha">{{ examen.ultimo_resultado.fecha | date:'dd/MM/yyyy HH:mm' }}</span>
+            <span class="porcentaje">{{ examen.ultimo_resultado?.porcentaje }}%</span>
+            <span class="fecha">{{ examen.ultimo_resultado?.fecha | date:'dd/MM/yyyy HH:mm' }}</span>
           </div>
         </div>
       </div>
 
       <div class="examen-footer">
-        <!-- Botón mientras se verifica el progreso -->
-        <button 
-          class="btn btn-secundario btn-block"
+        <button
+          type="button"
+          class="btn btn-secundario"
           disabled
           *ngIf="verificandoProgreso && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-hourglass-split"></i> Verificando requisitos...
         </button>
 
-        <!-- Botón para exámenes disponibles -->
-        <button 
-          class="btn btn-primario btn-block"
+        <button
+          type="button"
+          class="btn btn-primario"
           (click)="iniciarExamen(examen)"
           *ngIf="!verificandoProgreso && examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-play-fill"></i> Iniciar Autoevaluación
         </button>
 
-        <!-- Botón para exámenes bloqueados -->
-        <button 
-          class="btn btn-bloqueado btn-block"
+        <button
+          type="button"
+          class="btn btn-bloqueado"
           (click)="mostrarMensajeRequisitosNoCumplidos(examen)"
           *ngIf="!verificandoProgreso && !examen.disponible && !examen.ultimo_resultado?.realizado">
           <i class="bi bi-lock-fill"></i> Autoevaluación Bloqueada
         </button>
 
-        <!-- Botones para exámenes completados -->
-        <button 
-          class="btn btn-secundario btn-block"
+        <button
+          type="button"
+          class="btn btn-secundario"
           (click)="verResultados(examen)"
           *ngIf="examen.ultimo_resultado?.realizado">
           <i class="bi bi-bar-chart-fill"></i> Ver Resultados
         </button>
 
-        <button 
-          class="btn btn-warning btn-block"
+        <button
+          type="button"
+          class="btn btn-warning"
           (click)="reintentar(examen)"
-          *ngIf="examen.ultimo_resultado?.realizado && !examen.ultimo_resultado.aprobado">
+          *ngIf="examen.ultimo_resultado?.realizado && !examen.ultimo_resultado?.aprobado">
           <i class="bi bi-arrow-repeat"></i> Reintentar
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Sin Resultados -->
   <div class="sin-resultados" *ngIf="!cargando && !errorExamenes && examenesFiltrados.length === 0">
     <i class="bi bi-clipboard-x"></i>
     <h3>No hay autoevaluaciones disponibles</h3>
     <p *ngIf="examenes.length === 0">Completa las lecciones para desbloquear autoevaluaciones</p>
     <p *ngIf="examenes.length > 0">No se encontraron autoevaluaciones con los filtros aplicados</p>
-    <button class="btn btn-primario" *ngIf="examenes.length > 0" (click)="limpiarFiltros()">
+    <button type="button" class="btn-primario" *ngIf="examenes.length > 0" (click)="limpiarFiltros()">
       <i class="bi bi-x-lg"></i> Limpiar Filtros
     </button>
   </div>
-
 </div>

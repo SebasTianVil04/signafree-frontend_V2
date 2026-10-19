@@ -8,13 +8,13 @@
   <div *ngIf="error" class="error-mensaje">
     <i class="fas fa-exclamation-triangle"></i>
     <p>{{ error }}</p>
-    <button (click)="salir()" class="btn-salir">Volver</button>
+    <button type="button" (click)="salir()" class="btn-salir">Volver</button>
   </div>
 
   <div *ngIf="!cargando && !error && !practicaCompletada" class="practica-activa">
 
     <div class="header-practica">
-      <button (click)="salir()" class="btn-salir-mini">
+      <button type="button" (click)="salir()" class="btn-salir-mini" aria-label="Salir de la práctica">
         <i class="fas fa-times"></i>
       </button>
       <div class="info-header">
@@ -47,7 +47,7 @@
 
             <div class="video-contenedor" *ngIf="!cargandoVideo && videoTipo === 'externo' && videoUrl">
               <iframe [src]="videoUrl"
-                      frameborder="0"
+                      title="Video de referencia"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowfullscreen>
               </iframe>
@@ -89,18 +89,18 @@
               {{ claseActual.descripcion }}
             </p>
 
-            <span class="badge-dificultad" [class]="obtenerDificultad()">
+            <span class="badge-dificultad" [ngClass]="obtenerDificultad()">
               {{ obtenerEtiquetaDificultad() }}
             </span>
 
             <div class="tips-seccion" *ngIf="claseActual.tips">
               <h4><i class="fas fa-lightbulb"></i> Tips</h4>
-              <div [innerHTML]="claseActual.tips"></div>
+              <div class="contenido-html" [innerHTML]="claseActual.tips"></div>
             </div>
 
             <div class="errores-seccion" *ngIf="claseActual.errores_comunes">
               <h4><i class="fas fa-exclamation-triangle"></i> Errores Comunes</h4>
-              <div [innerHTML]="claseActual.errores_comunes"></div>
+              <div class="contenido-html" [innerHTML]="claseActual.errores_comunes"></div>
             </div>
           </div>
 
@@ -120,7 +120,7 @@
               </ul>
             </div>
 
-            <button class="btn-grande btn-primario" (click)="iniciarPractica()">
+            <button type="button" class="btn-grande btn-primario" (click)="iniciarPractica()">
               <i class="fas fa-video"></i>
               Activar Cámara y Practicar
             </button>
@@ -160,11 +160,11 @@
             <p class="mensaje-feedback">{{ mensajeFeedback }}</p>
 
             <div class="acciones-resultado">
-              <button class="btn btn-secundario" (click)="reintentar()">
+              <button type="button" class="btn btn-secundario" (click)="reintentar()">
                 <i class="fas fa-redo"></i>
                 Intentar de nuevo
               </button>
-              <button class="btn btn-primario" (click)="siguienteSena()">
+              <button type="button" class="btn btn-primario" (click)="siguienteSena()">
                 <i class="fas fa-arrow-right"></i>
                 {{ indiceActual < clases.length - 1 ? 'Siguiente Clase' : 'Finalizar' }}
               </button>
@@ -206,10 +206,10 @@
     </div>
 
     <div class="acciones-finales">
-      <button (click)="reiniciarPractica()" class="btn-reintentar">
+      <button type="button" (click)="reiniciarPractica()" class="btn-reintentar">
         <i class="fas fa-redo"></i> Practicar de nuevo
       </button>
-      <button (click)="salir()" class="btn-salir-final">
+      <button type="button" (click)="salir()" class="btn-salir-final">
         <i class="fas fa-arrow-left"></i> Volver a lecciones
       </button>
     </div>

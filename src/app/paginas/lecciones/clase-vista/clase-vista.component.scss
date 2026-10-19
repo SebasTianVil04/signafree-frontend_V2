@@ -1,27 +1,35 @@
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .clase-contenedor {
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
   background-color: #f5f7fa;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 .clase-encabezado {
-  background: white;
+  background: #ffffff;
   padding: 25px;
   border-radius: 12px;
   margin-bottom: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px 20px;
   flex-wrap: wrap;
 }
 
 .btn-volver {
   padding: 10px 20px;
   background: #6366f1;
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -29,23 +37,20 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  transition: all 0.3s ease;
-}
-
-.btn-volver:hover {
-  background: #4f46e5;
-  transform: translateY(-2px);
+  transition: background 0.3s ease, transform 0.3s ease;
+  touch-action: manipulation;
 }
 
 .clase-info {
   flex: 1;
-  min-width: 300px;
+  min-width: 260px;
 }
 
 .clase-info h1 {
-  margin: 0 0 8px 0;
+  margin: 0 0 8px;
   font-size: 24px;
   color: #1e293b;
+  overflow-wrap: anywhere;
 }
 
 .clase-descripcion {
@@ -53,11 +58,12 @@
   color: #64748b;
   font-size: 14px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .clase-progreso-header {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -103,21 +109,24 @@
 }
 
 .menu-clases {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 20px;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .menu-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   margin-bottom: 15px;
   padding-bottom: 15px;
   border-bottom: 1px solid #e2e8f0;
@@ -136,6 +145,8 @@
   cursor: pointer;
   color: #64748b;
   font-size: 18px;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .lista-clases {
@@ -151,12 +162,8 @@
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
   border: 2px solid transparent;
-}
-
-.clase-item:hover {
-  background: #f8fafc;
 }
 
 .clase-item.activa {
@@ -172,10 +179,6 @@
 .clase-item.bloqueada {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.clase-item.bloqueada:hover {
-  background: transparent;
 }
 
 .clase-numero {
@@ -198,7 +201,7 @@
 }
 
 .clase-detalles h4 {
-  margin: 0 0 4px 0;
+  margin: 0 0 4px;
   font-size: 14px;
   color: #1e293b;
   white-space: nowrap;
@@ -237,7 +240,7 @@
 }
 
 .seccion-examenes h3 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   color: #2c3e50;
   font-size: 1.1em;
   display: flex;
@@ -260,26 +263,21 @@
   display: flex;
   align-items: center;
   padding: 15px;
-  background: white;
+  background: #ffffff;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
   border: 2px solid #e0e0e0;
 }
 
 .examen-item:not(.disponible):not(.completado) {
   opacity: 0.65;
   cursor: not-allowed;
-  border-color: #ccc;
+  border-color: #cccccc;
 }
 
 .examen-item.disponible {
   border-color: #4caf50;
-}
-
-.examen-item.disponible:hover {
-  transform: translateX(5px);
-  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
 }
 
 .examen-item.completado {
@@ -298,17 +296,17 @@
   margin-right: 15px;
   flex-shrink: 0;
   background: #e0e0e0;
-  color: #999;
+  color: #999999;
 }
 
 .examen-item.disponible .examen-icono {
   background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-  color: white;
+  color: #ffffff;
 }
 
 .examen-item.completado .examen-icono {
   background: linear-gradient(135deg, #2196f3 0%, #42a5f5 100%);
-  color: white;
+  color: #ffffff;
 }
 
 .examen-detalles {
@@ -317,10 +315,11 @@
 }
 
 .examen-detalles h4 {
-  margin: 0 0 8px 0;
+  margin: 0 0 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: #333333;
+  overflow-wrap: anywhere;
 }
 
 .examen-estado {
@@ -341,7 +340,7 @@
 }
 
 .examen-estado .bloqueado {
-  color: #999;
+  color: #777777;
 }
 
 .progreso-examen-bar {
@@ -373,7 +372,7 @@
 
 .examen-accion {
   font-size: 20px;
-  color: #666;
+  color: #666666;
   margin-left: 15px;
 }
 
@@ -387,8 +386,8 @@
 
 .sin-examenes {
   text-align: center;
-  padding: 40px 20px;
-  color: #999;
+  padding: 30px 20px;
+  color: #999999;
 }
 
 .sin-examenes p {
@@ -426,16 +425,6 @@
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
 .progreso-general {
   margin-top: 20px;
   padding-top: 20px;
@@ -443,7 +432,7 @@
 }
 
 .progreso-general h3 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   font-size: 16px;
   color: #1e293b;
 }
@@ -532,7 +521,7 @@
 }
 
 .area-principal {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 25px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -546,7 +535,7 @@
   border-bottom: 2px solid #e2e8f0;
 }
 
-.pestaña {
+.pestana {
   padding: 12px 24px;
   background: none;
   border: none;
@@ -557,21 +546,19 @@
   color: #64748b;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
   margin-bottom: -2px;
+  touch-action: manipulation;
 }
 
-.pestaña:hover:not(:disabled) {
-  color: #6366f1;
-}
-
-.pestaña.activa {
+.pestana.activa {
   color: #6366f1;
   border-bottom-color: #6366f1;
 }
 
-.pestaña:disabled {
+.pestana:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -586,7 +573,7 @@
 .video-contenedor {
   width: 100%;
   max-width: 100%;
-  background: #000;
+  background: #000000;
   border-radius: 12px;
   overflow: hidden;
   position: relative;
@@ -608,7 +595,7 @@
   aspect-ratio: 16 / 9;
   max-height: 75vh;
   object-fit: contain;
-  background: #000;
+  background: #000000;
   outline: none;
 }
 
@@ -623,6 +610,8 @@
   gap: 15px;
   background: #1e293b;
   color: #94a3b8;
+  text-align: center;
+  padding: 16px;
 }
 
 .sin-video i {
@@ -635,9 +624,10 @@
 }
 
 .informacion-sena h2 {
-  margin: 0 0 10px 0;
+  margin: 0 0 10px;
   font-size: 22px;
   color: #1e293b;
+  overflow-wrap: anywhere;
 }
 
 .sena-descripcion p {
@@ -645,6 +635,7 @@
   color: #475569;
   line-height: 1.7;
   font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .contenido-texto {
@@ -656,7 +647,7 @@
 }
 
 .contenido-texto h2 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   font-size: 20px;
   color: #1e293b;
 }
@@ -676,6 +667,12 @@
   height: auto;
 }
 
+.contenido-texto table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .imagen-referencia,
 .gif-demostracion {
   text-align: center;
@@ -683,7 +680,7 @@
 
 .imagen-referencia h3,
 .gif-demostracion h3 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   font-size: 18px;
   color: #1e293b;
 }
@@ -715,7 +712,7 @@
 
 .seccion-tips h3,
 .seccion-errores h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 12px;
   font-size: 17px;
   display: flex;
   align-items: center;
@@ -739,7 +736,7 @@
 
 .accion-practica {
   text-align: center;
-  padding: 30px 0;
+  padding: 20px 0;
 }
 
 .btn-grande {
@@ -751,20 +748,31 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  transition: all 0.3s ease;
+  transition: background 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  touch-action: manipulation;
+}
+
+.btn {
+  padding: 12px 30px;
+  font-size: 15px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.3s ease, transform 0.3s ease;
+  touch-action: manipulation;
 }
 
 .btn-primario {
   background: #6366f1;
-  color: white;
-}
-
-.btn-primario:hover {
-  background: #4f46e5;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
+  color: #ffffff;
 }
 
 .btn-secundario {
@@ -772,12 +780,8 @@
   color: #475569;
 }
 
-.btn-secundario:hover {
-  background: #e2e8f0;
-}
-
 .modo-practicar {
-  min-height: 500px;
+  min-height: 300px;
 }
 
 .practica-contenedor {
@@ -794,7 +798,7 @@
 }
 
 .instrucciones-practica h2 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   font-size: 26px;
   color: #1e293b;
 }
@@ -810,10 +814,11 @@
 }
 
 .sena-titulo {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   font-size: 40px;
   font-weight: 700;
   color: #6366f1;
+  overflow-wrap: anywhere;
 }
 
 .sena-demo img {
@@ -837,7 +842,7 @@
 }
 
 .requisitos-practica h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 12px;
   font-size: 16px;
   color: #1e293b;
 }
@@ -853,10 +858,14 @@
 
 .requisitos-practica li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   color: #475569;
   font-size: 14px;
+}
+
+.requisitos-practica li i {
+  margin-top: 3px;
 }
 
 .requisitos-practica .fa-check-circle {
@@ -872,7 +881,7 @@
 }
 
 .recompensas-info h4 {
-  margin: 0 0 8px 0;
+  margin: 0 0 8px;
   font-size: 15px;
   color: #d97706;
   display: flex;
@@ -881,7 +890,7 @@
 }
 
 .recompensas-info p {
-  margin: 0 0 6px 0;
+  margin: 0 0 6px;
   font-size: 14px;
 }
 
@@ -932,9 +941,14 @@
   color: #6366f1;
 }
 
+.stat .valor.destacado {
+  color: #d97706;
+}
+
 .area-reconocimiento {
   width: 100%;
   max-width: 900px;
+  min-width: 0;
 }
 
 .resultado-practica {
@@ -1005,6 +1019,8 @@
   font-size: 18px;
   font-weight: 600;
   color: #1e293b;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .detalle-item .valor.destacado {
@@ -1027,16 +1043,16 @@
   color: #ef4444;
 }
 
-.valor.seña.correcta {
+.valor.sena.correcta {
   color: #16a34a;
 }
 
-.valor.seña.incorrecta {
+.valor.sena.incorrecta {
   color: #ef4444;
 }
 
 .resultado-feedback {
-  background: white;
+  background: #ffffff;
   padding: 20px;
   border-radius: 12px;
   border-left: 4px solid #6366f1;
@@ -1059,15 +1075,21 @@
 
 .info-intentos,
 .info-precision,
-.info-seña {
+.info-sena {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
   background: #fff7ed;
   border-radius: 8px;
   font-size: 14px;
   color: #c2410c;
+}
+
+.info-intentos i,
+.info-precision i,
+.info-sena i {
+  margin-top: 3px;
 }
 
 .celebracion {
@@ -1091,27 +1113,15 @@
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 12px 30px;
-  font-size: 15px;
-  font-weight: 500;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.3s ease;
-}
-
 .navegacion-clases {
-  background: white;
+  background: #ffffff;
   padding: 20px 25px;
   border-radius: 12px;
   margin-top: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -1124,15 +1134,12 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.btn-navegacion:hover:not(:disabled) {
-  background: #e2e8f0;
-  transform: translateY(-1px);
+  transition: background 0.2s ease, transform 0.2s ease;
+  touch-action: manipulation;
 }
 
 .btn-navegacion:disabled {
@@ -1149,6 +1156,7 @@
 
 .progreso-mini {
   width: 160px;
+  max-width: 100%;
   height: 6px;
   margin: 8px auto 0;
   background: #e2e8f0;
@@ -1171,6 +1179,8 @@
   align-items: center;
   justify-content: center;
   gap: 20px;
+  padding: 20px;
+  text-align: center;
 }
 
 .error-contenedor {
@@ -1184,6 +1194,56 @@
 .error-contenedor p {
   font-size: 16px;
   color: #64748b;
+  margin: 0;
+}
+
+.error-acciones {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (hover: hover) {
+  .btn-volver:hover {
+    background: #4f46e5;
+    transform: translateY(-2px);
+  }
+
+  .clase-item:not(.bloqueada):hover {
+    background: #f8fafc;
+  }
+
+  .clase-item.activa:hover {
+    background: #eef2ff;
+  }
+
+  .examen-item.disponible:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+  }
+
+  .pestana:hover:not(:disabled) {
+    color: #6366f1;
+  }
+
+  .btn-primario:hover {
+    background: #4f46e5;
+    transform: translateY(-2px);
+  }
+
+  .btn-grande.btn-primario:hover {
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
+  }
+
+  .btn-secundario:hover {
+    background: #e2e8f0;
+  }
+
+  .btn-navegacion:hover:not(:disabled) {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+  }
 }
 
 @media (max-width: 1024px) {
@@ -1195,10 +1255,17 @@
     position: relative;
     top: 0;
     max-height: none;
+    overflow: visible;
+  }
+
+  .menu-header {
+    cursor: pointer;
   }
 
   .btn-toggle-menu {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .menu-clases:not(.abierto) .lista-clases,
@@ -1212,15 +1279,27 @@
     padding-bottom: 0;
     border-bottom: none;
   }
+
+  .menu-clases.abierto .lista-clases {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 768px) {
   .clase-contenedor {
-    padding: 15px;
+    padding: 12px;
   }
 
   .clase-encabezado {
-    padding: 20px;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .btn-volver {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
   }
 
   .clase-info {
@@ -1233,48 +1312,141 @@
   }
 
   .area-principal {
-    padding: 20px;
+    padding: 16px;
   }
 
-  .pestaña {
-    padding: 10px 16px;
+  .pestanas-modo {
+    gap: 4px;
+  }
+
+  .pestana {
+    flex: 1;
+    padding: 12px 8px;
     font-size: 14px;
+    min-height: 44px;
+  }
+
+  .modo-aprender {
+    gap: 22px;
+  }
+
+  .contenido-texto,
+  .seccion-tips,
+  .seccion-errores {
+    padding: 16px;
   }
 
   .navegacion-clases {
-    flex-direction: column;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .indicador-progreso {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 
   .btn-navegacion {
     width: 100%;
-    justify-content: center;
+    min-height: 44px;
+  }
+
+  .btn-grande,
+  .btn {
+    min-height: 44px;
   }
 }
 
 @media (max-width: 480px) {
+  .clase-contenedor {
+    padding: 8px;
+  }
+
   .clase-encabezado {
-    padding: 15px;
+    padding: 14px;
   }
 
   .area-principal {
-    padding: 15px;
+    padding: 12px;
+  }
+
+  .progreso-badge,
+  .precision-badge,
+  .puntos-badge {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   .video-contenedor .video-local {
     max-height: 60vh;
   }
 
+  .informacion-sena h2 {
+    font-size: 19px;
+  }
+
+  .instrucciones-practica h2 {
+    font-size: 22px;
+  }
+
+  .sena-titulo {
+    font-size: 32px;
+  }
+
+  .requisitos-practica,
+  .resultado-detalles,
+  .resultado-feedback {
+    padding: 14px;
+  }
+
+  .resultado-header {
+    padding: 20px;
+  }
+
   .resultado-header h2 {
     font-size: 22px;
   }
 
-  .btn-grande {
-    padding: 12px 30px;
-    font-size: 14px;
+  .detalle-item {
+    flex-wrap: wrap;
+  }
+
+  .detalle-item .valor {
+    font-size: 16px;
   }
 
   .stats-grid {
     gap: 15px;
+  }
+
+  .btn-grande {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+
+  .acciones-resultado {
+    flex-direction: column;
+  }
+
+  .acciones-resultado .btn {
+    width: 100%;
+  }
+
+  .examen-item {
+    padding: 12px;
+  }
+
+  .examen-icono {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    margin-right: 12px;
+  }
+
+  .examen-accion {
+    margin-left: 8px;
   }
 }

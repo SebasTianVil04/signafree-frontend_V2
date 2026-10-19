@@ -225,10 +225,10 @@
           <div class="form-row dos-columnas">
             <div class="form-group">
               <label>Seña <span class="requerido" *ngIf="formulario.requiere_practica">*</span></label>
-              <input type="text" [(ngModel)]="formulario.sena" name="sena" placeholder="Ej: A" maxlength="10"
+              <input type="text" [(ngModel)]="formulario.sena" name="sena" placeholder="Ej: A, Ayúdame" maxlength="50"
                 class="form-control"
                 [class.requerido-border]="formulario.requiere_practica && (!formulario.sena || formulario.sena.trim().length === 0)">
-              <small><i class="bi bi-info-circle"></i> Letra o símbolo que se enseña</small>
+              <small><i class="bi bi-info-circle"></i> Letra, número o palabra que se enseña</small>
             </div>
 
             <div class="form-group">
